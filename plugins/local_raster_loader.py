@@ -27,6 +27,8 @@ from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.raster import RasterOut
 from geochat_sdk.exceptions import SDKDependencyError
 
+from plugins._shared.plugin_config import load_plugin_config, pick_first, resolve_env_refs
+
 
 PLUGIN_ID = "local_raster_loader"
 
@@ -40,7 +42,72 @@ ALLOWED_RASTER_EXTENSIONS: set[str] = {
 }
 
 
-def _validate_path(path: str, strict_extensions: bool = True) -> Path:
+
+def _load_loader_config() -> dict[str, Any]:
+    """
+    Load config/plugins/local_raster_loader.yaml if available.
+    """
+    config = load_plugin_config(PLUGIN_ID, required=False)
+    if not config:
+        return {}
+    return resolve_env_refs(config)
+
+
+def _configured_allowed_extensions(config: dict[str, Any]) -> set[str]:
+    """
+    Return allowed raster extensions from config or module defaults.
+    """
+    values = config.get("allowed_extensions")
+    if not values:
+        return set(ALLOWED_RASTER_EXTENSIONS)
+
+    if not isinstance(values, list):
+        raise ValueError("allowed_extensions in local_raster_loader config must be a list.")
+
+    return {str(item).lower() for item in values}
+
+
+def _configured_allowed_roots(config: dict[str, Any]) -> list[str]:
+    """
+    Return allowed roots from config.
+    Empty list means no root restriction.
+    """
+    values = config.get("allowed_roots") or []
+
+    if not isinstance(values, list):
+        raise ValueError("allowed_roots in local_raster_loader config must be a list.")
+
+    return [str(item) for item in values]
+
+
+def _ensure_under_allowed_roots(path: Path, allowed_roots: list[str] | None) -> None:
+    """
+    Ensure path is under one of allowed_roots.
+
+    If allowed_roots is empty or None, no restriction is applied.
+    """
+    if not allowed_roots:
+        return
+
+    resolved_path = path.resolve()
+    resolved_roots = [Path(root).expanduser().resolve() for root in allowed_roots]
+
+    for root in resolved_roots:
+        if resolved_path == root or root in resolved_path.parents:
+            return
+
+    raise ValueError(
+        f"Raster path is not under any allowed root: {resolved_path}. "
+        f"Allowed roots: {[str(r) for r in resolved_roots]}"
+    )
+
+
+def _validate_path(
+    path: str,
+    strict_extensions: bool = True,
+    allowed_extensions: set[str] | None = None,
+    allowed_roots: list[str] | None = None,
+) -> Path:
     """
     Validate a local raster file path.
 
@@ -70,11 +137,15 @@ def _validate_path(path: str, strict_extensions: bool = True) -> Path:
     if not raster_path.is_file():
         raise ValueError(f"Raster path is not a file: {raster_path}")
 
+    _ensure_under_allowed_roots(raster_path, allowed_roots)
+
     suffix = raster_path.suffix.lower()
-    if strict_extensions and suffix not in ALLOWED_RASTER_EXTENSIONS:
+    effective_extensions = allowed_extensions or ALLOWED_RASTER_EXTENSIONS
+
+    if strict_extensions and suffix not in effective_extensions:
         raise ValueError(
             "Unsupported raster extension "
-            f"'{suffix}'. Allowed extensions: {sorted(ALLOWED_RASTER_EXTENSIONS)}"
+            f"'{suffix}'. Allowed extensions: {sorted(effective_extensions)}"
         )
 
     return raster_path
@@ -207,6 +278,7 @@ def _extract_raster_metadata(raster_path: Path) -> dict[str, Any]:
         "returns": "RasterOut",
         "artifact_kind": "raster_ref",
         "access_scope": "read_raster",
+        "config_aware": True,
         "routable": True,
     },
 )
@@ -234,7 +306,20 @@ def load_local_raster(path: str, strict_extensions: bool = True) -> RasterOut:
         RuntimeError:
             Raster cannot be opened or metadata extraction fails.
     """
-    raster_path = _validate_path(path=path, strict_extensions=strict_extensions)
+    config = _load_loader_config()
+
+    final_strict_extensions = pick_first(
+        strict_extensions,
+        config.get("default_strict_extensions"),
+        default=True,
+    )
+
+    raster_path = _validate_path(
+        path=path,
+        strict_extensions=bool(final_strict_extensions),
+        allowed_extensions=_configured_allowed_extensions(config),
+        allowed_roots=_configured_allowed_roots(config),
+    )
     metadata = _extract_raster_metadata(raster_path)
 
     return RasterOut(

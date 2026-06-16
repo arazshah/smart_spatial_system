@@ -315,3 +315,103 @@ def test_capability_descriptor_content() -> None:
     assert descriptor.metadata["routable"] is True
     assert descriptor.metadata["category"] == "data_io"
     assert descriptor.metadata["artifact_kind"] == "raster_ref"
+
+
+def test_load_local_raster_uses_config_allowed_extension(monkeypatch, tmp_path: Path) -> None:
+    """
+    local_raster_loader should read allowed_extensions and allowed_roots from config.
+    """
+    import numpy as np
+    import rasterio
+    from rasterio.transform import from_origin
+
+    config_dir = tmp_path / "config" / "plugins"
+    config_dir.mkdir(parents=True)
+
+    data_dir = tmp_path / "rasters"
+    data_dir.mkdir()
+
+    raster_path = data_dir / "sample.dat"
+
+    with rasterio.open(
+        raster_path,
+        "w",
+        driver="GTiff",
+        height=2,
+        width=2,
+        count=1,
+        dtype="uint8",
+        crs="EPSG:4326",
+        transform=from_origin(0, 2, 1, 1),
+    ) as dst:
+        dst.write(np.ones((1, 2, 2), dtype="uint8"))
+
+    config_file = config_dir / "local_raster_loader.yaml"
+    config_file.write_text(
+        f"""
+default_strict_extensions: true
+allowed_extensions:
+  - .dat
+allowed_roots:
+  - {str(data_dir)}
+""",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("GEOCHAT_PLUGIN_CONFIG_DIR", str(config_dir))
+
+    result = load_local_raster(str(raster_path))
+
+    assert result is not None
+    assert result.path == str(raster_path.resolve())
+    assert result.metadata["filename"] == "sample.dat"
+    assert result.metadata["extension"] == ".dat"
+
+
+def test_load_local_raster_rejects_path_outside_config_allowed_roots(monkeypatch, tmp_path: Path) -> None:
+    """
+    local_raster_loader should reject files outside configured allowed_roots.
+    """
+    import numpy as np
+    import rasterio
+    from rasterio.transform import from_origin
+
+    config_dir = tmp_path / "config" / "plugins"
+    config_dir.mkdir(parents=True)
+
+    allowed_dir = tmp_path / "allowed"
+    outside_dir = tmp_path / "outside"
+    allowed_dir.mkdir()
+    outside_dir.mkdir()
+
+    raster_path = outside_dir / "sample.tif"
+
+    with rasterio.open(
+        raster_path,
+        "w",
+        driver="GTiff",
+        height=2,
+        width=2,
+        count=1,
+        dtype="uint8",
+        crs="EPSG:4326",
+        transform=from_origin(0, 2, 1, 1),
+    ) as dst:
+        dst.write(np.ones((1, 2, 2), dtype="uint8"))
+
+    config_file = config_dir / "local_raster_loader.yaml"
+    config_file.write_text(
+        f"""
+default_strict_extensions: true
+allowed_extensions:
+  - .tif
+allowed_roots:
+  - {str(allowed_dir)}
+""",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("GEOCHAT_PLUGIN_CONFIG_DIR", str(config_dir))
+
+    with pytest.raises(ValueError, match="allowed root"):
+        load_local_raster(str(raster_path))

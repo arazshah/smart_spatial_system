@@ -8,16 +8,19 @@ Plugin ID:
     postgis_connector
 
 Purpose:
-    Connect to a PostgreSQL/PostGIS database, fetch a spatial table/layer,
-    convert rows to GeoJSON Features using PostGIS functions, and return
-    a standard VectorOut object.
+    Connect to PostgreSQL/PostGIS, fetch a spatial table/layer,
+    convert rows to GeoJSON Features using PostGIS functions,
+    and return a standard VectorOut object.
 
-Design:
-    - psycopg is imported lazily only during execution.
-    - No database dependency is imported during plugin discovery.
-    - SQL identifiers are strictly validated to reduce injection risk.
-    - WHERE clause is optional but defensively checked.
-    - Output is always VectorOut, so SDK converts it to ExecutionArtifact(kind="features").
+New config-aware behavior:
+    The plugin can receive connection information directly as function parameters
+    or load it from config/plugins/postgis_connector.yaml using a profile.
+
+Usage:
+    fetch_postgis_layer(profile="local", table="roads")
+
+Config:
+    config/plugins/postgis_connector.yaml
 """
 
 from __future__ import annotations
@@ -30,6 +33,8 @@ from geochat_sdk.decorators import capability
 from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.vector import VectorOut
 from geochat_sdk.exceptions import SDKDependencyError
+
+from plugins._shared.plugin_config import get_profile_config, pick_first
 
 
 PLUGIN_ID = "postgis_connector"
@@ -58,26 +63,6 @@ _FORBIDDEN_WHERE_TOKENS = [
 
 
 def _validate_identifier(value: str, field_name: str) -> str:
-    """
-    Validate an SQL identifier such as schema, table or geometry column name.
-
-    This function only allows simple PostgreSQL identifiers:
-        - starts with a letter or underscore
-        - then letters, numbers or underscores
-
-    Args:
-        value:
-            Identifier value.
-        field_name:
-            Human-readable field name used in error messages.
-
-    Returns:
-        The validated identifier.
-
-    Raises:
-        ValueError:
-            If identifier is empty or unsafe.
-    """
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field_name} must be a non-empty string.")
 
@@ -93,16 +78,10 @@ def _validate_identifier(value: str, field_name: str) -> str:
 
 
 def _quote_identifier(value: str) -> str:
-    """
-    Quote a validated PostgreSQL identifier.
-    """
     return f'"{value}"'
 
 
 def _validate_limit(limit: int) -> int:
-    """
-    Validate LIMIT value.
-    """
     if not isinstance(limit, int):
         raise ValueError("limit must be an integer.")
 
@@ -116,9 +95,6 @@ def _validate_limit(limit: int) -> int:
 
 
 def _validate_output_srid(output_srid: int | None) -> int | None:
-    """
-    Validate optional output SRID.
-    """
     if output_srid is None:
         return None
 
@@ -132,29 +108,6 @@ def _validate_output_srid(output_srid: int | None) -> int | None:
 
 
 def _validate_where_clause(where: str | None) -> str | None:
-    """
-    Validate a simple WHERE clause.
-
-    The clause is still raw SQL, because real GIS filtering often requires
-    database-specific expressions. However, this function rejects obvious
-    dangerous tokens and statement separators.
-
-    Examples accepted:
-        population > 1000
-        name = 'Tehran'
-        ST_Intersects(geom, ST_MakeEnvelope(...))
-
-    Args:
-        where:
-            Optional WHERE expression without the 'WHERE' keyword.
-
-    Returns:
-        Cleaned where clause or None.
-
-    Raises:
-        ValueError:
-            If the clause contains unsafe tokens.
-    """
     if where is None:
         return None
 
@@ -187,33 +140,7 @@ def _build_conninfo(
     """
     Build PostgreSQL connection info.
 
-    Either provide:
-        - dsn
-    or provide:
-        - host, database, user, password
-
-    Args:
-        dsn:
-            Full PostgreSQL connection string.
-        host:
-            Database host.
-        port:
-            Database port.
-        database:
-            Database name.
-        user:
-            Username.
-        password:
-            Password.
-        connect_timeout:
-            Connection timeout in seconds.
-
-    Returns:
-        PostgreSQL connection string.
-
-    Raises:
-        ValueError:
-            If required connection information is missing.
+    Either provide dsn or host/database/user/password.
     """
     if dsn is not None and isinstance(dsn, str) and dsn.strip():
         return dsn.strip()
@@ -236,16 +163,14 @@ def _build_conninfo(
     if not isinstance(connect_timeout, int) or connect_timeout <= 0:
         raise ValueError("connect_timeout must be a positive integer.")
 
-    parts = [
+    return " ".join([
         f"host={host}",
         f"port={port}",
         f"dbname={database}",
         f"user={user}",
         f"password={password}",
         f"connect_timeout={connect_timeout}",
-    ]
-
-    return " ".join(parts)
+    ])
 
 
 def _build_select_features_sql(
@@ -257,37 +182,6 @@ def _build_select_features_sql(
     limit: int,
     output_srid: int | None,
 ) -> tuple[str, list[Any]]:
-    """
-    Build a safe SQL query that returns one JSONB GeoJSON Feature per row.
-
-    The query has this logical form:
-
-        SELECT jsonb_build_object(
-            'type', 'Feature',
-            'geometry', ST_AsGeoJSON(...geom...)::jsonb,
-            'properties', to_jsonb(t) - 'geom'
-        ) AS feature
-        FROM "schema"."table" AS t
-        WHERE ...
-        LIMIT %s
-
-    Args:
-        schema:
-            PostgreSQL schema name.
-        table:
-            Table name.
-        geom_col:
-            Geometry column.
-        where:
-            Optional WHERE clause without 'WHERE'.
-        limit:
-            Maximum number of rows.
-        output_srid:
-            Optional target SRID. If None, no ST_Transform is applied.
-
-    Returns:
-        Tuple of SQL string and parameter list.
-    """
     schema = _validate_identifier(schema, "schema")
     table = _validate_identifier(table, "table")
     geom_col = _validate_identifier(geom_col, "geom_col")
@@ -335,19 +229,10 @@ FROM {schema_sql}.{table_sql} AS t
 
 
 def _is_number(value: Any) -> bool:
-    """
-    Return True if value is int/float but not bool.
-    """
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def _geometry_bbox(geometry: dict[str, Any] | None) -> list[float] | None:
-    """
-    Calculate bbox from GeoJSON geometry.
-
-    Returns:
-        [minx, miny, maxx, maxy] or None.
-    """
     if not geometry:
         return None
 
@@ -382,9 +267,6 @@ def _geometry_bbox(geometry: dict[str, Any] | None) -> list[float] | None:
 
 
 def _merge_bboxes(bboxes: list[list[float]]) -> dict[str, float] | None:
-    """
-    Merge multiple bbox arrays into one bbox dict.
-    """
     valid = [b for b in bboxes if b and len(b) == 4]
     if not valid:
         return None
@@ -398,14 +280,6 @@ def _merge_bboxes(bboxes: list[list[float]]) -> dict[str, float] | None:
 
 
 def _normalize_feature(value: Any, row_index: int) -> dict[str, Any]:
-    """
-    Normalize a database-returned value into a GeoJSON Feature dict.
-
-    psycopg may return JSONB as:
-        - dict
-        - str
-        - bytes
-    """
     if isinstance(value, bytes):
         value = value.decode("utf-8")
 
@@ -424,6 +298,7 @@ def _normalize_feature(value: Any, row_index: int) -> dict[str, Any]:
     properties = value.get("properties")
     if properties is None:
         properties = {}
+
     if not isinstance(properties, dict):
         raise ValueError(f"Database row {row_index} properties must be an object or null.")
 
@@ -438,13 +313,6 @@ def _normalize_feature(value: Any, row_index: int) -> dict[str, Any]:
 
 
 def _row_to_feature(row: Any, row_index: int) -> dict[str, Any]:
-    """
-    Extract the 'feature' column from a DB row.
-
-    Supports:
-        - dict rows: {"feature": ...}
-        - tuple/list rows: (feature,)
-    """
     if isinstance(row, dict):
         if "feature" not in row:
             raise ValueError(f"Database row {row_index} does not contain 'feature' column.")
@@ -459,12 +327,6 @@ def _row_to_feature(row: Any, row_index: int) -> dict[str, Any]:
 
 
 def _execute_postgis_query(conninfo: str, sql: str, params: list[Any]) -> list[dict[str, Any]]:
-    """
-    Execute SQL using psycopg and return GeoJSON features.
-
-    psycopg is imported lazily to avoid startup failure when the dependency is
-    not installed.
-    """
     try:
         import psycopg
     except ImportError as exc:
@@ -486,8 +348,6 @@ def _execute_postgis_query(conninfo: str, sql: str, params: list[Any]) -> list[d
 
         return features
 
-    except SDKDependencyError:
-        raise
     except Exception as exc:
         raise RuntimeError(f"Failed to execute PostGIS query. Error: {exc}") from exc
 
@@ -503,10 +363,8 @@ def _build_metadata(
     output_srid: int | None,
     host: str | None,
     database: str | None,
+    profile: str | None,
 ) -> dict[str, Any]:
-    """
-    Build JSON-friendly metadata for fetched layer.
-    """
     geometry_types: dict[str, int] = {}
     bboxes: list[list[float]] = []
 
@@ -540,6 +398,7 @@ def _build_metadata(
         "limit": limit,
         "output_srid": output_srid,
         "crs": f"EPSG:{output_srid}" if output_srid else None,
+        "profile": profile,
         "connection": {
             "host": host,
             "database": database,
@@ -547,10 +406,17 @@ def _build_metadata(
     }
 
 
+def _to_int_or_none(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    return int(value)
+
+
 @capability(
     name="fetch_postgis_layer",
     keywords=[
-        # English keywords
         "postgis",
         "postgres",
         "postgresql",
@@ -564,8 +430,6 @@ def _build_metadata(
         "sql layer",
         "db layer",
         "gis database",
-
-        # Persian keywords
         "پست‌جیس",
         "پست جیس",
         "پستگیس",
@@ -581,11 +445,12 @@ def _build_metadata(
         "اتصال به پایگاه داده",
     ],
     description=(
-        "Connect to a PostgreSQL/PostGIS database, fetch a spatial table/layer, "
+        "Connect to PostgreSQL/PostGIS, fetch a spatial table/layer, "
         "and return GeoJSON-like features as VectorOut."
     ),
     required_inputs=["table"],
     optional_inputs=[
+        "profile",
         "dsn",
         "schema",
         "geom_col",
@@ -609,91 +474,120 @@ def _build_metadata(
         "returns": "VectorOut",
         "artifact_kind": "features",
         "access_scope": "read_database",
+        "config_aware": True,
+        "supports_profiles": True,
         "routable": True,
     },
 )
 def fetch_postgis_layer(
     table: str,
+    profile: str | None = None,
     dsn: str | None = None,
-    schema: str = "public",
-    geom_col: str = "geom",
+    schema: str | None = None,
+    geom_col: str | None = None,
     where: str | None = None,
-    limit: int = 1000,
+    limit: int | None = None,
     output_srid: int | None = None,
     host: str | None = None,
-    port: int = 5432,
+    port: int | None = None,
     database: str | None = None,
     user: str | None = None,
     password: str | None = None,
-    connect_timeout: int = 10,
+    connect_timeout: int | None = None,
 ) -> VectorOut:
     """
     Fetch a spatial layer from PostGIS and return it as VectorOut.
 
-    Args:
-        table:
-            Table name. Required.
-        dsn:
-            Optional PostgreSQL DSN/connection string.
-        schema:
-            PostgreSQL schema name. Default: public.
-        geom_col:
-            Geometry column name. Default: geom.
-        where:
-            Optional SQL WHERE expression without the WHERE keyword.
-        limit:
-            Maximum number of features to fetch.
-        output_srid:
-            Optional SRID for ST_Transform. If None, no transform is applied.
-        host:
-            PostgreSQL host, used if dsn is not provided.
-        port:
-            PostgreSQL port.
-        database:
-            Database name, used if dsn is not provided.
-        user:
-            Database username, used if dsn is not provided.
-        password:
-            Database password, used if dsn is not provided.
-        connect_timeout:
-            Connection timeout in seconds.
+    Connection can be provided in two ways:
 
-    Returns:
-        VectorOut:
-            GeoJSON Features and metadata.
+    1. Direct parameters:
+        fetch_postgis_layer(
+            host="localhost",
+            database="gis",
+            user="postgres",
+            password="secret",
+            table="roads",
+        )
 
-    Raises:
-        ValueError:
-            Invalid input, unsafe SQL identifier or unsafe WHERE clause.
-        SDKDependencyError:
-            psycopg is not installed.
-        RuntimeError:
-            Connection/query failed.
+    2. Config profile:
+        fetch_postgis_layer(
+            profile="local",
+            table="roads",
+        )
+
+    Direct function parameters always override config values.
     """
-    schema = _validate_identifier(schema, "schema")
+    profile_config = get_profile_config(
+        plugin_id=PLUGIN_ID,
+        profile=profile,
+        required=False,
+    )
+
+    final_schema = pick_first(
+        schema,
+        profile_config.get("default_schema"),
+        profile_config.get("schema"),
+        default="public",
+    )
+
+    final_geom_col = pick_first(
+        geom_col,
+        profile_config.get("default_geom_col"),
+        profile_config.get("geom_col"),
+        default="geom",
+    )
+
+    final_limit = pick_first(
+        limit,
+        profile_config.get("default_limit"),
+        profile_config.get("limit"),
+        default=1000,
+    )
+
+    final_output_srid = pick_first(
+        output_srid,
+        profile_config.get("output_srid"),
+        default=None,
+    )
+
+    final_dsn = pick_first(dsn, profile_config.get("dsn"), default=None)
+    final_host = pick_first(host, profile_config.get("host"), default=None)
+    final_port = pick_first(port, profile_config.get("port"), default=5432)
+    final_database = pick_first(database, profile_config.get("database"), default=None)
+    final_user = pick_first(user, profile_config.get("user"), default=None)
+    final_password = pick_first(password, profile_config.get("password"), default=None)
+    final_connect_timeout = pick_first(
+        connect_timeout,
+        profile_config.get("connect_timeout"),
+        default=10,
+    )
+
+    final_schema = _validate_identifier(str(final_schema), "schema")
     table = _validate_identifier(table, "table")
-    geom_col = _validate_identifier(geom_col, "geom_col")
-    limit = _validate_limit(limit)
-    output_srid = _validate_output_srid(output_srid)
+    final_geom_col = _validate_identifier(str(final_geom_col), "geom_col")
+    final_limit = _validate_limit(_to_int_or_none(final_limit))
+    final_output_srid = _validate_output_srid(_to_int_or_none(final_output_srid))
     where = _validate_where_clause(where)
+    final_port = _to_int_or_none(final_port)
+    final_connect_timeout = _to_int_or_none(final_connect_timeout)
 
     conninfo = _build_conninfo(
-        dsn=dsn,
-        host=host,
-        port=port,
-        database=database,
-        user=user,
-        password=password,
-        connect_timeout=connect_timeout,
+        dsn=final_dsn,
+        host=final_host,
+        port=final_port,
+        database=final_database,
+        user=final_user,
+        password=final_password,
+        connect_timeout=final_connect_timeout,
     )
 
     sql, params = _build_select_features_sql(
-        schema=schema,
+        schema=final_schema,
         table=table,
-        geom_col=geom_col,
+        geom_col=final_geom_col,
         where=where,
-        limit=limit,
-        output_srid=output_srid,
+        limit=final_limit,
+        output_srid=final_output_srid,
     )
 
     features = _execute_postgis_query(
@@ -704,14 +598,15 @@ def fetch_postgis_layer(
 
     metadata = _build_metadata(
         features=features,
-        schema=schema,
+        schema=final_schema,
         table=table,
-        geom_col=geom_col,
+        geom_col=final_geom_col,
         where=where,
-        limit=limit,
-        output_srid=output_srid,
-        host=host,
-        database=database,
+        limit=final_limit,
+        output_srid=final_output_srid,
+        host=final_host,
+        database=final_database,
+        profile=profile,
     )
 
     return VectorOut(
@@ -722,11 +617,11 @@ def fetch_postgis_layer(
 
 PLUGIN = auto_collect(
     id=PLUGIN_ID,
-    version="1.0.0",
+    version="1.1.0",
     name="PostGIS Connector",
     description=(
         "Connects to PostgreSQL/PostGIS databases and fetches spatial layers "
-        "as GeoJSON features for the GeoChat spatial pipeline."
+        "as GeoJSON features for the GeoChat spatial pipeline. Supports config profiles."
     ),
     author="GeoChat Platform Team",
     permissions=["database"],

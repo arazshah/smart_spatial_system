@@ -1,0 +1,13 @@
+default_strict_extensions: true
+
+allowed_extensions:
+  - .tif
+  - .tiff
+  - .geotiff
+  - .vrt
+  - .img
+  - .jp2
+
+allowed_roots:
+  - data/rasters
+  - data/plugins/local_raster_loader

@@ -1,0 +1,15 @@
+default_profile: local
+
+profiles:
+  local:
+    host: localhost
+    port: 5432
+    database: gis
+    user: postgres
+    password_env: POSTGIS_PASSWORD
+
+    default_schema: public
+    default_geom_col: geom
+    default_limit: 1000
+    output_srid: 4326
+    connect_timeout: 10

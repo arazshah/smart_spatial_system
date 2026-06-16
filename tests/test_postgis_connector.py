@@ -40,7 +40,7 @@ def test_plugin_manifest_basic_fields() -> None:
     """
     assert PLUGIN.manifest.id == PLUGIN_ID
     assert PLUGIN.manifest.id == "postgis_connector"
-    assert PLUGIN.manifest.version == "1.0.0"
+    assert PLUGIN.manifest.version == "1.1.0"
     assert PLUGIN.manifest.name == "PostGIS Connector"
     assert "database" in PLUGIN.manifest.permissions
 
@@ -489,10 +489,20 @@ def test_fetch_postgis_layer_rejects_unsafe_table() -> None:
         )
 
 
-def test_fetch_postgis_layer_rejects_missing_connection() -> None:
+def test_fetch_postgis_layer_rejects_missing_connection(monkeypatch, tmp_path: Path) -> None:
     """
-    Missing connection info must raise ValueError.
+    Missing connection info must raise ValueError when no config profile is available.
+
+    Since postgis_connector is now config-aware, the normal project config may provide
+    a default_profile. This test isolates config lookup into an empty temporary
+    config directory.
     """
+    empty_config_dir = tmp_path / "empty_config" / "plugins"
+    empty_config_dir.mkdir(parents=True)
+
+    monkeypatch.setenv("GEOCHAT_PLUGIN_CONFIG_DIR", str(empty_config_dir))
+    monkeypatch.delenv("POSTGIS_PASSWORD", raising=False)
+
     with pytest.raises(ValueError):
         fetch_postgis_layer(table="roads")
 
@@ -570,3 +580,68 @@ def test_capability_descriptor_content() -> None:
     assert descriptor.metadata["category"] == "data_io"
     assert descriptor.metadata["artifact_kind"] == "features"
     assert descriptor.metadata["access_scope"] == "read_database"
+
+
+def test_fetch_postgis_layer_with_config_profile(monkeypatch, tmp_path: Path) -> None:
+    """
+    fetch_postgis_layer should load connection settings from config profile.
+    """
+    config_dir = tmp_path / "config" / "plugins"
+    config_dir.mkdir(parents=True)
+
+    config_file = config_dir / "postgis_connector.yaml"
+    config_file.write_text(
+        """
+default_profile: local
+profiles:
+  local:
+    host: localhost
+    port: 5432
+    database: gis
+    user: postgres
+    password_env: TEST_POSTGIS_PASSWORD
+    default_schema: public
+    default_geom_col: geom
+    default_limit: 10
+    output_srid: 4326
+    connect_timeout: 5
+""",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("GEOCHAT_PLUGIN_CONFIG_DIR", str(config_dir))
+    monkeypatch.setenv("TEST_POSTGIS_PASSWORD", "secret")
+
+    rows = [
+        {
+            "feature": {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [51.4, 35.7],
+                },
+                "properties": {
+                    "id": 1,
+                    "name": "A",
+                },
+            }
+        }
+    ]
+
+    install_fake_psycopg(monkeypatch, rows)
+
+    result = fetch_postgis_layer(
+        profile="local",
+        table="roads",
+    )
+
+    assert len(result.features) == 1
+    assert result.metadata["profile"] == "local"
+    assert result.metadata["schema"] == "public"
+    assert result.metadata["table"] == "roads"
+    assert result.metadata["geom_col"] == "geom"
+    assert result.metadata["limit"] == 10
+    assert result.metadata["output_srid"] == 4326
+    assert result.metadata["crs"] == "EPSG:4326"
+    assert result.metadata["connection"]["host"] == "localhost"
+    assert result.metadata["connection"]["database"] == "gis"

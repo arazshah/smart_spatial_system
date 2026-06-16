@@ -1,0 +1,14 @@
+default_strict_extensions: true
+default_max_features: 10000
+
+allowed_extensions:
+  - .geojson
+  - .json
+  - .shp
+  - .gpkg
+  - .kml
+  - .fgb
+
+allowed_roots:
+  - data/vectors
+  - data/plugins/local_vector_loader

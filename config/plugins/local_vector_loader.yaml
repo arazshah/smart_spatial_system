@@ -1,0 +1,13 @@
+default_strict_extensions: true
+default_max_features: null
+
+allowed_extensions:
+  - .geojson
+  - .json
+  - .shp
+  - .gpkg
+  - .kml
+  - .fgb
+
+# اگر خالی باشد، از همه مسیرها می‌تواند بخواند.
+allowed_roots: []

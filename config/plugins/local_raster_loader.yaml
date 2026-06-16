@@ -1,0 +1,13 @@
+default_strict_extensions: true
+
+allowed_extensions:
+  - .tif
+  - .tiff
+  - .geotiff
+  - .vrt
+  - .img
+  - .jp2
+
+# اگر خالی باشد، از همه مسیرها می‌تواند بخواند.
+# برای محیط production بهتر است محدود شود.
+allowed_roots: []

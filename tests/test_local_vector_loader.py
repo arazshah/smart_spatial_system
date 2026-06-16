@@ -478,3 +478,103 @@ def test_capability_descriptor_content() -> None:
     assert descriptor.metadata["category"] == "data_io"
     assert descriptor.metadata["artifact_kind"] == "features"
     assert descriptor.metadata["access_scope"] == "read_vector"
+
+
+def test_load_local_vector_uses_config_allowed_extension_and_default_max_features(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """
+    local_vector_loader should read allowed_extensions, allowed_roots and
+    default_max_features from config.
+    """
+    config_dir = tmp_path / "config" / "plugins"
+    config_dir.mkdir(parents=True)
+
+    data_dir = tmp_path / "vectors"
+    data_dir.mkdir()
+
+    vector_path = data_dir / "sample.txt"
+
+    data = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [1, 2]},
+                "properties": {"id": 1},
+            },
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [3, 4]},
+                "properties": {"id": 2},
+            },
+        ],
+    }
+
+    vector_path.write_text(json.dumps(data), encoding="utf-8")
+
+    config_file = config_dir / "local_vector_loader.yaml"
+    config_file.write_text(
+        f"""
+default_strict_extensions: true
+default_max_features: 1
+allowed_extensions:
+  - .txt
+allowed_roots:
+  - {str(data_dir)}
+""",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("GEOCHAT_PLUGIN_CONFIG_DIR", str(config_dir))
+
+    result = load_local_vector(str(vector_path))
+
+    assert result is not None
+    assert len(result.features) == 1
+    assert result.metadata["filename"] == "sample.txt"
+    assert result.metadata["extension"] == ".txt"
+    assert result.metadata["feature_count"] == 1
+
+
+def test_load_local_vector_rejects_path_outside_config_allowed_roots(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """
+    local_vector_loader should reject files outside configured allowed_roots.
+    """
+    config_dir = tmp_path / "config" / "plugins"
+    config_dir.mkdir(parents=True)
+
+    allowed_dir = tmp_path / "allowed"
+    outside_dir = tmp_path / "outside"
+    allowed_dir.mkdir()
+    outside_dir.mkdir()
+
+    vector_path = outside_dir / "sample.geojson"
+
+    data = {
+        "type": "FeatureCollection",
+        "features": [],
+    }
+
+    vector_path.write_text(json.dumps(data), encoding="utf-8")
+
+    config_file = config_dir / "local_vector_loader.yaml"
+    config_file.write_text(
+        f"""
+default_strict_extensions: true
+allowed_extensions:
+  - .geojson
+allowed_roots:
+  - {str(allowed_dir)}
+""",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("GEOCHAT_PLUGIN_CONFIG_DIR", str(config_dir))
+
+    with pytest.raises(ValueError, match="allowed root"):
+        load_local_vector(str(vector_path))

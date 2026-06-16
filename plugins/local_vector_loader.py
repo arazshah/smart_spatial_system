@@ -29,6 +29,8 @@ from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.vector import VectorOut
 from geochat_sdk.exceptions import SDKDependencyError
 
+from plugins._shared.plugin_config import load_plugin_config, pick_first, resolve_env_refs
+
 
 PLUGIN_ID = "local_vector_loader"
 
@@ -50,7 +52,72 @@ GEOPANDAS_REQUIRED_EXTENSIONS: set[str] = {
 }
 
 
-def _validate_path(path: str, strict_extensions: bool = True) -> Path:
+
+def _load_loader_config() -> dict[str, Any]:
+    """
+    Load config/plugins/local_vector_loader.yaml if available.
+    """
+    config = load_plugin_config(PLUGIN_ID, required=False)
+    if not config:
+        return {}
+    return resolve_env_refs(config)
+
+
+def _configured_allowed_extensions(config: dict[str, Any]) -> set[str]:
+    """
+    Return allowed vector extensions from config or module defaults.
+    """
+    values = config.get("allowed_extensions")
+    if not values:
+        return set(ALLOWED_VECTOR_EXTENSIONS)
+
+    if not isinstance(values, list):
+        raise ValueError("allowed_extensions in local_vector_loader config must be a list.")
+
+    return {str(item).lower() for item in values}
+
+
+def _configured_allowed_roots(config: dict[str, Any]) -> list[str]:
+    """
+    Return allowed roots from config.
+    Empty list means no root restriction.
+    """
+    values = config.get("allowed_roots") or []
+
+    if not isinstance(values, list):
+        raise ValueError("allowed_roots in local_vector_loader config must be a list.")
+
+    return [str(item) for item in values]
+
+
+def _ensure_under_allowed_roots(path: Path, allowed_roots: list[str] | None) -> None:
+    """
+    Ensure path is under one of allowed_roots.
+
+    If allowed_roots is empty or None, no restriction is applied.
+    """
+    if not allowed_roots:
+        return
+
+    resolved_path = path.resolve()
+    resolved_roots = [Path(root).expanduser().resolve() for root in allowed_roots]
+
+    for root in resolved_roots:
+        if resolved_path == root or root in resolved_path.parents:
+            return
+
+    raise ValueError(
+        f"Vector path is not under any allowed root: {resolved_path}. "
+        f"Allowed roots: {[str(r) for r in resolved_roots]}"
+    )
+
+
+def _validate_path(
+    path: str,
+    strict_extensions: bool = True,
+    allowed_extensions: set[str] | None = None,
+    allowed_roots: list[str] | None = None,
+) -> Path:
     """
     Validate a local vector file path.
 
@@ -80,11 +147,15 @@ def _validate_path(path: str, strict_extensions: bool = True) -> Path:
     if not vector_path.is_file():
         raise ValueError(f"Vector path is not a file: {vector_path}")
 
+    _ensure_under_allowed_roots(vector_path, allowed_roots)
+
     suffix = vector_path.suffix.lower()
-    if strict_extensions and suffix not in ALLOWED_VECTOR_EXTENSIONS:
+    effective_extensions = allowed_extensions or ALLOWED_VECTOR_EXTENSIONS
+
+    if strict_extensions and suffix not in effective_extensions:
         raise ValueError(
             "Unsupported vector extension "
-            f"'{suffix}'. Allowed extensions: {sorted(ALLOWED_VECTOR_EXTENSIONS)}"
+            f"'{suffix}'. Allowed extensions: {sorted(effective_extensions)}"
         )
 
     return vector_path
@@ -405,12 +476,13 @@ def _load_with_geopandas(
         "returns": "VectorOut",
         "artifact_kind": "features",
         "access_scope": "read_vector",
+        "config_aware": True,
         "routable": True,
     },
 )
 def load_local_vector(
     path: str,
-    strict_extensions: bool = True,
+    strict_extensions: bool | None = None,
     layer: str | None = None,
     max_features: int | None = None,
 ) -> VectorOut:
@@ -441,24 +513,51 @@ def load_local_vector(
         RuntimeError:
             Vector file cannot be opened or converted.
     """
-    vector_path = _validate_path(path=path, strict_extensions=strict_extensions)
-    suffix = vector_path.suffix.lower()
+    config = _load_loader_config()
 
-    if suffix in {".geojson", ".json"}:
+    final_strict_extensions = pick_first(
+        strict_extensions,
+        config.get("default_strict_extensions"),
+        default=True,
+    )
+
+    final_max_features = pick_first(
+        max_features,
+        config.get("default_max_features"),
+        default=None,
+    )
+
+    vector_path = _validate_path(
+        path=path,
+        strict_extensions=bool(final_strict_extensions),
+        allowed_extensions=_configured_allowed_extensions(config),
+        allowed_roots=_configured_allowed_roots(config),
+    )
+    suffix = vector_path.suffix.lower()
+    effective_extensions = _configured_allowed_extensions(config)
+
+    # GeoJSON-like text formats:
+    # - Built-in .geojson/.json
+    # - Any configured extension that is not a geopandas-dependent binary/native format
+    geojson_like_extensions = {".geojson", ".json"} | (
+        effective_extensions - GEOPANDAS_REQUIRED_EXTENSIONS
+    )
+
+    if suffix in geojson_like_extensions:
         features, metadata = _load_geojson(
             vector_path=vector_path,
-            max_features=max_features,
+            max_features=final_max_features,
         )
     elif suffix in GEOPANDAS_REQUIRED_EXTENSIONS:
         features, metadata = _load_with_geopandas(
             vector_path=vector_path,
             layer=layer,
-            max_features=max_features,
+            max_features=final_max_features,
         )
     else:
         raise ValueError(
             f"Unsupported vector extension '{suffix}'. "
-            f"Allowed extensions: {sorted(ALLOWED_VECTOR_EXTENSIONS)}"
+            f"Allowed extensions: {sorted(effective_extensions)}"
         )
 
     return VectorOut(

@@ -1,0 +1,35 @@
+# Example config for postgis_connector.
+# Copy this file to postgis_connector.yaml and edit values for your environment.
+#
+# IMPORTANT:
+# Do not store real passwords in this file if it is committed to git.
+# Use password_env instead.
+
+default_profile: local
+
+profiles:
+  local:
+    host: localhost
+    port: 5432
+    database: gis
+    user: postgres
+    password_env: POSTGIS_PASSWORD
+
+    default_schema: public
+    default_geom_col: geom
+    default_limit: 1000
+    output_srid: 4326
+    connect_timeout: 10
+
+  production:
+    host_env: POSTGIS_HOST
+    port: 5432
+    database_env: POSTGIS_DATABASE
+    user_env: POSTGIS_USER
+    password_env: POSTGIS_PASSWORD
+
+    default_schema: public
+    default_geom_col: geom
+    default_limit: 5000
+    output_srid: 4326
+    connect_timeout: 10

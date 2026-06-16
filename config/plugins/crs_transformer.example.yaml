@@ -1,0 +1,27 @@
+# Example config for crs_transformer.
+#
+# For full CRS transformation support, install pyproj:
+#   pip install pyproj
+#
+# Without pyproj, this plugin supports only:
+#   EPSG:4326 -> EPSG:3857
+#   EPSG:3857 -> EPSG:4326
+#   identity transform
+
+default_source_crs: EPSG:4326
+default_target_crs: EPSG:3857
+default_engine: auto       # auto | pyproj | python
+
+preserve_properties: true
+allow_identity: true
+
+# Number of decimal digits for transformed coordinates.
+# null means no rounding.
+coordinate_precision: 8
+
+# Empty list means unrestricted.
+# If set, source_crs and target_crs must be in this list.
+allowed_crs: []
+
+metadata:
+  operation_name: crs_transform

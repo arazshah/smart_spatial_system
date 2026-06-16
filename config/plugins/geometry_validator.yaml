@@ -1,0 +1,24 @@
+default_engine: auto
+default_repair: false
+default_drop_invalid: false
+preserve_properties: true
+
+min_coordinates:
+  LineString: 2
+  Polygon: 4
+  MultiPoint: 1
+  MultiLineString: 2
+  MultiPolygon: 4
+
+allowed_geometry_types:
+  - Point
+  - MultiPoint
+  - LineString
+  - MultiLineString
+  - Polygon
+  - MultiPolygon
+  - GeometryCollection
+
+flags:
+  add_validity_flag: true
+  add_reason_field: true

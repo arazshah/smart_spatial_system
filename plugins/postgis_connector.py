@@ -517,11 +517,35 @@ def fetch_postgis_layer(
 
     Direct function parameters always override config values.
     """
-    profile_config = get_profile_config(
-        plugin_id=PLUGIN_ID,
-        profile=profile,
-        required=False,
+    # If direct connection parameters are provided and no explicit profile is requested,
+    # do not load profile config. This prevents unrelated config/env problems from
+    # breaking direct calls such as tests or one-off executions.
+    #
+    # Example:
+    #   fetch_postgis_layer(dsn="postgresql://...", table="roads")
+    #
+    # In this case, password_env from config must not be resolved.
+    direct_connection_provided = any(
+        value is not None
+        for value in (
+            dsn,
+            host,
+            port,
+            database,
+            user,
+            password,
+            connect_timeout,
+        )
     )
+
+    if profile is None and direct_connection_provided:
+        profile_config = {}
+    else:
+        profile_config = get_profile_config(
+            plugin_id=PLUGIN_ID,
+            profile=profile,
+            required=False,
+        )
 
     final_schema = pick_first(
         schema,

@@ -1,0 +1,30 @@
+# Example config for geometry_validator.
+#
+# For full validation/repair of complex geometries, install shapely:
+#   pip install shapely
+
+default_engine: auto        # auto | shapely | python
+default_repair: false       # repair invalid geometries only when explicitly requested
+default_drop_invalid: false # if true, invalid features are removed instead of flagged
+preserve_properties: true
+
+# minimum coordinate count rules per geometry type (basic structural checks)
+min_coordinates:
+  LineString: 2
+  Polygon: 4            # closed ring needs at least 4 positions
+  MultiPoint: 1
+  MultiLineString: 2
+  MultiPolygon: 4
+
+allowed_geometry_types:
+  - Point
+  - MultiPoint
+  - LineString
+  - MultiLineString
+  - Polygon
+  - MultiPolygon
+  - GeometryCollection
+
+flags:
+  add_validity_flag: true        # add _valid flag in feature properties
+  add_reason_field: true         # add _validity_reason in feature properties

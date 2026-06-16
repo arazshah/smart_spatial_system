@@ -1,0 +1,12 @@
+default_source_crs: EPSG:4326
+default_target_crs: EPSG:3857
+default_engine: auto
+
+preserve_properties: true
+allow_identity: true
+coordinate_precision: 8
+
+allowed_crs: []
+
+metadata:
+  operation_name: crs_transform

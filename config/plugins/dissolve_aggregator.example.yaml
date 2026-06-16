@@ -1,0 +1,37 @@
+# Example config for dissolve_aggregator.
+#
+# For exact geometry dissolve, install shapely:
+#   pip install shapely
+#
+# Engine:
+#   auto    -> use shapely if available, otherwise python bbox fallback
+#   shapely -> exact unary_union geometry dissolve
+#   python  -> bbox-based fallback
+
+default_engine: auto
+default_group_by: null          # null means dissolve all features into one group
+coordinate_precision: 6         # null means no rounding
+
+drop_failed: false
+preserve_group_fields: true
+
+# Optional CRS hint. Does not transform geometry.
+source_crs: null
+warn_if_geographic_crs: false
+
+# Default aggregations if aggregate_fields is not provided.
+# Supported ops:
+#   count, non_null_count, sum, mean, min, max, first, last, unique_count, values
+default_aggregate_fields: {}
+
+aggregation:
+  output_separator: "_"
+  values_max_items: 1000
+
+fields:
+  group_key_field: _group_key
+  group_by_field: _group_by
+  feature_count_field: _feature_count
+  dissolved_count_field: _dissolved_count
+  status_field: _dissolve_status
+  engine_field: _dissolve_engine

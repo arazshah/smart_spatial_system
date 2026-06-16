@@ -1,0 +1,23 @@
+default_engine: auto
+default_group_by: null
+coordinate_precision: 6
+
+drop_failed: false
+preserve_group_fields: true
+
+source_crs: null
+warn_if_geographic_crs: false
+
+default_aggregate_fields: {}
+
+aggregation:
+  output_separator: "_"
+  values_max_items: 1000
+
+fields:
+  group_key_field: _group_key
+  group_by_field: _group_by
+  feature_count_field: _feature_count
+  dissolved_count_field: _dissolved_count
+  status_field: _dissolve_status
+  engine_field: _dissolve_engine

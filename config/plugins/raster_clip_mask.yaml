@@ -1,0 +1,14 @@
+default_engine: python
+default_crop: true
+default_mask: true
+default_all_touched: false
+default_nodata: null
+coordinate_precision: 6
+
+preserve_metadata: true
+warn_if_geographic_crs: false
+source_crs: null
+
+fields:
+  clipped_by_field: clipped_by
+  masked_field: masked

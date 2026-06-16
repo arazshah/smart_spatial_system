@@ -1,0 +1,34 @@
+# Example config for raster_clip_mask.
+#
+# This plugin clips and masks in-memory raster-like data.
+#
+# Raster data format:
+#   2D:
+#     data[row][col]
+#   3D band-first:
+#     data[band][row][col]
+#
+# Transform format:
+#   [a, b, c, d, e, f]
+#
+# For north-up raster:
+#   x = a * col + b * row + c
+#   y = d * col + e * row + f
+#
+# Usually:
+#   [pixel_width, 0, origin_x, 0, -pixel_height, origin_y]
+
+default_engine: python          # python | auto
+default_crop: true
+default_mask: true
+default_all_touched: false
+default_nodata: null
+coordinate_precision: 6
+
+preserve_metadata: true
+warn_if_geographic_crs: false
+source_crs: null
+
+fields:
+  clipped_by_field: clipped_by
+  masked_field: masked

@@ -1,0 +1,1810 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>راهنمای جامع تولید پلاگین با GeoChat SDK</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --panel-2: #eef3f8;
+      --text: #172033;
+      --muted: #5d6b82;
+      --primary: #0f766e;
+      --primary-2: #0891b2;
+      --accent: #7c3aed;
+      --danger: #dc2626;
+      --warning: #d97706;
+      --success: #059669;
+      --code-bg: #0f172a;
+      --code-text: #e5e7eb;
+      --border: #d8e0ea;
+      --shadow: 0 14px 40px rgba(15, 23, 42, 0.10);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Vazirmatn", "Tahoma", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(8,145,178,0.10), transparent 28%),
+        radial-gradient(circle at top right, rgba(124,58,237,0.08), transparent 30%),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.9;
+      font-size: 16px;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 34px 22px 80px;
+    }
+
+    .hero {
+      background:
+        linear-gradient(135deg, rgba(15,118,110,0.95), rgba(8,145,178,0.92)),
+        linear-gradient(45deg, #0f172a, #1e293b);
+      color: white;
+      border-radius: 28px;
+      padding: 44px 42px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 30px;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: -120px auto auto -120px;
+      width: 310px;
+      height: 310px;
+      background: rgba(255,255,255,0.14);
+      border-radius: 50%;
+      filter: blur(4px);
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -80px;
+      bottom: -120px;
+      width: 340px;
+      height: 340px;
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 50%;
+    }
+
+    .hero h1 {
+      margin: 0 0 16px;
+      font-size: 34px;
+      line-height: 1.45;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 880px;
+      color: rgba(255,255,255,0.92);
+      position: relative;
+      z-index: 1;
+      font-size: 17px;
+    }
+
+    .badge-row {
+      margin-top: 26px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      position: relative;
+      z-index: 1;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(255,255,255,0.16);
+      border: 1px solid rgba(255,255,255,0.22);
+      color: white;
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      backdrop-filter: blur(10px);
+    }
+
+    .toc {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      box-shadow: var(--shadow);
+      margin-bottom: 26px;
+    }
+
+    .toc h2 {
+      margin-top: 0;
+    }
+
+    .toc ol {
+      margin: 0;
+      columns: 2;
+      column-gap: 48px;
+      padding-right: 22px;
+    }
+
+    .toc a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .section {
+      background: rgba(255,255,255,0.92);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 30px;
+      margin: 26px 0;
+      box-shadow: var(--shadow);
+    }
+
+    h2 {
+      color: #0f3f4a;
+      font-size: 25px;
+      margin: 0 0 18px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    h3 {
+      color: #164e63;
+      font-size: 20px;
+      margin-top: 30px;
+    }
+
+    h4 {
+      color: #334155;
+      font-size: 17px;
+      margin-top: 24px;
+    }
+
+    p {
+      margin: 10px 0 14px;
+    }
+
+    ul, ol {
+      padding-right: 24px;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    .note, .warning, .danger, .success {
+      padding: 15px 18px;
+      border-radius: 14px;
+      margin: 18px 0;
+      border-right: 5px solid;
+    }
+
+    .note {
+      background: #ecfeff;
+      border-color: var(--primary-2);
+    }
+
+    .warning {
+      background: #fff7ed;
+      border-color: var(--warning);
+    }
+
+    .danger {
+      background: #fef2f2;
+      border-color: var(--danger);
+    }
+
+    .success {
+      background: #ecfdf5;
+      border-color: var(--success);
+    }
+
+    code {
+      direction: ltr;
+      unicode-bidi: embed;
+      font-family: "JetBrains Mono", "Consolas", monospace;
+      background: #e2e8f0;
+      padding: 2px 6px;
+      border-radius: 6px;
+      color: #0f172a;
+      font-size: 0.92em;
+    }
+
+    pre {
+      direction: ltr;
+      text-align: left;
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 18px;
+      border-radius: 16px;
+      overflow-x: auto;
+      border: 1px solid rgba(148,163,184,0.35);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+      line-height: 1.65;
+    }
+
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      border-radius: 0;
+      font-size: 13.5px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0;
+      overflow: hidden;
+      border-radius: 14px;
+      font-size: 14.5px;
+    }
+
+    th {
+      background: #0f766e;
+      color: white;
+      padding: 12px;
+      text-align: right;
+    }
+
+    td {
+      border: 1px solid var(--border);
+      padding: 11px 12px;
+      background: white;
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td {
+      background: #f8fafc;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+    }
+
+    .card h4 {
+      margin-top: 0;
+      color: var(--primary);
+    }
+
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .flow span {
+      background: #e0f2fe;
+      color: #075985;
+      border: 1px solid #bae6fd;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .footer {
+      text-align: center;
+      color: var(--muted);
+      margin-top: 44px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    @media (max-width: 820px) {
+      .toc ol {
+        columns: 1;
+      }
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .hero {
+        padding: 30px 24px;
+      }
+      .hero h1 {
+        font-size: 26px;
+      }
+      .section {
+        padding: 22px;
+      }
+    }
+
+    @media print {
+      body {
+        background: white;
+      }
+
+      .hero {
+        background: #f1f5f9 !important;
+        color: #0f172a;
+        box-shadow: none;
+        border: 1px solid #cbd5e1;
+      }
+
+      .hero p, .badge {
+        color: #0f172a;
+      }
+
+      .badge {
+        background: white;
+        border: 1px solid #cbd5e1;
+      }
+
+      .section, .toc {
+        box-shadow: none;
+        break-inside: avoid;
+      }
+
+      pre {
+        white-space: pre-wrap;
+        background: #f8fafc;
+        color: #0f172a;
+        border: 1px solid #cbd5e1;
+      }
+
+      code {
+        color: #0f172a;
+      }
+
+      a {
+        color: #0f172a;
+        text-decoration: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="page">
+    <header class="hero">
+      <h1>راهنمای جامع و رسمی تولید پلاگین با GeoChat SDK</h1>
+      <p>
+        این سند برای توسعه‌دهندگان Python، متخصصان GIS، متخصصان سنجش از دور و اعضای تیم فنی طراحی شده است
+        تا بتوانند بدون دست‌کاری کرنل، فقط با استفاده از SDK، پلاگین‌های استاندارد، تست‌پذیر، امن و قابل اتصال
+        به سیستم هوشمند مکانی GeoChat تولید کنند.
+      </p>
+      <div class="badge-row">
+        <span class="badge">GeoChat Kernel</span>
+        <span class="badge">GeoChat SDK</span>
+        <span class="badge">Plugin Development</span>
+        <span class="badge">Raster / Vector</span>
+        <span class="badge">Pytest Ready</span>
+      </div>
+    </header>
+
+    <nav class="toc">
+      <h2>فهرست مطالب</h2>
+      <ol>
+        <li><a href="#goal">هدف این سند</a></li>
+        <li><a href="#architecture">جایگاه پلاگین در معماری GeoChat</a></li>
+        <li><a href="#sdk-concepts">مفاهیم اصلی SDK</a></li>
+        <li><a href="#plugin-lifecycle">چرخه عمر پلاگین</a></li>
+        <li><a href="#folder-structure">ساختار استاندارد پروژه پلاگین‌ها</a></li>
+        <li><a href="#capability">نوشتن Capability با دکوریتور</a></li>
+        <li><a href="#auto-collect">ثبت نهایی پلاگین با auto_collect</a></li>
+        <li><a href="#inputs-outputs">مدیریت ورودی و خروجی</a></li>
+        <li><a href="#routing">Routing و انتخاب پلاگین</a></li>
+        <li><a href="#templates">قالب‌های آماده تولید پلاگین</a></li>
+        <li><a href="#testing">تست‌نویسی استاندارد</a></li>
+        <li><a href="#errors">مدیریت خطا</a></li>
+        <li><a href="#permissions">Permissions و امنیت آینده</a></li>
+        <li><a href="#best-practices">بهترین روش‌ها</a></li>
+        <li><a href="#checklist">چک‌لیست تحویل پلاگین</a></li>
+      </ol>
+    </nav>
+
+    <section id="goal" class="section">
+      <h2>۱. هدف این سند</h2>
+      <p>
+        هدف این سند این است که هر توسعه‌دهنده بتواند یک پلاگین کامل برای سیستم GeoChat تولید کند؛
+        پلاگینی که توسط کرنل کشف، ثبت، Route، اجرا و در نهایت به پاسخ مکانی تبدیل شود.
+      </p>
+
+      <div class="success">
+        اصل بسیار مهم معماری: <strong>کرنل نباید برای اضافه شدن قابلیت‌های جدید تغییر کند.</strong>
+        تمام پردازش‌های تخصصی GIS، سنجش از دور، تحلیل رستر، تحلیل بردار، اتصال به دیتابیس و تولید خروجی باید در پلاگین‌ها انجام شود.
+      </div>
+
+      <p>این سند بر اساس SDK فعلی GeoChat نوشته شده است که شامل این اجزاست:</p>
+
+      <ul>
+        <li><code>@capability</code> برای معرفی یک تابع به عنوان قابلیت قابل اجرا</li>
+        <li><code>auto_collect</code> برای ساخت شیء نهایی پلاگین</li>
+        <li><code>RasterIn</code> و <code>RasterOut</code> برای ورودی/خروجی رستری</li>
+        <li><code>VectorIn</code> و <code>VectorOut</code> برای ورودی/خروجی برداری</li>
+        <li><code>SDKStepHandler</code> برای تبدیل خودکار PlanStep به فراخوانی تابع پلاگین</li>
+        <li><code>SDKPlanner</code> برای ساخت PlanStep از QueryIR</li>
+        <li><code>SDKResultFusion</code> برای تبدیل artifactهای خروجی به GeoResponse</li>
+      </ul>
+    </section>
+
+    <section id="architecture" class="section">
+      <h2>۲. جایگاه پلاگین در معماری GeoChat</h2>
+
+      <p>
+        سیستم GeoChat از یک کرنل مرکزی و مجموعه‌ای از پلاگین‌ها تشکیل شده است.
+        کرنل مسئول orchestration، registry، routing، اجرای DAG، trace و response است.
+        اما خود کرنل نباید عملیات تخصصی مکانی انجام دهد.
+      </p>
+
+      <div class="flow">
+        <span>User Query</span>
+        <span>Query Parser</span>
+        <span>Router</span>
+        <span>Planner</span>
+        <span>PlanStep</span>
+        <span>StepHandler</span>
+        <span>Plugin Function</span>
+        <span>ExecutionArtifact</span>
+        <span>ResultFusion</span>
+        <span>GeoResponse</span>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>لایه</th>
+            <th>مسئولیت</th>
+            <th>آیا در پلاگین نوشته می‌شود؟</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Kernel</td>
+            <td>اجرای pipeline، مدیریت registry، routing، trace، audit و اجرای plan</td>
+            <td>خیر</td>
+          </tr>
+          <tr>
+            <td>SDK</td>
+            <td>ساده‌سازی تولید پلاگین، تبدیل ورودی/خروجی و ثبت خودکار capability</td>
+            <td>استفاده می‌شود</td>
+          </tr>
+          <tr>
+            <td>Plugin</td>
+            <td>انجام پردازش تخصصی مثل NDVI، Buffer، Spatial Join، Raster Clip و غیره</td>
+            <td>بله</td>
+          </tr>
+          <tr>
+            <td>External Libraries</td>
+            <td>کتابخانه‌هایی مثل rasterio، geopandas، shapely، numpy، scipy</td>
+            <td>فقط در پلاگین</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="warning">
+        هیچ کتابخانه سنگین GIS مثل <code>rasterio</code>، <code>geopandas</code> یا <code>shapely</code>
+        نباید به عنوان وابستگی ضروری کرنل در نظر گرفته شود. این کتابخانه‌ها باید فقط در محیط پلاگین نصب و استفاده شوند.
+      </div>
+    </section>
+
+    <section id="sdk-concepts" class="section">
+      <h2>۳. مفاهیم اصلی SDK</h2>
+
+      <h3>۳.۱. Capability چیست؟</h3>
+      <p>
+        Capability یعنی یک توانایی مشخص سیستم که قابل route و اجرا باشد.
+        مثلاً:
+      </p>
+
+      <ul>
+        <li>بارگذاری رستر محلی</li>
+        <li>محاسبه NDVI</li>
+        <li>ایجاد Buffer</li>
+        <li>محاسبه فاصله</li>
+        <li>استخراج آمار زونال</li>
+      </ul>
+
+      <p>
+        در SDK، هر تابعی که با <code>@capability</code> تزئین شود، به عنوان یک قابلیت قابل ثبت شناخته می‌شود.
+      </p>
+
+      <h3>۳.۲. Plugin چیست؟</h3>
+      <p>
+        پلاگین یک بسته منطقی از یک یا چند capability است.
+        هر فایل پلاگین باید در انتها یک متغیر سراسری به نام <code>PLUGIN</code> داشته باشد.
+      </p>
+
+      <pre><code>PLUGIN = auto_collect(
+    id="local_raster_loader",
+    version="1.0.0",
+    name="Local Raster Loader",
+    description="Load local raster files as raster references",
+    author="GeoChat Platform Team",
+    permissions=["read_raster"],
+)</code></pre>
+
+      <h3>۳.۳. ExecutionArtifact چیست؟</h3>
+      <p>
+        خروجی واقعی اجرای هر Step در کرنل یک <code>ExecutionArtifact</code> است.
+        اما توسعه‌دهنده پلاگین معمولاً مستقیماً با آن کار نمی‌کند.
+        SDK خروجی‌های زیر را خودکار تبدیل می‌کند:
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>خروجی تابع پلاگین</th>
+            <th>تبدیل خودکار به artifact</th>
+            <th>کاربرد</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>RasterOut</code></td>
+            <td><code>kind="raster_ref"</code></td>
+            <td>خروجی رستری، مسیر فایل GeoTIFF یا raster reference</td>
+          </tr>
+          <tr>
+            <td><code>VectorOut</code></td>
+            <td><code>kind="features"</code></td>
+            <td>خروجی برداری GeoJSON Featureها</td>
+          </tr>
+          <tr>
+            <td><code>ExecutionArtifact</code></td>
+            <td>بدون تغییر</td>
+            <td>برای توسعه‌دهندگان پیشرفته</td>
+          </tr>
+          <tr>
+            <td>هر مقدار دیگر</td>
+            <td><code>kind="payload"</code></td>
+            <td>خروجی عمومی مثل dict، عدد، متن و غیره</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="plugin-lifecycle" class="section">
+      <h2>۴. چرخه عمر پلاگین در سیستم</h2>
+
+      <ol>
+        <li>توسعه‌دهنده یک فایل Python در پوشه <code>plugins/</code> می‌سازد.</li>
+        <li>توابع پردازشی را با <code>@capability</code> مشخص می‌کند.</li>
+        <li>در انتهای فایل با <code>auto_collect</code> یک <code>PLUGIN</code> می‌سازد.</li>
+        <li>PluginLoader کرنل فایل را کشف و import می‌کند.</li>
+        <li>SDKPlugin همه capabilityها را ثبت می‌کند.</li>
+        <li>برای هر capability، یک Planner و StepHandler خودکار ساخته می‌شود.</li>
+        <li>در زمان درخواست کاربر، Router یا Planner قابلیت مناسب را انتخاب می‌کند.</li>
+        <li>StepHandler ورودی‌ها را تبدیل و تابع پلاگین را اجرا می‌کند.</li>
+        <li>خروجی تابع به ExecutionArtifact تبدیل می‌شود.</li>
+        <li>ResultFusion خروجی را به GeoResponse تبدیل می‌کند.</li>
+      </ol>
+
+      <div class="note">
+        نتیجه مهم: برای بیشتر پلاگین‌ها لازم نیست شما Planner، StepHandler یا Fusion دستی بنویسید.
+        SDK این کارها را به صورت خودکار انجام می‌دهد.
+      </div>
+    </section>
+
+    <section id="folder-structure" class="section">
+      <h2>۵. ساختار استاندارد پروژه پلاگین‌ها</h2>
+
+      <p>ساختار پیشنهادی پروژه عملیاتی:</p>
+
+      <pre><code>smart_spatial_system/
+├── .venv/
+├── main.py
+├── plugins/
+│   ├── local_raster_loader.py
+│   ├── local_vector_loader.py
+│   ├── ndvi_calculator.py
+│   └── ...
+├── tests/
+│   ├── test_local_raster_loader.py
+│   ├── test_local_vector_loader.py
+│   └── ...
+├── data/
+│   ├── sample.tif
+│   └── sample.geojson
+├── output/
+│   └── generated_results.tif
+└── docs/
+    └── geochat_sdk_plugin_development_guide.html</code></pre>
+
+      <div class="danger">
+        فایل <code>main.py</code> نباید داخل پوشه <code>plugins/</code> باشد.
+        چون PluginLoader ممکن است آن را به عنوان پلاگین import کند.
+      </div>
+
+      <h3>نام‌گذاری استاندارد پلاگین‌ها</h3>
+
+      <table>
+        <thead>
+          <tr>
+            <th>نوع</th>
+            <th>الگوی نام‌گذاری</th>
+            <th>مثال</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>فایل پلاگین</td>
+            <td>snake_case.py</td>
+            <td><code>local_raster_loader.py</code></td>
+          </tr>
+          <tr>
+            <td>شناسه پلاگین</td>
+            <td>snake_case</td>
+            <td><code>local_raster_loader</code></td>
+          </tr>
+          <tr>
+            <td>نام capability</td>
+            <td>فعل + موضوع</td>
+            <td><code>load_local_raster</code></td>
+          </tr>
+          <tr>
+            <td>تابع Python</td>
+            <td>snake_case</td>
+            <td><code>load_local_raster</code></td>
+          </tr>
+          <tr>
+            <td>فایل تست</td>
+            <td>test_plugin_name.py</td>
+            <td><code>test_local_raster_loader.py</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="capability" class="section">
+      <h2>۶. نوشتن Capability با دکوریتور</h2>
+
+      <p>
+        دکوریتور <code>@capability</code> مهم‌ترین بخش تولید پلاگین است.
+        این دکوریتور تابع شما را به کرنل معرفی می‌کند.
+      </p>
+
+      <h3>امضای دکوریتور</h3>
+
+      <pre><code>@capability(
+    name: str,
+    keywords: list[str] | None = None,
+    description: str | None = None,
+    required_inputs: list[str] | None = None,
+    optional_inputs: list[str] | None = None,
+    output_kind: str | None = None,
+    permissions: list[Any] | None = None,
+    metadata: dict[str, Any] | None = None,
+)</code></pre>
+
+      <h3>توضیح فیلدها</h3>
+
+      <table>
+        <thead>
+          <tr>
+            <th>فیلد</th>
+            <th>اجباری؟</th>
+            <th>توضیح</th>
+            <th>مثال</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>name</code></td>
+            <td>بله</td>
+            <td>نام یکتای capability درون پلاگین</td>
+            <td><code>load_local_raster</code></td>
+          </tr>
+          <tr>
+            <td><code>keywords</code></td>
+            <td>خیر، ولی بسیار مهم</td>
+            <td>کلمات کلیدی برای route شدن query</td>
+            <td><code>["raster", "geotiff", "بارگذاری رستر"]</code></td>
+          </tr>
+          <tr>
+            <td><code>description</code></td>
+            <td>خیر</td>
+            <td>توضیح انسانی برای قابلیت</td>
+            <td>Load local GeoTIFF raster</td>
+          </tr>
+          <tr>
+            <td><code>required_inputs</code></td>
+            <td>خیر</td>
+            <td>نام ورودی‌های ضروری</td>
+            <td><code>["path"]</code></td>
+          </tr>
+          <tr>
+            <td><code>optional_inputs</code></td>
+            <td>خیر</td>
+            <td>نام ورودی‌های اختیاری</td>
+            <td><code>["band"]</code></td>
+          </tr>
+          <tr>
+            <td><code>output_kind</code></td>
+            <td>خیر</td>
+            <td>نوع خروجی منطقی capability</td>
+            <td><code>"raster"</code> یا <code>"vector"</code></td>
+          </tr>
+          <tr>
+            <td><code>permissions</code></td>
+            <td>خیر</td>
+            <td>مجوزهای مورد نیاز capability</td>
+            <td><code>["read_raster"]</code></td>
+          </tr>
+          <tr>
+            <td><code>metadata</code></td>
+            <td>خیر</td>
+            <td>اطلاعات اضافی برای routing یا documentation</td>
+            <td><code>{"category": "data_io"}</code></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>مثال ساده</h3>
+
+      <pre><code>from geochat_sdk import capability, RasterOut
+
+@capability(
+    name="load_local_raster",
+    keywords=["raster", "geotiff", "tif", "بارگذاری رستر"],
+    required_inputs=["path"],
+    output_kind="raster",
+    description="Load a local raster file and return a raster reference",
+    permissions=["read_raster"],
+)
+def load_local_raster(path: str) -> RasterOut:
+    return RasterOut(
+        path=path,
+        metadata={"source": "local_file"}
+    )</code></pre>
+
+      <div class="warning">
+        نام پارامترهای تابع باید با <code>required_inputs</code> و پارامترهایی که Planner می‌سازد هماهنگ باشد.
+        اگر تابع شما <code>path</code> می‌خواهد، باید در plan نیز پارامتر <code>path</code> وجود داشته باشد.
+      </div>
+    </section>
+
+    <section id="auto-collect" class="section">
+      <h2>۷. ثبت نهایی پلاگین با auto_collect</h2>
+
+      <p>
+        در انتهای هر فایل پلاگین باید <code>PLUGIN</code> ساخته شود.
+        PluginLoader کرنل معمولاً به دنبال همین متغیر می‌گردد.
+      </p>
+
+      <pre><code>PLUGIN = auto_collect(
+    id="local_raster_loader",
+    version="1.0.0",
+    name="Local Raster Loader",
+    description="Load local raster files",
+    author="GeoChat Platform Team",
+    permissions=["read_raster"],
+)</code></pre>
+
+      <h3>قانون طلایی auto_collect</h3>
+
+      <div class="danger">
+        <strong>auto_collect باید همیشه بعد از تمام capabilityها در انتهای فایل قرار بگیرد.</strong>
+        چون دکوریتور <code>@capability</code> ابتدا تابع‌ها را در لیست داخلی SDK ثبت می‌کند و سپس
+        <code>auto_collect</code> آن‌ها را جمع‌آوری می‌کند.
+      </div>
+
+      <h3>ساختار صحیح</h3>
+
+      <pre><code>from geochat_sdk import capability, auto_collect
+
+@capability(name="first_capability")
+def first_capability():
+    pass
+
+@capability(name="second_capability")
+def second_capability():
+    pass
+
+PLUGIN = auto_collect(
+    id="my_plugin",
+    version="1.0.0",
+)</code></pre>
+
+      <h3>ساختار غلط</h3>
+
+      <pre><code>from geochat_sdk import capability, auto_collect
+
+PLUGIN = auto_collect(
+    id="my_plugin",
+    version="1.0.0",
+)
+
+@capability(name="first_capability")
+def first_capability():
+    pass</code></pre>
+
+      <p>
+        در حالت غلط، capability بعد از <code>auto_collect</code> تعریف شده و بنابراین در پلاگین ثبت نمی‌شود.
+      </p>
+
+      <h3>نکته سازگاری Import</h3>
+
+      <p>
+        اگر در نسخه‌ای از SDK، <code>auto_collect</code> از مسیر اصلی export نشده بود،
+        می‌توان از الگوی زیر استفاده کرد:
+      </p>
+
+      <pre><code>try:
+    from geochat_sdk import capability, auto_collect, RasterIn, RasterOut, VectorIn, VectorOut
+except ImportError:
+    from geochat_sdk.decorators import capability
+    from geochat_sdk.plugin import auto_collect
+    from geochat_sdk.types import RasterIn, RasterOut, VectorIn, VectorOut</code></pre>
+    </section>
+
+    <section id="inputs-outputs" class="section">
+      <h2>۸. مدیریت ورودی و خروجی در SDK</h2>
+
+      <h3>۸.۱. ورودی‌های ساده</h3>
+
+      <p>
+        پارامترهایی مثل <code>path: str</code>، <code>radius_m: float</code>، <code>limit: int</code>
+        از <code>step.parameters</code> خوانده می‌شوند.
+      </p>
+
+      <pre><code>@capability(
+    name="calculate_buffer",
+    required_inputs=["distance_m"],
+    output_kind="vector",
+)
+def calculate_buffer(distance_m: float) -> VectorOut:
+    ...</code></pre>
+
+      <h3>۸.۲. ورودی رستری با RasterIn</h3>
+
+      <p>
+        اگر پارامتر تابع از نوع <code>RasterIn</code> باشد، SDK تلاش می‌کند یک artifact از نوع
+        <code>raster_ref</code> پیدا کند و آن را به <code>RasterIn</code> تبدیل کند.
+      </p>
+
+      <pre><code>from geochat_sdk import RasterIn, RasterOut
+
+@capability(
+    name="normalize_raster",
+    required_inputs=["raster"],
+    output_kind="raster",
+)
+def normalize_raster(raster: RasterIn) -> RasterOut:
+    arr = raster.read_numpy(1)
+    profile = raster.get_profile()
+
+    normalized = (arr - arr.min()) / (arr.max() - arr.min())
+
+    return RasterOut.from_numpy(
+        data=normalized,
+        profile=profile,
+        output_path="output/normalized.tif",
+    )</code></pre>
+
+      <h3>۸.۳. ورودی برداری با VectorIn</h3>
+
+      <p>
+        اگر پارامتر تابع از نوع <code>VectorIn</code> باشد، SDK یک artifact از نوع
+        <code>features</code> یا <code>vector</code> را به آن تبدیل می‌کند.
+      </p>
+
+      <pre><code>from geochat_sdk import VectorIn, VectorOut
+
+@capability(
+    name="filter_features",
+    required_inputs=["features"],
+    output_kind="vector",
+)
+def filter_features(features: VectorIn) -> VectorOut:
+    selected = []
+    for feature in features.features:
+        props = feature.get("properties", {})
+        if props.get("population", 0) > 1000:
+            selected.append(feature)
+
+    return VectorOut(
+        features=selected,
+        metadata={"filter": "population > 1000"},
+    )</code></pre>
+
+      <h3>۸.۴. خروجی RasterOut</h3>
+
+      <p>
+        <code>RasterOut</code> برای خروجی‌هایی استفاده می‌شود که یک مسیر فایل رستر تولید می‌کنند.
+        این خروجی به artifact با <code>kind="raster_ref"</code> تبدیل می‌شود.
+      </p>
+
+      <pre><code>return RasterOut(
+    path="output/result.tif",
+    metadata={
+        "crs": "EPSG:4326",
+        "description": "NDVI result",
+    },
+)</code></pre>
+
+      <h3>۸.۵. خروجی VectorOut</h3>
+
+      <p>
+        <code>VectorOut</code> برای خروجی‌های برداری بر اساس GeoJSON Feature استفاده می‌شود.
+      </p>
+
+      <pre><code>return VectorOut(
+    features=[
+        {
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [51.4, 35.7]},
+            "properties": {"name": "sample"},
+        }
+    ],
+    metadata={"count": 1},
+)</code></pre>
+
+      <h3>۸.۶. تزریق ExecutionContext</h3>
+
+      <p>
+        اگر پارامتری به نام <code>context</code> داشته باشید یا annotation آن
+        <code>ExecutionContext</code> باشد، SDK آن را خودکار تزریق می‌کند.
+      </p>
+
+      <pre><code>from geochat_kernel.runtime.execution_context import ExecutionContext
+
+@capability(name="context_aware_tool")
+def context_aware_tool(context: ExecutionContext) -> dict:
+    return {
+        "request_id": context.request_id,
+        "metadata": context.metadata,
+    }</code></pre>
+    </section>
+
+    <section id="routing" class="section">
+      <h2>۹. Routing و انتخاب پلاگین</h2>
+
+      <p>
+        در SDK فعلی، Planner تولیدشده توسط SDK از دو مسیر اصلی match می‌شود:
+      </p>
+
+      <ol>
+        <li>
+          اگر در <code>context.metadata["routing"]["selected"]</code> نام capability انتخاب شده باشد،
+          امتیاز match برابر <code>1.0</code> است.
+        </li>
+        <li>
+          اگر یکی از <code>keywords</code> در متن خام query وجود داشته باشد،
+          امتیاز match برابر <code>0.8</code> است.
+        </li>
+        <li>
+          در غیر این صورت امتیاز <code>0.0</code> است.
+        </li>
+      </ol>
+
+      <h3>اهمیت Keywords</h3>
+
+      <div class="warning">
+        انتخاب keywordهای خوب و چندزبانه برای پلاگین بسیار مهم است.
+        چون برای MVP، keyword matching یکی از پایه‌های اصلی route شدن پلاگین است.
+      </div>
+
+      <h4>مثال keyword خوب برای local_raster_loader</h4>
+
+      <pre><code>keywords=[
+    "raster",
+    "geotiff",
+    "tif",
+    "tiff",
+    "load raster",
+    "local raster",
+    "بارگذاری رستر",
+    "خواندن رستر",
+    "فایل رستر",
+    "تصویر ماهواره‌ای",
+]</code></pre>
+
+      <h4>مثال keyword ضعیف</h4>
+
+      <pre><code>keywords=["data", "file"]</code></pre>
+
+      <p>
+        این keywordها بیش از حد عمومی هستند و ممکن است route اشتباه ایجاد کنند.
+      </p>
+    </section>
+
+    <section id="templates" class="section">
+      <h2>۱۰. قالب‌های آماده تولید پلاگین</h2>
+
+      <h3>۱۰.۱. قالب عمومی پلاگین</h3>
+
+      <pre><code>from __future__ import annotations
+
+from typing import Any
+
+try:
+    from geochat_sdk import capability, auto_collect
+except ImportError:
+    from geochat_sdk.decorators import capability
+    from geochat_sdk.plugin import auto_collect
+
+
+@capability(
+    name="my_capability",
+    keywords=["keyword 1", "keyword 2"],
+    required_inputs=["input_name"],
+    optional_inputs=[],
+    output_kind="payload",
+    description="Describe what this capability does",
+    permissions=["my_permission"],
+    metadata={"category": "general"},
+)
+def my_capability(input_name: str) -> dict[str, Any]:
+    if not input_name:
+        raise ValueError("input_name is required")
+
+    result = {
+        "input": input_name,
+        "status": "ok",
+    }
+
+    return result
+
+
+PLUGIN = auto_collect(
+    id="my_plugin",
+    version="1.0.0",
+    name="My Plugin",
+    description="A standard GeoChat SDK plugin",
+    author="GeoChat Plugin Team",
+    permissions=["my_permission"],
+)</code></pre>
+
+      <h3>۱۰.۲. قالب پلاگین رستری</h3>
+
+      <pre><code>from __future__ import annotations
+
+from pathlib import Path
+
+try:
+    from geochat_sdk import capability, auto_collect, RasterIn, RasterOut
+except ImportError:
+    from geochat_sdk.decorators import capability
+    from geochat_sdk.plugin import auto_collect
+    from geochat_sdk.types import RasterIn, RasterOut
+
+
+@capability(
+    name="process_raster",
+    keywords=["raster processing", "پردازش رستر"],
+    required_inputs=["raster"],
+    optional_inputs=["band"],
+    output_kind="raster",
+    description="Process a raster and produce a new raster output",
+    permissions=["read_raster", "write_raster"],
+    metadata={"category": "raster"},
+)
+def process_raster(raster: RasterIn, band: int = 1) -> RasterOut:
+    arr = raster.read_numpy(band)
+    profile = raster.get_profile()
+
+    output_dir = Path("output")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    result = arr
+
+    return RasterOut.from_numpy(
+        data=result,
+        profile=profile,
+        output_path=str(output_dir / "processed_raster.tif"),
+    )
+
+
+PLUGIN = auto_collect(
+    id="raster_processing_plugin",
+    version="1.0.0",
+    name="Raster Processing Plugin",
+    description="Standard raster processing plugin",
+    author="GeoChat Plugin Team",
+    permissions=["read_raster", "write_raster"],
+)</code></pre>
+
+      <h3>۱۰.۳. قالب پلاگین برداری</h3>
+
+      <pre><code>from __future__ import annotations
+
+try:
+    from geochat_sdk import capability, auto_collect, VectorIn, VectorOut
+except ImportError:
+    from geochat_sdk.decorators import capability
+    from geochat_sdk.plugin import auto_collect
+    from geochat_sdk.types import VectorIn, VectorOut
+
+
+@capability(
+    name="process_vector",
+    keywords=["vector processing", "پردازش بردار"],
+    required_inputs=["features"],
+    output_kind="vector",
+    description="Process vector features and return new features",
+    permissions=["read_vector", "write_vector"],
+    metadata={"category": "vector"},
+)
+def process_vector(features: VectorIn) -> VectorOut:
+    output_features = []
+
+    for feature in features.features:
+        props = dict(feature.get("properties") or {})
+        props["processed"] = True
+
+        output_features.append({
+            "type": "Feature",
+            "geometry": feature.get("geometry"),
+            "properties": props,
+        })
+
+    return VectorOut(
+        features=output_features,
+        metadata={"count": len(output_features)},
+    )
+
+
+PLUGIN = auto_collect(
+    id="vector_processing_plugin",
+    version="1.0.0",
+    name="Vector Processing Plugin",
+    description="Standard vector processing plugin",
+    author="GeoChat Plugin Team",
+    permissions=["read_vector", "write_vector"],
+)</code></pre>
+
+      <h3>۱۰.۴. قالب پلاگین ترکیبی Raster + Vector</h3>
+
+      <pre><code>from __future__ import annotations
+
+try:
+    from geochat_sdk import capability, auto_collect, RasterIn, VectorIn, VectorOut
+except ImportError:
+    from geochat_sdk.decorators import capability
+    from geochat_sdk.plugin import auto_collect
+    from geochat_sdk.types import RasterIn, VectorIn, VectorOut
+
+
+@capability(
+    name="raster_vector_analysis",
+    keywords=["zonal statistics", "raster vector", "آمار زونال"],
+    required_inputs=["raster", "zones"],
+    output_kind="vector",
+    description="Analyze raster values inside vector zones",
+    permissions=["read_raster", "read_vector", "write_vector"],
+    metadata={"category": "fusion"},
+)
+def raster_vector_analysis(raster: RasterIn, zones: VectorIn) -> VectorOut:
+    # This is only a structure template.
+    # Real implementation may use rasterio, rasterstats, geopandas, shapely.
+    features = []
+
+    for feature in zones.features:
+        props = dict(feature.get("properties") or {})
+        props["raster_analysis"] = "computed_placeholder"
+
+        features.append({
+            "type": "Feature",
+            "geometry": feature.get("geometry"),
+            "properties": props,
+        })
+
+    return VectorOut(
+        features=features,
+        metadata={
+            "raster_path": raster.path,
+            "zone_count": len(features),
+        },
+    )
+
+
+PLUGIN = auto_collect(
+    id="raster_vector_analysis_plugin",
+    version="1.0.0",
+    name="Raster Vector Analysis Plugin",
+    description="Fusion plugin for raster and vector analysis",
+    author="GeoChat Plugin Team",
+    permissions=["read_raster", "read_vector", "write_vector"],
+)</code></pre>
+    </section>
+
+    <section id="testing" class="section">
+      <h2>۱۱. تست‌نویسی استاندارد برای پلاگین</h2>
+
+      <p>
+        هر پلاگین باید حداقل سه نوع تست داشته باشد:
+      </p>
+
+      <ol>
+        <li>تست اجرای موفق capability</li>
+        <li>تست خطاهای ورودی نامعتبر</li>
+        <li>تست صحت manifest و PLUGIN</li>
+      </ol>
+
+      <h3>۱۱.۱. ساختار فایل تست</h3>
+
+      <pre><code>tests/
+└── test_my_plugin.py</code></pre>
+
+      <h3>۱۱.۲. قالب تست عمومی</h3>
+
+      <pre><code>from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from plugins.my_plugin import my_capability, PLUGIN
+
+
+def test_capability_success():
+    result = my_capability("sample")
+    assert result is not None
+    assert result["status"] == "ok"
+
+
+def test_capability_invalid_input():
+    with pytest.raises(ValueError):
+        my_capability("")
+
+
+def test_plugin_manifest():
+    assert PLUGIN.manifest.id == "my_plugin"
+    assert PLUGIN.manifest.version == "1.0.0"</code></pre>
+
+      <h3>۱۱.۳. تست پلاگین رستری با فایل GeoTIFF موقت</h3>
+
+      <pre><code>from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import numpy as np
+import pytest
+import rasterio
+from rasterio.transform import from_origin
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from plugins.local_raster_loader import load_local_raster, PLUGIN
+
+
+@pytest.fixture
+def sample_geotiff(tmp_path) -> str:
+    path = tmp_path / "sample.tif"
+
+    data = np.ones((1, 10, 10), dtype=np.uint8)
+    transform = from_origin(50.0, 35.0, 0.01, 0.01)
+
+    with rasterio.open(
+        path,
+        "w",
+        driver="GTiff",
+        height=10,
+        width=10,
+        count=1,
+        dtype="uint8",
+        crs="EPSG:4326",
+        transform=transform,
+    ) as dst:
+        dst.write(data)
+
+    return str(path)
+
+
+def test_load_local_raster_success(sample_geotiff):
+    result = load_local_raster(sample_geotiff)
+
+    assert result.path == str(Path(sample_geotiff).resolve())
+    assert result.metadata["width"] == 10
+    assert result.metadata["height"] == 10
+    assert result.metadata["crs"] == "EPSG:4326"
+
+
+def test_missing_file():
+    with pytest.raises(FileNotFoundError):
+        load_local_raster("/missing/file.tif")
+
+
+def test_manifest():
+    assert PLUGIN.manifest.id == "local_raster_loader"</code></pre>
+
+      <h3>۱۱.۴. تست خروجی Artifact</h3>
+
+      <p>
+        برای اطمینان از اینکه خروجی با SDK سازگار است، بهتر است تبدیل به artifact هم تست شود.
+      </p>
+
+      <pre><code>def test_rasterout_to_artifact(sample_geotiff):
+    result = load_local_raster(sample_geotiff)
+    artifact = result.to_artifact(produced_by="test")
+
+    assert artifact.kind == "raster_ref"
+    assert artifact.payload["path"] == str(Path(sample_geotiff).resolve())</code></pre>
+
+      <h3>۱۱.۵. اجرای تست‌ها</h3>
+
+      <pre><code>cd ~/Projects/python/smart_spatial_system
+source .venv/bin/activate
+pip install pytest
+pytest tests/test_my_plugin.py -v</code></pre>
+    </section>
+
+    <section id="errors" class="section">
+      <h2>۱۲. مدیریت خطا</h2>
+
+      <p>
+        پلاگین باید خطاهای قابل فهم و مشخص ایجاد کند.
+        خطاهای مبهم باعث می‌شوند trace و audit بی‌ارزش شوند.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>نوع خطا</th>
+            <th>زمان استفاده</th>
+            <th>مثال</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>ValueError</code></td>
+            <td>ورودی از نظر مقدار نامعتبر است</td>
+            <td>مسیر خالی، radius منفی</td>
+          </tr>
+          <tr>
+            <td><code>FileNotFoundError</code></td>
+            <td>فایل مورد نیاز وجود ندارد</td>
+            <td>GeoTIFF پیدا نشد</td>
+          </tr>
+          <tr>
+            <td><code>RuntimeError</code></td>
+            <td>پردازش در زمان اجرا شکست خورد</td>
+            <td>فایل خراب یا عملیات ناموفق</td>
+          </tr>
+          <tr>
+            <td><code>SDKDependencyError</code></td>
+            <td>کتابخانه مورد نیاز نصب نیست</td>
+            <td>rasterio یا geopandas نصب نیست</td>
+          </tr>
+          <tr>
+            <td><code>SDKValidationError</code></td>
+            <td>خطای اعتبارسنجی مرتبط با SDK</td>
+            <td>امضای تابع ناسازگار</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>نمونه مدیریت خطا</h3>
+
+      <pre><code>from pathlib import Path
+
+def validate_file_path(path: str) -> Path:
+    if not path or not isinstance(path, str):
+        raise ValueError("path must be a non-empty string")
+
+    file_path = Path(path).expanduser().resolve()
+
+    if not file_path.exists():
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    if not file_path.is_file():
+        raise ValueError(f"Path is not a file: {file_path}")
+
+    return file_path</code></pre>
+
+      <div class="warning">
+        بهتر است خطاها فارسی یا انگلیسی واضح باشند. مهم این است که trace و audit بعداً بتوانند علت شکست را توضیح دهند.
+      </div>
+    </section>
+
+    <section id="permissions" class="section">
+      <h2>۱۳. Permissions و امنیت آینده</h2>
+
+      <p>
+        در معماری فعلی پلاگین‌ها trusted هستند، اما manifest باید permissions داشته باشد
+        تا در آینده بتوان کنترل دسترسی، sandboxing و محدودیت منابع را اضافه کرد.
+      </p>
+
+      <h3>مجوزهای پیشنهادی</h3>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Permission</th>
+            <th>کاربرد</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>read_raster</code></td>
+            <td>خواندن فایل رستری</td>
+          </tr>
+          <tr>
+            <td><code>write_raster</code></td>
+            <td>نوشتن خروجی رستری</td>
+          </tr>
+          <tr>
+            <td><code>read_vector</code></td>
+            <td>خواندن داده برداری</td>
+          </tr>
+          <tr>
+            <td><code>write_vector</code></td>
+            <td>نوشتن خروجی برداری</td>
+          </tr>
+          <tr>
+            <td><code>read_database</code></td>
+            <td>خواندن از دیتابیس مثل PostGIS</td>
+          </tr>
+          <tr>
+            <td><code>write_database</code></td>
+            <td>نوشتن در دیتابیس</td>
+          </tr>
+          <tr>
+            <td><code>network_access</code></td>
+            <td>دسترسی به سرویس آنلاین مثل WMS/WFS/API</td>
+          </tr>
+          <tr>
+            <td><code>user_location</code></td>
+            <td>دسترسی به موقعیت کاربر</td>
+          </tr>
+          <tr>
+            <td><code>long_running_job</code></td>
+            <td>اجرای job طولانی یا async</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="danger">
+        اگر پلاگین به موقعیت کاربر نیاز دارد، باید صریحاً permission
+        <code>user_location</code> را در manifest اعلام کند.
+      </div>
+    </section>
+
+    <section id="best-practices" class="section">
+      <h2>۱۴. بهترین روش‌های تولید پلاگین</h2>
+
+      <div class="grid">
+        <div class="card">
+          <h4>۱. پلاگین را کوچک و هدفمند بنویسید</h4>
+          <p>
+            هر پلاگین بهتر است یک وظیفه مشخص داشته باشد.
+            مثلاً <code>ndvi_calculator</code> فقط NDVI محاسبه کند.
+          </p>
+        </div>
+
+        <div class="card">
+          <h4>۲. ورودی‌ها را در ابتدای تابع validate کنید</h4>
+          <p>
+            خطاهای ورودی باید قبل از شروع پردازش سنگین شناسایی شوند.
+          </p>
+        </div>
+
+        <div class="card">
+          <h4>۳. خروجی را استاندارد برگردانید</h4>
+          <p>
+            برای رستر از <code>RasterOut</code> و برای بردار از <code>VectorOut</code> استفاده کنید.
+          </p>
+        </div>
+
+        <div class="card">
+          <h4>۴. فایل خروجی را در output/ ذخیره کنید</h4>
+          <p>
+            مسیرهای خروجی باید قابل مدیریت، قابل پاکسازی و قابل سرویس‌دهی باشند.
+          </p>
+        </div>
+
+        <div class="card">
+          <h4>۵. Metadata غنی تولید کنید</h4>
+          <p>
+            metadata باید شامل CRS، bounds، count، statistics، source و پارامترهای تحلیل باشد.
+          </p>
+        </div>
+
+        <div class="card">
+          <h4>۶. تست حتماً نوشته شود</h4>
+          <p>
+            هیچ پلاگینی بدون تست موفق، وارد محیط اصلی نشود.
+          </p>
+        </div>
+      </div>
+
+      <h3>الگوی استاندارد داخلی هر capability</h3>
+
+      <pre><code>def my_capability(...):
+    # 1. Validate inputs
+    ...
+
+    # 2. Prepare environment
+    ...
+
+    # 3. Load data lazily
+    ...
+
+    # 4. Process data
+    ...
+
+    # 5. Save or prepare output
+    ...
+
+    # 6. Return RasterOut / VectorOut / dict
+    ...</code></pre>
+
+      <h3>چه چیزهایی ممنوع یا نامناسب است؟</h3>
+
+      <ul>
+        <li>دستکاری مستقیم کرنل از داخل پلاگین</li>
+        <li>نوشتن فایل خروجی در مسیرهای نامشخص مثل root سیستم</li>
+        <li>استفاده از keywordهای خیلی عمومی</li>
+        <li>باز گذاشتن فایل‌ها بدون context manager</li>
+        <li>حذف فایل ورودی کاربر</li>
+        <li>وابسته کردن پلاگین به مسیر مطلق ماشین توسعه‌دهنده</li>
+        <li>عدم ثبت permissions در manifest</li>
+        <li>برگرداندن objectهای غیرقابل serialize بدون تبدیل</li>
+      </ul>
+    </section>
+
+    <section id="advanced" class="section">
+      <h2>۱۵. نکات پیشرفته درباره رفتار داخلی SDK</h2>
+
+      <h3>۱۵.۱. SDKStepHandler چگونه آرگومان‌ها را می‌سازد؟</h3>
+
+      <p>
+        در زمان اجرا، SDK امضای تابع پلاگین را بررسی می‌کند و بر اساس annotation تصمیم می‌گیرد
+        چه چیزی به تابع پاس بدهد.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>نوع پارامتر</th>
+            <th>رفتار SDK</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>RasterIn</code></td>
+            <td>از artifact نوع <code>raster_ref</code> ساخته می‌شود.</td>
+          </tr>
+          <tr>
+            <td><code>VectorIn</code></td>
+            <td>از artifact نوع <code>features</code> یا <code>vector</code> ساخته می‌شود.</td>
+          </tr>
+          <tr>
+            <td><code>ExecutionContext</code> یا پارامتر <code>context</code></td>
+            <td>خود context تزریق می‌شود.</td>
+          </tr>
+          <tr>
+            <td>str / int / float / bool</td>
+            <td>از <code>step.parameters</code> خوانده می‌شود.</td>
+          </tr>
+          <tr>
+            <td>پارامتر با مقدار پیش‌فرض</td>
+            <td>اگر در step نبود، مقدار پیش‌فرض استفاده می‌شود.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>۱۵.۲. SDKPlanner چگونه parameters می‌سازد؟</h3>
+
+      <p>
+        Planner تولیدشده توسط SDK معمولاً از entityهای QueryIR استفاده می‌کند:
+      </p>
+
+      <pre><code>for entity in query_ir.entities:
+    params[entity.role] = entity.name</code></pre>
+
+      <p>
+        پس اگر تابع شما پارامتر <code>path</code> دارد، بهتر است parser یا query_ir entityای با
+        <code>role="path"</code> تولید کند.
+      </p>
+
+      <div class="note">
+        در مراحل اولیه، برای تست مستقیم capability لازم نیست pipeline کامل را اجرا کنید.
+        می‌توانید تابع را مستقیم در تست صدا بزنید.
+      </div>
+
+      <h3>۱۵.۳. چند capability در یک پلاگین</h3>
+
+      <p>
+        یک فایل پلاگین می‌تواند چند capability داشته باشد.
+        <code>auto_collect</code> همه capabilityهایی را که قبل از آن تعریف شده‌اند جمع می‌کند.
+      </p>
+
+      <pre><code>@capability(name="load_data")
+def load_data(path: str):
+    ...
+
+@capability(name="validate_data")
+def validate_data(path: str):
+    ...
+
+PLUGIN = auto_collect(
+    id="data_tools",
+    version="1.0.0",
+)</code></pre>
+
+      <div class="warning">
+        اگر فایل‌های زیادی در یک پلاگین قرار می‌دهید، مراقب باشید وظایف بیش از حد نامرتبط نشوند.
+        برای نگهداری بهتر، پلاگین‌ها باید هدفمند باقی بمانند.
+      </div>
+    </section>
+
+    <section id="troubleshooting" class="section">
+      <h2>۱۶. خطاهای رایج و راه‌حل‌ها</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>خطا</th>
+            <th>علت احتمالی</th>
+            <th>راه‌حل</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>ModuleNotFoundError: geochat_sdk</code></td>
+            <td>SDK در venv نصب نیست</td>
+            <td>نصب فایل whl مربوط به SDK</td>
+          </tr>
+          <tr>
+            <td><code>ModuleNotFoundError: geochat_kernel</code></td>
+            <td>Kernel در venv نصب نیست یا wheel خالی ساخته شده</td>
+            <td>بررسی site-packages و محتوای whl</td>
+          </tr>
+          <tr>
+            <td><code>PLUGIN not found</code></td>
+            <td>متغیر PLUGIN در فایل پلاگین تعریف نشده</td>
+            <td>در انتهای فایل <code>PLUGIN = auto_collect(...)</code> بگذارید</td>
+          </tr>
+          <tr>
+            <td>Capability ثبت نمی‌شود</td>
+            <td><code>auto_collect</code> قبل از <code>@capability</code> آمده</td>
+            <td>auto_collect را به انتهای فایل منتقل کنید</td>
+          </tr>
+          <tr>
+            <td><code>Missing parameter</code></td>
+            <td>نام پارامتر تابع با step.parameters هماهنگ نیست</td>
+            <td>نام required_inputs، entity role و پارامتر تابع را هماهنگ کنید</td>
+          </tr>
+          <tr>
+            <td><code>Missing raster input</code></td>
+            <td>تابع RasterIn می‌خواهد اما artifact رستری در inputs نیست</td>
+            <td>قبل از آن local_raster_loader یا data source مناسب اجرا شود</td>
+          </tr>
+          <tr>
+            <td><code>rasterio is required</code></td>
+            <td>وابستگی پلاگین نصب نیست</td>
+            <td><code>pip install rasterio numpy</code></td>
+          </tr>
+          <tr>
+            <td>خروجی در پاسخ دیده نمی‌شود</td>
+            <td>خروجی به نوع استاندارد تبدیل نشده</td>
+            <td>از <code>RasterOut</code> یا <code>VectorOut</code> استفاده کنید</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="checklist" class="section">
+      <h2>۱۷. چک‌لیست نهایی تحویل پلاگین</h2>
+
+      <p>
+        قبل از تحویل هر پلاگین، موارد زیر باید بررسی شوند:
+      </p>
+
+      <h3>چک‌لیست کد</h3>
+
+      <ul>
+        <li>فایل پلاگین در پوشه <code>plugins/</code> قرار دارد.</li>
+        <li>نام فایل snake_case و معنادار است.</li>
+        <li>حداقل یک تابع با <code>@capability</code> تعریف شده است.</li>
+        <li>برای capability، <code>name</code>، <code>keywords</code>، <code>required_inputs</code> و <code>output_kind</code> مشخص شده‌اند.</li>
+        <li>در انتهای فایل <code>PLUGIN = auto_collect(...)</code> وجود دارد.</li>
+        <li><code>auto_collect</code> بعد از همه capabilityها آمده است.</li>
+        <li>permissions مناسب در manifest ثبت شده‌اند.</li>
+        <li>ورودی‌ها validate می‌شوند.</li>
+        <li>خطاها واضح و قابل فهم هستند.</li>
+        <li>برای خروجی رستری از <code>RasterOut</code> استفاده شده است.</li>
+        <li>برای خروجی برداری از <code>VectorOut</code> استفاده شده است.</li>
+        <li>metadata کافی و مفید تولید شده است.</li>
+      </ul>
+
+      <h3>چک‌لیست تست</h3>
+
+      <ul>
+        <li>فایل تست در پوشه <code>tests/</code> وجود دارد.</li>
+        <li>تست اجرای موفق نوشته شده است.</li>
+        <li>تست ورودی نامعتبر نوشته شده است.</li>
+        <li>تست manifest نوشته شده است.</li>
+        <li>اگر خروجی RasterOut یا VectorOut است، تبدیل به artifact تست شده است.</li>
+        <li>همه تست‌ها با <code>pytest</code> پاس می‌شوند.</li>
+      </ul>
+
+      <h3>چک‌لیست اجرایی</h3>
+
+      <ul>
+        <li>وابستگی‌های خارجی پلاگین نصب شده‌اند.</li>
+        <li>پلاگین باعث import error در startup سیستم نمی‌شود.</li>
+        <li>فایل‌های خروجی در مسیر <code>output/</code> ذخیره می‌شوند.</li>
+        <li>پلاگین فایل ورودی کاربر را تغییر یا حذف نمی‌کند.</li>
+        <li>در صورت نیاز به دسترسی خاص، permission مربوطه اعلام شده است.</li>
+      </ul>
+
+      <div class="success">
+        پلاگینی که این چک‌لیست را پاس کند، برای ورود به pipeline سیستم GeoChat آماده است.
+      </div>
+    </section>
+
+    <section id="first-plugin-standard" class="section">
+      <h2>۱۸. استاندارد پیشنهادی برای اولین پلاگین: local_raster_loader</h2>
+
+      <p>
+        اولین پلاگین پیشنهادی سیستم <code>local_raster_loader</code> است.
+        این پلاگین باید یک مسیر فایل محلی GeoTIFF را بگیرد، آن را validate کند،
+        متادیتای اصلی را استخراج کند و یک <code>RasterOut</code> برگرداند.
+      </p>
+
+      <h3>ویژگی‌های ضروری</h3>
+
+      <ul>
+        <li>پشتیبانی از پسوندهای <code>.tif</code>، <code>.tiff</code>، <code>.geotiff</code>، <code>.vrt</code></li>
+        <li>بررسی وجود فایل</li>
+        <li>بررسی اینکه مسیر واقعاً فایل است نه پوشه</li>
+        <li>خواندن امن با <code>rasterio.open</code></li>
+        <li>استخراج width، height، count، CRS، bounds، resolution، nodata و dtype</li>
+        <li>برگرداندن خروجی به شکل <code>RasterOut</code></li>
+        <li>ثبت permission با <code>read_raster</code></li>
+      </ul>
+
+      <h3>Capability Descriptor پیشنهادی</h3>
+
+      <pre><code>@capability(
+    name="load_local_raster",
+    keywords=[
+        "raster",
+        "geotiff",
+        "tif",
+        "tiff",
+        "local raster",
+        "load raster",
+        "بارگذاری رستر",
+        "خواندن رستر",
+        "فایل رستر",
+    ],
+    required_inputs=["path"],
+    output_kind="raster",
+    description="Load a local raster file and return a raster reference",
+    permissions=["read_raster"],
+    metadata={"category": "data_io", "source_priority": 1},
+)</code></pre>
+    </section>
+
+    <footer class="footer">
+      <p>
+        GeoChat SDK Plugin Development Guide — نسخه آموزشی داخلی برای توسعه پلاگین‌های سیستم هوشمند مکانی
+      </p>
+    </footer>
+  </main>
+</body>
+</html>

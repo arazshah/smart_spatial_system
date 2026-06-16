@@ -1,0 +1,32 @@
+default_provider: nominatim
+default_provider_chain:
+  - nominatim
+
+default_limit: 5
+default_language: fa
+default_timeout_seconds: 10
+coordinate_precision: 8
+continue_on_provider_error: true
+
+providers:
+  static:
+    type: static
+    places:
+      tehran:
+        display_name: Tehran, Iran
+        lon: 51.3890
+        lat: 35.6892
+        country: Iran
+      isfahan:
+        display_name: Isfahan, Iran
+        lon: 51.6776
+        lat: 32.6539
+        country: Iran
+
+  nominatim:
+    type: nominatim
+    base_url: https://nominatim.openstreetmap.org
+    user_agent: GeoChatPlatform/1.0
+    email: ""
+    viewbox: null
+    bounded: false

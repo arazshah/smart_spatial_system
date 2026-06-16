@@ -1,0 +1,60 @@
+# Example config for geocoding_resolver.
+#
+# This plugin supports multiple geocoding providers:
+#   - static
+#   - nominatim
+#   - generic_http_json
+#
+# Nominatim policy note:
+#   Always use a clear User-Agent and optionally email.
+
+default_provider: nominatim
+default_provider_chain:
+  - nominatim
+
+default_limit: 5
+default_language: fa
+default_timeout_seconds: 10
+coordinate_precision: 8
+
+# If true, provider errors in a provider_chain are collected and next provider is tried.
+continue_on_provider_error: true
+
+providers:
+  static:
+    type: static
+    places:
+      tehran:
+        display_name: Tehran, Iran
+        lon: 51.3890
+        lat: 35.6892
+        country: Iran
+      isfahan:
+        display_name: Isfahan, Iran
+        lon: 51.6776
+        lat: 32.6539
+        country: Iran
+
+  nominatim:
+    type: nominatim
+    base_url: https://nominatim.openstreetmap.org
+    user_agent: GeoChatPlatform/1.0
+    email: ""
+    viewbox: null
+    bounded: false
+
+  # Future/custom provider example.
+  # generic_example:
+  #   type: generic_http_json
+  #   endpoint_url: https://example.com/geocode
+  #   reverse_endpoint_url: https://example.com/reverse
+  #   query_param: q
+  #   lon_param: lon
+  #   lat_param: lat
+  #   limit_param: limit
+  #   api_key_param: api_key
+  #   api_key_env: EXAMPLE_GEOCODING_API_KEY
+  #   results_path: results
+  #   lon_path: lon
+  #   lat_path: lat
+  #   display_name_path: display_name

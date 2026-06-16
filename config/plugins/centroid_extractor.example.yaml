@@ -1,0 +1,20 @@
+# Example config for centroid_extractor.
+#
+# For robust centroid extraction, install shapely:
+#   pip install shapely
+#
+# Without shapely, the plugin uses a pure-python fallback.
+
+default_engine: auto        # auto | shapely | python
+coordinate_precision: 8     # null means no rounding
+preserve_properties: true
+
+# If true, features whose centroid cannot be calculated are removed.
+# If false, they remain with geometry=null and _centroid_status="failed".
+drop_failed: false
+
+fields:
+  add_source_geometry_type: true
+  add_source_feature_index: true
+  add_centroid_status: true
+  add_engine_used: true

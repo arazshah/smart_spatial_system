@@ -1,0 +1,16 @@
+default_engine: auto
+coordinate_precision: 6
+preserve_properties: true
+drop_failed: false
+always_add_fields: true
+
+fields:
+  area_field: _area
+  perimeter_field: _perimeter
+  length_field: _length
+  status_field: _metric_status
+  engine_field: _metric_engine
+  geometry_type_field: _source_geometry_type
+
+source_crs: null
+warn_if_geographic_crs: true

@@ -1,0 +1,13 @@
+case_sensitive: false
+default_bbox_mode: intersects
+preserve_properties: true
+
+default_limit: null
+default_offset: 0
+max_limit: 10000
+
+fields:
+  add_source_index: true
+  add_filter_status: true
+  source_index_field: _source_index
+  filter_status_field: _filter_status

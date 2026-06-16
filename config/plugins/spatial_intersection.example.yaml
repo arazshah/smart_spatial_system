@@ -1,0 +1,37 @@
+# Example config for spatial_intersection.
+#
+# For robust spatial intersection, install shapely:
+#   pip install shapely
+#
+# Engine:
+#   auto    -> use shapely if available, otherwise python bbox fallback
+#   shapely -> exact geometry intersection
+#   python  -> bbox-based fallback
+
+default_engine: auto
+default_mode: filter          # filter | pairwise
+
+coordinate_precision: 6       # null means no rounding
+preserve_properties: true
+
+# filter mode:
+#   true  -> return only intersecting source features
+#   false -> return all source features with _intersects true/false
+drop_non_intersecting: true
+
+# failed geometry handling
+drop_failed: false
+
+# Optional CRS hint. Does not transform geometry.
+source_crs: null
+warn_if_geographic_crs: false
+
+fields:
+  intersects_field: _intersects
+  source_index_field: _source_index
+  target_index_field: _target_index
+  status_field: _intersection_status
+  engine_field: _intersection_engine
+  mode_field: _intersection_mode
+  area_field: _intersection_area
+  target_properties_field: _target_properties

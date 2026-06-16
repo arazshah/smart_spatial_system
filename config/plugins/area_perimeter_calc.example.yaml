@@ -1,0 +1,26 @@
+# Example config for area_perimeter_calc.
+#
+# For robust geometry metrics, install shapely:
+#   pip install shapely
+#
+# This plugin performs planar metric calculations.
+
+default_engine: auto          # auto | shapely | python
+coordinate_precision: 6       # null means no rounding
+preserve_properties: true
+drop_failed: false
+
+# If true, output metric fields are always added even if value is null/0.
+always_add_fields: true
+
+fields:
+  area_field: _area
+  perimeter_field: _perimeter
+  length_field: _length
+  status_field: _metric_status
+  engine_field: _metric_engine
+  geometry_type_field: _source_geometry_type
+
+# Optional metadata hint. Does not transform CRS automatically.
+source_crs: null
+warn_if_geographic_crs: true

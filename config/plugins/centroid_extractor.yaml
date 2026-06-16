@@ -1,0 +1,10 @@
+default_engine: auto
+coordinate_precision: 8
+preserve_properties: true
+drop_failed: false
+
+fields:
+  add_source_geometry_type: true
+  add_source_feature_index: true
+  add_centroid_status: true
+  add_engine_used: true

@@ -1,0 +1,31 @@
+# Example config for data_writer_exporter.
+#
+# This plugin writes exported data to disk.
+# In production, always restrict allowed_output_roots.
+
+default_output_dir: output/plugins/data_writer_exporter
+default_overwrite: true
+pretty_json: true
+
+# If empty, writing is unrestricted.
+# In production, set this to one or more safe directories.
+allowed_output_roots:
+  - output/plugins/data_writer_exporter
+
+vector:
+  default_format: geojson
+  allowed_extensions:
+    - .geojson
+    - .json
+
+raster:
+  allowed_extensions:
+    - .tif
+    - .tiff
+    - .geotiff
+    - .png
+    - .jpg
+    - .jpeg
+    - .jp2
+    - .img
+    - .vrt

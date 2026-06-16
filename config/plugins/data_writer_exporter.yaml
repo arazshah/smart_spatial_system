@@ -1,0 +1,24 @@
+default_output_dir: output/plugins/data_writer_exporter
+default_overwrite: true
+pretty_json: true
+
+allowed_output_roots:
+  - output/plugins/data_writer_exporter
+
+vector:
+  default_format: geojson
+  allowed_extensions:
+    - .geojson
+    - .json
+
+raster:
+  allowed_extensions:
+    - .tif
+    - .tiff
+    - .geotiff
+    - .png
+    - .jpg
+    - .jpeg
+    - .jp2
+    - .img
+    - .vrt

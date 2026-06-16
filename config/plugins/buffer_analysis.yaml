@@ -1,0 +1,19 @@
+default_distance: 100.0
+default_units: meters
+default_quad_segs: 8
+default_engine: auto
+default_dissolve: false
+
+allow_negative_distance: false
+preserve_properties: true
+
+allowed_geometry_types:
+  - Point
+  - MultiPoint
+  - LineString
+  - MultiLineString
+  - Polygon
+  - MultiPolygon
+
+metadata:
+  operation_name: buffer

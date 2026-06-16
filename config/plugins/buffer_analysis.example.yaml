@@ -1,0 +1,25 @@
+# Example config for buffer_analysis.
+#
+# This plugin performs vector buffer analysis.
+# For real GIS buffer operations on lines/polygons, install shapely:
+#   pip install shapely
+
+default_distance: 100.0
+default_units: meters
+default_quad_segs: 8
+default_engine: auto        # auto | shapely | python
+default_dissolve: false
+
+allow_negative_distance: false
+preserve_properties: true
+
+allowed_geometry_types:
+  - Point
+  - MultiPoint
+  - LineString
+  - MultiLineString
+  - Polygon
+  - MultiPolygon
+
+metadata:
+  operation_name: buffer

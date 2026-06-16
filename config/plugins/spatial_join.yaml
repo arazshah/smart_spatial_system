@@ -1,0 +1,24 @@
+default_engine: auto
+default_predicate: intersects
+default_join_type: inner
+default_cardinality: first
+
+preserve_properties: true
+include_target_properties: true
+flatten_target_properties: false
+target_property_prefix: target_
+
+drop_failed: false
+
+source_crs: null
+warn_if_geographic_crs: false
+
+fields:
+  source_index_field: _source_index
+  target_index_field: _target_index
+  status_field: _join_status
+  engine_field: _join_engine
+  predicate_field: _join_predicate
+  join_type_field: _join_type
+  joined_count_field: _joined_count
+  target_properties_field: _joined_target_properties

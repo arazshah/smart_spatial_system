@@ -1,0 +1,25 @@
+default_fields: null
+default_group_by: null
+include_nulls: true
+numeric_only: false
+max_top_values: 10
+preserve_field_order: false
+
+fields:
+  stat_field_field: _stat_field
+  group_field_field: _group_field
+  group_value_field: _group_value
+  count_field: _count
+  non_null_count_field: _non_null_count
+  null_count_field: _null_count
+  unique_count_field: _unique_count
+  numeric_count_field: _numeric_count
+  min_field: _min
+  max_field: _max
+  sum_field: _sum
+  mean_field: _mean
+  median_field: _median
+  sample_stdev_field: _sample_stdev
+  population_stdev_field: _population_stdev
+  top_values_field: _top_values
+  status_field: _statistics_status

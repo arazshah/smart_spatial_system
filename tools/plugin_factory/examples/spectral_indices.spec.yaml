@@ -1,0 +1,133 @@
+# PluginSpec: Spectral Indices
+plugin_id: spectral_indices
+name: Spectral Indices
+version: 1.0.0
+author: GeoChat Team
+goal: Compute vegetation/water/urban spectral indices (NDVI, NDWI, NDBI, SAVI, EVI) from multi-band raster
+
+category: remote_sensing
+data_type: raster
+operation: spectral_indices
+
+routable: true
+config_aware: true
+
+capabilities:
+  - name: compute_spectral_index
+    description: Compute spectral indices from multi-band raster data
+    keywords:
+      - "ndvi"
+      - "ndwi"
+      - "ndbi"
+      - "savi"
+      - "evi"
+      - "شاخص طیفی"
+    required_inputs:
+      - raster
+    optional_inputs:
+      - index
+      - nir_band
+      - red_band
+      - green_band
+      - swir_band
+      - blue_band
+      - l_parameter
+      - metadata
+    output_kind: raster
+
+config:
+  default_index:
+    type: string
+    default: "ndvi"
+    description: "Default spectral index to compute"
+  default_bands:
+    type: object
+    default:
+      nir: 4
+      red: 3
+      green: 2
+      swir: 5
+      blue: 1
+    description: "Default band mapping for common sensors"
+  coordinate_precision:
+    type: integer
+    default: 6
+    description: "Decimal places for coordinate precision"
+  preserve_metadata:
+    type: boolean
+    default: true
+    description: "Whether to preserve input metadata in output"
+  nodata_handling:
+    type: string
+    default: "ignore"
+    description: "How to handle nodata values (ignore, propagate, fill)"
+
+runtime_parameters:
+  index:
+    type: string
+    description: "Spectral index to compute (ndvi, ndwi, ndbi, savi, evi)"
+  nir_band:
+    type: integer
+    description: "Band index for near-infrared"
+  red_band:
+    type: integer
+    description: "Band index for red"
+  green_band:
+    type: integer
+    description: "Band index for green"
+  swir_band:
+    type: integer
+    description: "Band index for short-wave infrared"
+  blue_band:
+    type: integer
+    description: "Band index for blue"
+  l_parameter:
+    type: number
+    description: "L parameter for SAVI index (default 0.5)"
+  metadata:
+    type: object
+    description: "Additional metadata to pass through"
+
+outputs:
+  - name: result
+    type: Raster
+    description: "Single-band raster with computed spectral index values"
+
+tests:
+  required_categories:
+    - import
+    - manifest
+    - capability
+    - config
+    - execution
+    - error
+    - edge_case
+    - nodata
+    - performance
+    - integration
+  test_data:
+    sample_raster: "tests/data/multiband_sentinel.tif"
+
+quality_gates:
+  required_gates:
+    - file_presence
+    - import_safety
+    - manifest_validity
+    - capability_registration
+    - descriptor_build
+    - config_safety
+    - runtime_overrides_config
+    - metadata_completeness
+    - error_handling
+    - nodata_handling
+    - dedicated_tests_pass
+    - related_regression_tests_pass
+    - no_unauthorized_dependencies
+    - no_kernel_sdk_mutation
+    - report_generated
+
+known_limitations:
+  - "Requires at least 4 spectral bands (R, G, B, NIR)"
+  - "EVI requires blue band"
+  - "NDBI requires SWIR band"
+  - "Does not support hyperspectral data"

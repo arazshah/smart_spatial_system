@@ -1,0 +1,98 @@
+# PluginSpec: Raster Threshold
+plugin_id: raster_threshold
+name: Raster Threshold
+version: 1.0.0
+author: GeoChat Team
+goal: Create binary/class mask from raster values using threshold conditions
+
+category: analysis
+data_type: raster
+operation: raster_threshold
+
+routable: true
+config_aware: true
+
+capabilities:
+  - name: threshold_raster
+    description: Apply threshold conditions to raster values
+    keywords:
+      - "raster threshold"
+      - "binary mask"
+      - "ndvi mask"
+      - "آستانه گذاری رستر"
+    required_inputs:
+      - raster
+    optional_inputs:
+      - operator
+      - threshold
+      - nodata
+      - metadata
+    output_kind: raster
+
+config:
+  default_engine:
+    type: string
+    default: "numpy"
+    description: "Processing engine to use (numpy, numba)"
+  coordinate_precision:
+    type: integer
+    default: 6
+    description: "Decimal places for coordinate precision"
+  preserve_metadata:
+    type: boolean
+    default: true
+    description: "Whether to preserve input metadata in output"
+
+runtime_parameters:
+  operator:
+    type: string
+    description: "Comparison operator (gt, lt, gte, lte, eq, neq)"
+  threshold:
+    type: number
+    description: "Threshold value for comparison"
+  nodata:
+    type: number
+    description: "Nodata value to use in output"
+
+outputs:
+  - name: result
+    type: Raster
+    description: "Binary or class mask raster"
+
+tests:
+  required_categories:
+    - import
+    - manifest
+    - capability
+    - config
+    - execution
+    - error
+    - edge_case
+    - nodata
+    - performance
+    - integration
+  test_data:
+    sample_raster: "tests/data/sample_raster.tif"
+
+quality_gates:
+  required_gates:
+    - file_presence
+    - import_safety
+    - manifest_validity
+    - capability_registration
+    - descriptor_build
+    - config_safety
+    - runtime_overrides_config
+    - metadata_completeness
+    - error_handling
+    - nodata_handling
+    - dedicated_tests_pass
+    - related_regression_tests_pass
+    - no_unauthorized_dependencies
+    - no_kernel_sdk_mutation
+    - report_generated
+
+known_limitations:
+  - "Only supports single-band rasters"
+  - "Does not support multi-condition thresholds"
+  - "Performance degrades with very large rasters (>1GB)"

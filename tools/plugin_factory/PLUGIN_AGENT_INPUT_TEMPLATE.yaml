@@ -1,0 +1,28 @@
+# Plugin Agent Input Template
+# This template defines the input structure for the plugin generation agent
+
+plugin_id: ""  # Unique identifier for the plugin (snake_case)
+goal: ""  # Clear one-sentence description of what the plugin does
+priority: "medium"  # Priority level: low, medium, high, critical
+
+# Plugin type specification
+plugin_type:
+  category: ""  # analysis, query, remote_sensing, conversion, utility
+  data_type: ""  # raster, vector, both
+  operation: ""  # Operation name for routing
+
+# Expected output
+expected_output:
+  kind: ""  # raster or vector
+  description: ""  # Description of the output
+
+# Constraints
+constraints:
+  dependency_policy: "strict"  # strict, moderate, lenient
+  config_required: true  # Whether config is mandatory
+  must_be_routable: true  # Whether plugin must support auto-routing
+  must_include_tests: true  # Whether tests are required
+  must_generate_report: true  # Whether report generation is required
+
+# Additional notes
+notes: ""

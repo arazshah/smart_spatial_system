@@ -1,0 +1,98 @@
+# PluginSpec: Spatial Query Filter
+plugin_id: spatial_query_filter
+name: Spatial Query Filter
+version: 1.0.0
+author: GeoChat Team
+goal: Filter vector features by spatial relationship (intersects/contains/within/distance)
+
+category: query
+data_type: vector
+operation: spatial_query_filter
+
+routable: true
+config_aware: true
+
+capabilities:
+  - name: spatial_query
+    description: Filter features based on spatial relationships
+    keywords:
+      - "spatial filter"
+      - "spatial query"
+      - "فیلتر مکانی"
+    required_inputs:
+      - features
+      - query_geometry
+    optional_inputs:
+      - relation
+      - distance
+      - metadata
+    output_kind: vector
+
+config:
+  default_relation:
+    type: string
+    default: "intersects"
+    description: "Default spatial relation (intersects, contains, within, distance)"
+  distance_unit:
+    type: string
+    default: "meters"
+    description: "Unit for distance measurements"
+  preserve_metadata:
+    type: boolean
+    default: true
+    description: "Whether to preserve input metadata in output"
+
+runtime_parameters:
+  relation:
+    type: string
+    description: "Spatial relation to use (intersects, contains, within, distance)"
+  distance:
+    type: number
+    description: "Distance value for distance-based queries"
+  metadata:
+    type: object
+    description: "Additional metadata to pass through"
+
+outputs:
+  - name: result
+    type: VectorLayer
+    description: "Filtered vector features"
+
+tests:
+  required_categories:
+    - import
+    - manifest
+    - capability
+    - config
+    - execution
+    - error
+    - edge_case
+    - nodata
+    - performance
+    - integration
+  test_data:
+    sample_vector: "tests/data/sample_features.geojson"
+    query_geometry: "tests/data/query_polygon.geojson"
+
+quality_gates:
+  required_gates:
+    - file_presence
+    - import_safety
+    - manifest_validity
+    - capability_registration
+    - descriptor_build
+    - config_safety
+    - runtime_overrides_config
+    - metadata_completeness
+    - error_handling
+    - nodata_handling
+    - dedicated_tests_pass
+    - related_regression_tests_pass
+    - no_unauthorized_dependencies
+    - no_kernel_sdk_mutation
+    - report_generated
+
+known_limitations:
+  - "Only supports polygon query geometries"
+  - "Distance queries limited to 100km radius"
+  - "Does not support 3D geometries"

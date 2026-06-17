@@ -1,0 +1,94 @@
+# PluginSpec Template
+# This file defines the specification for a GeoChat plugin
+
+plugin_id: ""  # Unique identifier (snake_case)
+name: ""  # Human-readable name
+version: "1.0.0"  # Semantic version
+author: ""  # Creator/team name
+goal: ""  # One-sentence description
+
+# Plugin category: analysis, query, remote_sensing, conversion, utility
+category: ""
+
+# Data type: raster, vector, both
+data_type: ""
+
+# Operation name (used for routing)
+operation: ""
+
+# Routing configuration
+routable: true  # Whether plugin can be auto-routed
+
+# Config awareness
+config_aware: true  # Whether plugin uses configuration
+
+# Capabilities list
+capabilities:
+  - name: ""  # Unique capability name
+    description: ""  # Short description
+    keywords: []  # Multilingual search keywords
+    required_inputs: []  # List of required input names
+    optional_inputs: []  # List of optional input names
+    output_kind: ""  # raster or vector
+
+# Configuration schema
+config:
+  # Define config keys with defaults and descriptions
+  example_key:
+    type: string
+    default: "value"
+    description: "Description of this config key"
+
+# Runtime parameters (overrides config)
+runtime_parameters:
+  # Define parameters that can override config at runtime
+  example_param:
+    type: string
+    description: "Description of runtime parameter"
+
+# Output specification
+outputs:
+  - name: "result"
+    type: ""  # Raster or VectorLayer
+    description: "Description of output"
+
+# Test configuration
+tests:
+  required_categories:
+    - import
+    - manifest
+    - capability
+    - config
+    - execution
+    - error
+    - edge_case
+    - nodata
+    - performance
+    - integration
+  test_data:
+    # Define test data paths or generators
+    sample_raster: ""
+    sample_vector: ""
+
+# Quality gates configuration
+quality_gates:
+  required_gates:
+    - file_presence
+    - import_safety
+    - manifest_validity
+    - capability_registration
+    - descriptor_build
+    - config_safety
+    - runtime_overrides_config
+    - metadata_completeness
+    - error_handling
+    - nodata_handling
+    - dedicated_tests_pass
+    - related_regression_tests_pass
+    - no_unauthorized_dependencies
+    - no_kernel_sdk_mutation
+    - report_generated
+
+# Known limitations
+known_limitations:
+  - "List any known limitations or edge cases not handled"

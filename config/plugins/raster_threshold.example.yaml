@@ -1,0 +1,45 @@
+# Example config for raster_threshold.
+#
+# Raster data format:
+#   2D:
+#     data[row][col]
+#   3D band-first:
+#     data[band][row][col]
+#
+# Band indices are 1-based.
+#
+# Operators:
+#   gt       >
+#   gte      >=
+#   lt       <
+#   lte      <=
+#   eq       ==
+#   neq      !=
+#   between  min_value <= x <= max_value by default
+#   outside  x < min_value or x > max_value by default
+#
+# Aliases are supported:
+#   ">", ">=", "<", "<=", "==", "!=", "between", "outside"
+
+default_engine: python
+default_band_index: 1
+
+default_operator: gt
+default_threshold: null
+default_min_value: null
+default_max_value: null
+
+inclusive_min: true
+inclusive_max: true
+
+true_value: 1
+false_value: 0
+
+default_nodata: null
+default_output_nodata: null
+
+coordinate_precision: 6
+preserve_metadata: true
+
+source_crs: null
+warn_if_geographic_crs: false

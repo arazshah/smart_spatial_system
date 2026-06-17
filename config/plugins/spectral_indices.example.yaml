@@ -1,0 +1,46 @@
+# Example config for spectral_indices.
+#
+# Raster data format:
+#   2D:
+#     data[row][col]
+#   3D band-first:
+#     data[band][row][col]
+#
+# Band indices are 1-based.
+#
+# Supported index names:
+#   ndvi, ndwi, gndvi, ndbi, ndmi, mndwi, nbr, savi, evi
+
+default_engine: python
+default_index: ndvi
+
+# Generic default band map for simple tests.
+# Override this at runtime for real sensors.
+default_band_map:
+  blue: 1
+  green: 1
+  red: 1
+  nir: 2
+  swir1: 2
+  swir2: 2
+
+default_params:
+  savi_l: 0.5
+  evi_g: 2.5
+  evi_c1: 6.0
+  evi_c2: 7.5
+  evi_l: 1.0
+
+default_nodata: null
+default_output_nodata: null
+division_by_zero_value: null
+
+clip_output: true
+output_min: -1.0
+output_max: 1.0
+
+coordinate_precision: 6
+preserve_metadata: true
+
+source_crs: null
+warn_if_geographic_crs: false

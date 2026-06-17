@@ -39,6 +39,12 @@ from orchestrator.production_response import (
 from orchestrator.router_decision import RouterDecision, RouterDecisionConfig, RouterDecisionLayer
 from orchestrator.routing_aware_natural_query_runner import run_natural_query_with_routing_evidence
 from orchestrator.routing_aware_plan_builder import RoutingAwarePlanBuilder
+from orchestrator.service import (
+    DEFAULT_SAFE_PLUGIN_MODULES,
+    OrchestratorService,
+    OrchestratorServiceConfig,
+    OrchestratorServiceError,
+)
 from orchestrator.statistics import ExecutionStatisticsCollector, StatisticsConfig
 from orchestrator.weight_proposals import (
     InMemoryRouterWeightStore,
@@ -85,6 +91,10 @@ __all__ = [
     "RouterDecisionConfig",
     "RouterDecisionLayer",
     "RoutingAwarePlanBuilder",
+    "DEFAULT_SAFE_PLUGIN_MODULES",
+    "OrchestratorService",
+    "OrchestratorServiceConfig",
+    "OrchestratorServiceError",
     "ExecutionStatisticsCollector",
     "StatisticsConfig",
     "InMemoryRouterWeightStore",

@@ -472,3 +472,122 @@ def _append_unique(items: list[str], value: str) -> None:
     """
     if value not in items:
         items.append(value)
+
+
+# ---------------------------------------------------------------------------
+# ScoredCapability mapping compatibility
+# ---------------------------------------------------------------------------
+# Some orchestration layers consume routing evidence as dict-like objects:
+#     item["score"]
+#     item.get("capability_name")
+# This compatibility layer keeps ScoredCapability usable both as a dataclass
+# object and as mapping-like routing evidence.
+
+def _scored_capability_mapping_payload(self):
+    from dataclasses import asdict, is_dataclass
+
+    if is_dataclass(self):
+        payload = asdict(self)
+    else:
+        payload = dict(getattr(self, "__dict__", {}) or {})
+
+    # Copy direct attributes if they exist.
+    for key in (
+        "score",
+        "capability_name",
+        "name",
+        "plugin_id",
+        "plugin_name",
+        "plugin",
+        "output_kind",
+        "matched_terms",
+        "reasons",
+    ):
+        if key not in payload:
+            try:
+                payload[key] = getattr(self, key)
+            except Exception:
+                pass
+
+    capability = payload.get("capability")
+
+    # Extract capability_name from nested capability object/dict.
+    if not payload.get("capability_name") and capability is not None:
+        if isinstance(capability, dict):
+            payload["capability_name"] = (
+                capability.get("capability_name")
+                or capability.get("name")
+                or capability.get("id")
+            )
+        else:
+            payload["capability_name"] = (
+                getattr(capability, "capability_name", None)
+                or getattr(capability, "name", None)
+                or getattr(capability, "id", None)
+            )
+
+    # Extract plugin_id from nested capability object/dict.
+    if not payload.get("plugin_id") and capability is not None:
+        if isinstance(capability, dict):
+            payload["plugin_id"] = (
+                capability.get("plugin_id")
+                or capability.get("plugin_name")
+                or capability.get("plugin")
+            )
+        else:
+            payload["plugin_id"] = (
+                getattr(capability, "plugin_id", None)
+                or getattr(capability, "plugin_name", None)
+                or getattr(capability, "plugin", None)
+            )
+
+    if payload.get("reasons") is None:
+        payload["reasons"] = []
+
+    if payload.get("matched_terms") is None:
+        payload["matched_terms"] = []
+
+    return payload
+
+
+def _scored_capability_get(self, key, default=None):
+    return self._mapping_payload().get(key, default)
+
+
+def _scored_capability_getitem(self, key):
+    payload = self._mapping_payload()
+
+    if key not in payload:
+        raise KeyError(key)
+
+    return payload[key]
+
+
+def _scored_capability_contains(self, key):
+    return key in self._mapping_payload()
+
+
+def _scored_capability_keys(self):
+    return self._mapping_payload().keys()
+
+
+def _scored_capability_items(self):
+    return self._mapping_payload().items()
+
+
+def _scored_capability_values(self):
+    return self._mapping_payload().values()
+
+
+try:
+    ScoredCapability._mapping_payload = _scored_capability_mapping_payload
+    ScoredCapability.get = _scored_capability_get
+    ScoredCapability.__getitem__ = _scored_capability_getitem
+    ScoredCapability.__contains__ = _scored_capability_contains
+    ScoredCapability.keys = _scored_capability_keys
+    ScoredCapability.items = _scored_capability_items
+    ScoredCapability.values = _scored_capability_values
+except NameError:
+    # If ScoredCapability is renamed or removed, fail silently at import time.
+    # Tests will catch the missing compatibility.
+    pass

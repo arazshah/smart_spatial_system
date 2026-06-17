@@ -31,6 +31,11 @@ from orchestrator.llm_gate import (
     LLMProviderUnavailableError,
 )
 from orchestrator.natural_query_runner import run_natural_query
+from orchestrator.production_response import (
+    ProductionResponse,
+    ProductionResponseBuilder,
+    ProductionResponseConfig,
+)
 from orchestrator.router_decision import RouterDecision, RouterDecisionConfig, RouterDecisionLayer
 from orchestrator.routing_aware_natural_query_runner import run_natural_query_with_routing_evidence
 from orchestrator.routing_aware_plan_builder import RoutingAwarePlanBuilder
@@ -42,6 +47,11 @@ from orchestrator.weight_proposals import (
     WeightProposal,
     WeightProposalConfig,
     WeightStoreConfig,
+)
+from orchestrator.weight_store_persistence import (
+    RouterWeightStorePersistence,
+    WeightStorePersistenceConfig,
+    WeightStorePersistenceError,
 )
 from orchestrator.weighted_router import (
     WeightedCapabilityRouter,
@@ -68,6 +78,9 @@ __all__ = [
     "LLMBudgetPolicy",
     "LLMProviderStub",
     "LLMProviderUnavailableError",
+    "ProductionResponse",
+    "ProductionResponseBuilder",
+    "ProductionResponseConfig",
     "RouterDecision",
     "RouterDecisionConfig",
     "RouterDecisionLayer",
@@ -80,6 +93,9 @@ __all__ = [
     "WeightProposal",
     "WeightProposalConfig",
     "WeightStoreConfig",
+    "RouterWeightStorePersistence",
+    "WeightStorePersistenceConfig",
+    "WeightStorePersistenceError",
     "WeightedCapabilityRouter",
     "WeightedRouterConfig",
     "run_natural_query",

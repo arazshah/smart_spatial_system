@@ -15,7 +15,7 @@ This is the first explainable planning layer:
 
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, is_dataclass
 from typing import Any
 
 from orchestrator.models import PlanNode, QueryIntent, QueryPlan, ScoredCapability
@@ -146,8 +146,58 @@ class RoutingAwarePlanBuilder:
         )
 
     @staticmethod
-    def _evidence_dict(candidate: ScoredCapability) -> dict[str, Any]:
+    def _evidence_dict(candidate):
         """
-        Convert ScoredCapability to JSON-like dict.
+        Convert routing evidence/candidate to a JSON-like dict.
+
+        Supports:
+            - dict / WeightedEvidence
+            - dataclass objects such as ScoredCapability
+            - objects exposing to_dict()
+            - objects with __dict__
+            - mapping-like objects exposing keys()
         """
-        return asdict(candidate)
+        if isinstance(candidate, dict):
+            return dict(candidate)
+
+        if hasattr(candidate, "to_dict") and callable(candidate.to_dict):
+            return candidate.to_dict()
+
+        if is_dataclass(candidate):
+            return asdict(candidate)
+
+        if hasattr(candidate, "keys"):
+            try:
+                return {
+                    key: candidate[key]
+                    for key in candidate.keys()
+                }
+            except Exception:
+                pass
+
+        payload = dict(getattr(candidate, "__dict__", {}) or {})
+
+        for key in (
+            "score",
+            "capability_name",
+            "name",
+            "plugin_id",
+            "plugin_name",
+            "plugin",
+            "output_kind",
+            "matched_terms",
+            "reasons",
+            "base_score",
+            "weighted_score",
+            "capability_weight",
+            "plugin_weight",
+            "score_weighted",
+            "weighted_score_metadata",
+        ):
+            if key not in payload:
+                try:
+                    payload[key] = getattr(candidate, key)
+                except Exception:
+                    pass
+
+        return payload

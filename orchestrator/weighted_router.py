@@ -13,19 +13,17 @@ Important:
     This wrapper does not learn by itself.
     It only consumes weights that were already placed in a weight store.
 
-Typical flow:
-    User Feedback
-    -> Learning Signals
-    -> Weight Proposals
-    -> Approve / Apply
-    -> Weight Store
-    -> WeightedCapabilityRouter
+It supports:
+    - dict candidates
+    - dataclass candidates such as ScoredCapability
+    - object candidates with score/capability/plugin fields
+    - nested dict/list/tuple router results
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Callable
+from dataclasses import asdict, dataclass, is_dataclass
+from typing import Any
 
 from orchestrator.weight_proposals import InMemoryRouterWeightStore
 
@@ -50,28 +48,34 @@ class WeightedRouterConfig:
             raise ValueError("round_digits must be >= 0.")
 
 
+class WeightedEvidence(dict):
+    """
+    Dict evidence with attribute-style access.
+
+    This keeps compatibility with code that expects:
+        evidence["score"]
+        evidence.get("score")
+        evidence.score
+        getattr(evidence, "score")
+    """
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc
+
+
 class WeightedCapabilityRouter:
     """
     Generic wrapper around any capability router.
 
-    The wrapper intercepts delegated router method calls and post-processes
-    returned routing evidence/candidates.
+    The wrapper delegates calls to the base router, then post-processes returned
+    candidates/routing evidence.
 
-    It supports common JSON-like router outputs:
-        - dict candidate
-        - list[dict]
-        - tuple containing candidates
-        - nested dict/list structures
-
-    A candidate/evidence dict is weighted when it contains:
+    A candidate is weighted when it has:
         - score
-        - and capability/plugin identity fields
-
-    Supported identity fields:
-        capability:
-            capability_name | name
-        plugin:
-            plugin_id | plugin_name | plugin
+        - capability identity and/or plugin identity
     """
 
     def __init__(
@@ -87,10 +91,9 @@ class WeightedCapabilityRouter:
 
     def __getattr__(self, name: str) -> Any:
         """
-        Delegate all unknown attributes/methods to the base router.
+        Delegate unknown attributes/methods to the base router.
 
-        If the delegated attribute is callable, wrap its return value and apply
-        weighting to routing evidence.
+        Callable results are weighted recursively.
         """
         attr = getattr(self.base_router, name)
 
@@ -103,17 +106,21 @@ class WeightedCapabilityRouter:
 
         return wrapped
 
-    def weight_candidate(self, candidate: dict[str, Any]) -> dict[str, Any]:
+    def weight_candidate(self, candidate: Any) -> dict[str, Any]:
         """
-        Return a weighted copy of a candidate/routing evidence dict.
+        Return weighted copy of a candidate/routing evidence item.
+        """
+        if not _is_score_candidate(candidate):
+            if isinstance(candidate, dict):
+                return dict(candidate)
 
-        The original candidate is not mutated.
-        """
+            return _candidate_to_dict(candidate)
+
         return self._weight_candidate(candidate)
 
     def weight_result(self, result: Any) -> Any:
         """
-        Public helper for weighting an arbitrary router result.
+        Public helper for weighting arbitrary router output.
         """
         return self._weight_result(result)
 
@@ -153,16 +160,21 @@ class WeightedCapabilityRouter:
                 for key, value in result.items()
             }
 
+        if _is_score_candidate(result):
+            return self._weight_candidate(result)
+
         return result
 
-    def _weight_candidate(self, candidate: dict[str, Any]) -> dict[str, Any]:
-        score = candidate.get("score")
+    def _weight_candidate(self, candidate: Any) -> WeightedEvidence:
+        payload = _candidate_to_dict(candidate)
+
+        score = payload.get("score")
 
         if not isinstance(score, (int, float)):
-            return dict(candidate)
+            return WeightedEvidence(payload)
 
-        capability_name = _capability_name(candidate)
-        plugin_id = _plugin_id(candidate)
+        capability_name = _capability_name(payload)
+        plugin_id = _plugin_id(payload)
 
         if capability_name:
             capability_weight = self.weight_store.get_weight(
@@ -188,7 +200,6 @@ class WeightedCapabilityRouter:
 
         weighted_score = round(weighted_score, self.config.round_digits)
 
-        payload = dict(candidate)
         payload["score"] = weighted_score
 
         if self.config.annotate_evidence:
@@ -227,11 +238,13 @@ class WeightedCapabilityRouter:
                 "max_score": self.config.max_score,
             }
 
-        return payload
+        return WeightedEvidence(payload)
 
 
-def _is_score_candidate(value: dict[str, Any]) -> bool:
-    if "score" not in value:
+def _is_score_candidate(value: Any) -> bool:
+    score = _field(value, "score")
+
+    if not isinstance(score, (int, float)):
         return False
 
     return bool(
@@ -251,21 +264,107 @@ def _looks_like_ranked_candidate_list(items: list[Any]) -> bool:
     )
 
 
-def _capability_name(candidate: dict[str, Any]) -> str | None:
+def _candidate_to_dict(candidate: Any) -> dict[str, Any]:
+    """
+    Convert dict/dataclass/object candidate to normalized dict.
+    """
+    if isinstance(candidate, dict):
+        payload = dict(candidate)
+    elif is_dataclass(candidate):
+        payload = asdict(candidate)
+    else:
+        payload = dict(getattr(candidate, "__dict__", {}) or {})
+
+    # Add direct attributes/properties if available and missing.
+    for key in (
+        "score",
+        "capability_name",
+        "name",
+        "plugin_id",
+        "plugin_name",
+        "plugin",
+        "output_kind",
+        "matched_terms",
+        "reasons",
+    ):
+        if key not in payload:
+            try:
+                value = getattr(candidate, key)
+            except Exception:
+                continue
+            payload[key] = value
+
+    capability_name = _capability_name(payload)
+    plugin_id = _plugin_id(payload)
+
+    if capability_name and not payload.get("capability_name"):
+        payload["capability_name"] = capability_name
+
+    if plugin_id and not payload.get("plugin_id"):
+        payload["plugin_id"] = plugin_id
+
+    if "reasons" in payload and payload["reasons"] is None:
+        payload["reasons"] = []
+
+    if "matched_terms" in payload and payload["matched_terms"] is None:
+        payload["matched_terms"] = []
+
+    return payload
+
+
+def _field(candidate: Any, key: str) -> Any:
+    if isinstance(candidate, dict):
+        return candidate.get(key)
+
+    try:
+        return getattr(candidate, key)
+    except Exception:
+        return None
+
+
+def _nested_field(value: Any, key: str) -> Any:
+    if isinstance(value, dict):
+        return value.get(key)
+
+    try:
+        return getattr(value, key)
+    except Exception:
+        return None
+
+
+def _capability_name(candidate: Any) -> str | None:
     for key in ("capability_name", "name"):
-        value = candidate.get(key)
+        value = _field(candidate, key)
 
         if isinstance(value, str) and value:
             return value
+
+    capability = _field(candidate, "capability")
+
+    if capability is not None:
+        for key in ("capability_name", "name", "id"):
+            value = _nested_field(capability, key)
+
+            if isinstance(value, str) and value:
+                return value
 
     return None
 
 
-def _plugin_id(candidate: dict[str, Any]) -> str | None:
+def _plugin_id(candidate: Any) -> str | None:
     for key in ("plugin_id", "plugin_name", "plugin"):
-        value = candidate.get(key)
+        value = _field(candidate, key)
 
         if isinstance(value, str) and value:
             return value
+
+    capability = _field(candidate, "capability")
+
+    if capability is not None:
+        for key in ("plugin_id", "plugin_name", "plugin", "id"):
+            value = _nested_field(capability, key)
+
+            if isinstance(value, str) and value:
+                return value
 
     return None

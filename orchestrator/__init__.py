@@ -31,11 +31,29 @@ from orchestrator.llm_gate import (
     LLMProviderUnavailableError,
 )
 from orchestrator.natural_query_runner import run_natural_query
+from orchestrator.loader_plugin_contract import (
+    LOADER_PLUGIN_CONTRACT_VERSION,
+    LoaderPluginContractError,
+    load_with_loader_contract,
+    normalize_raster_loader_output,
+    normalize_vector_loader_output,
+)
+from orchestrator.input_reference_resolver import (
+    UploadReferenceResolver,
+    UploadReferenceResolverConfig,
+    UploadReferenceResolverError,
+)
 from orchestrator.output_storage import (
     OUTPUT_STORAGE_SCHEMA_VERSION,
     OutputStorage,
     OutputStorageConfig,
     OutputStorageError,
+)
+from orchestrator.project_store import (
+    PROJECT_STORE_SCHEMA_VERSION,
+    ProjectStore,
+    ProjectStoreConfig,
+    ProjectStoreError,
 )
 from orchestrator.production_response import (
     ProductionResponse,
@@ -97,9 +115,21 @@ __all__ = [
     "LLMProviderStub",
     "LLMProviderUnavailableError",
     "OUTPUT_STORAGE_SCHEMA_VERSION",
+    "LOADER_PLUGIN_CONTRACT_VERSION",
+    "LoaderPluginContractError",
+    "load_with_loader_contract",
+    "normalize_raster_loader_output",
+    "normalize_vector_loader_output",
+    "UploadReferenceResolver",
+    "UploadReferenceResolverConfig",
+    "UploadReferenceResolverError",
     "OutputStorage",
     "OutputStorageConfig",
     "OutputStorageError",
+    "PROJECT_STORE_SCHEMA_VERSION",
+    "ProjectStore",
+    "ProjectStoreConfig",
+    "ProjectStoreError",
     "ProductionResponse",
     "ProductionResponseBuilder",
     "ProductionResponseConfig",

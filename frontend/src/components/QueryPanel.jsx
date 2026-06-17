@@ -4,8 +4,8 @@ import { SAMPLE_BAND_MAP, SAMPLE_INPUTS, SAMPLE_QUERY } from "../sampleData";
 export default function QueryPanel({ onSubmit, loading, upload }) {
   const [query, setQuery] = useState(SAMPLE_QUERY);
   const [requestId, setRequestId] = useState("req-frontend-001");
-  const [useUploadRef, setUseUploadRef] = useState(false);
-  const [rasterRef, setRasterRef] = useState("");
+  const [inputMode, setInputMode] = useState("json");
+  const [uploadRef, setUploadRef] = useState("");
   const [inputsText, setInputsText] = useState(
     JSON.stringify(SAMPLE_INPUTS, null, 2)
   );
@@ -16,8 +16,13 @@ export default function QueryPanel({ onSubmit, loading, upload }) {
 
   useEffect(() => {
     if (upload?.upload_id) {
-      setRasterRef(upload.upload_id);
-      setUseUploadRef(true);
+      setUploadRef(upload.upload_id);
+
+      if (upload.kind === "vector") {
+        setInputMode("vector_ref");
+      } else {
+        setInputMode("raster_ref");
+      }
     }
   }, [upload]);
 
@@ -28,14 +33,23 @@ export default function QueryPanel({ onSubmit, loading, upload }) {
     let inputs;
     let bandMap;
 
-    if (useUploadRef) {
-      if (!rasterRef.trim()) {
-        setError("raster_ref خالی است. ابتدا فایل آپلود کنید یا upload_id را وارد کنید.");
+    if (inputMode === "raster_ref") {
+      if (!uploadRef.trim()) {
+        setError("raster_ref خالی است. ابتدا فایل raster آپلود کنید یا upload_id را وارد کنید.");
         return;
       }
 
       inputs = {
-        raster_ref: rasterRef.trim(),
+        raster_ref: uploadRef.trim(),
+      };
+    } else if (inputMode === "vector_ref") {
+      if (!uploadRef.trim()) {
+        setError("vector_ref خالی است. ابتدا فایل vector آپلود کنید یا upload_id را وارد کنید.");
+        return;
+      }
+
+      inputs = {
+        vector_ref: uploadRef.trim(),
       };
     } else {
       try {
@@ -60,7 +74,7 @@ export default function QueryPanel({ onSubmit, loading, upload }) {
       band_map: bandMap,
       user_context: {
         source: "frontend-mvp",
-        input_mode: useUploadRef ? "upload_ref" : "json",
+        input_mode: inputMode,
       },
     });
   }
@@ -92,26 +106,43 @@ export default function QueryPanel({ onSubmit, loading, upload }) {
           />
         </label>
 
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={useUploadRef}
-            onChange={(event) => setUseUploadRef(event.target.checked)}
-          />
-          استفاده از raster_ref آپلودشده
+        <label>
+          نوع ورودی
+          <select
+            value={inputMode}
+            onChange={(event) => setInputMode(event.target.value)}
+          >
+            <option value="json">JSON دستی</option>
+            <option value="raster_ref">raster_ref از آپلود</option>
+            <option value="vector_ref">vector_ref از آپلود</option>
+          </select>
         </label>
 
-        {useUploadRef ? (
+        {inputMode === "raster_ref" && (
           <label>
             raster_ref / upload_id
             <input
-              value={rasterRef}
-              onChange={(event) => setRasterRef(event.target.value)}
+              value={uploadRef}
+              onChange={(event) => setUploadRef(event.target.value)}
               placeholder="upl-..."
               dir="ltr"
             />
           </label>
-        ) : (
+        )}
+
+        {inputMode === "vector_ref" && (
+          <label>
+            vector_ref / upload_id
+            <input
+              value={uploadRef}
+              onChange={(event) => setUploadRef(event.target.value)}
+              placeholder="upl-..."
+              dir="ltr"
+            />
+          </label>
+        )}
+
+        {inputMode === "json" && (
           <label>
             inputs JSON
             <textarea

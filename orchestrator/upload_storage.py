@@ -47,6 +47,10 @@ class UploadStorageConfig:
         ".geojson",
         ".tif",
         ".tiff",
+        ".gpkg",
+        ".zip",
+        ".shp",
+        ".kml",
     )
     indent: int = 2
     ensure_ascii: bool = False

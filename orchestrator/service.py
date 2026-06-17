@@ -36,10 +36,20 @@ from orchestrator.capability_scoring import KeywordScoringCapabilityRouter
 from orchestrator.feedback import FeedbackCollector, UserFeedbackInput
 from orchestrator.learning_signals import RouterLearningSignalBuilder
 from orchestrator.map_layers import MapLayerBuilder
+from orchestrator.input_reference_resolver import (
+    UploadReferenceResolver,
+    UploadReferenceResolverConfig,
+    UploadReferenceResolverError,
+)
 from orchestrator.output_storage import (
     OutputStorage,
     OutputStorageConfig,
     OutputStorageError,
+)
+from orchestrator.project_store import (
+    ProjectStore,
+    ProjectStoreConfig,
+    ProjectStoreError,
 )
 from orchestrator.production_response import (
     ProductionResponseBuilder,
@@ -88,6 +98,12 @@ class OrchestratorServiceConfig:
     weights_path: str | Path = "weights/router_weights.json"
     outputs_path: str | Path = "outputs"
     uploads_path: str | Path = "uploads"
+    projects_path: str | Path = "projects"
+    resolve_upload_refs_with_plugins: bool = True
+    raster_loader_plugin_module: str = "plugins.local_raster_loader"
+    vector_loader_plugin_module: str = "plugins.local_vector_loader"
+    enforce_loader_contract: bool = True
+    allow_adaptive_loader_fallback: bool = True
     persist_outputs: bool = True
 
     default_weight: float = 1.0
@@ -180,6 +196,25 @@ class OrchestratorService:
             )
         )
 
+        self.project_store = ProjectStore(
+            ProjectStoreConfig(
+                root_dir=self.config.projects_path,
+            )
+        )
+
+        self.upload_reference_resolver = UploadReferenceResolver(
+            self.upload_storage,
+            UploadReferenceResolverConfig(
+                raster_loader_plugin_module=self.config.raster_loader_plugin_module,
+                vector_loader_plugin_module=self.config.vector_loader_plugin_module,
+                use_plugins=self.config.resolve_upload_refs_with_plugins,
+                allow_json_fallback=True,
+                prefer_plugin_for_json=False,
+                enforce_loader_contract=self.config.enforce_loader_contract,
+                allow_adaptive_loader_fallback=self.config.allow_adaptive_loader_fallback,
+            ),
+        )
+
         self.response_builder = ProductionResponseBuilder(
             ProductionResponseConfig(
                 language=self.config.response_language,
@@ -259,8 +294,29 @@ class OrchestratorService:
 
             stored_record = self.get_request(final_request_id)
 
-            if stored_record is not None and self.config.persist_outputs:
-                self._persist_outputs_for_record(stored_record)
+            if stored_record is not None:
+                project_id = stored_record.get("project_id")
+
+                if project_id:
+                    try:
+                        self.project_store.attach_request(
+                            project_id,
+                            final_request_id,
+                        )
+                    except Exception:
+                        pass
+
+                if self.config.persist_outputs:
+                    manifest = self._persist_outputs_for_record(stored_record)
+
+                    if project_id and isinstance(manifest, dict):
+                        try:
+                            self.project_store.attach_output(
+                                project_id,
+                                final_request_id,
+                            )
+                        except Exception:
+                            pass
 
             return production_response
 
@@ -465,6 +521,37 @@ class OrchestratorService:
 
         return items
 
+
+    def create_project(
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        try:
+            return self.project_store.create_project(
+                name=name,
+                description=description,
+                metadata=metadata,
+            )
+        except ProjectStoreError as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
+
+    def list_projects(
+        self,
+    ) -> list[dict[str, Any]]:
+        return self.project_store.list_projects()
+
+    def get_project(
+        self,
+        project_id: str,
+    ) -> dict[str, Any]:
+        try:
+            return self.project_store.get_project(project_id)
+        except ProjectStoreError as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
+
     def save_upload(
         self,
         *,
@@ -473,18 +560,28 @@ class OrchestratorService:
         content_type: str | None = None,
         kind: str = "raster",
         user_context: dict[str, Any] | None = None,
+        project_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Save uploaded user file and return upload metadata.
         """
         try:
-            return self.upload_storage.save_upload(
+            payload = self.upload_storage.save_upload(
                 filename=filename,
                 content=content,
                 content_type=content_type,
                 kind=kind,
                 user_context=user_context,
             )
+
+            if project_id:
+                self.project_store.attach_upload(
+                    project_id,
+                    payload["upload_id"],
+                )
+                payload["project_id"] = project_id
+
+            return payload
         except UploadStorageError as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
@@ -532,39 +629,19 @@ class OrchestratorService:
         inputs: dict[str, Any],
     ) -> dict[str, Any]:
         """
-        Resolve input references such as:
+        Resolve uploaded input references through UploadReferenceResolver.
+
+        Supported:
             {"raster_ref": "upl-..."}
-        into:
-            {"raster": <parsed JSON raster>}
+            {"vector_ref": "upl-..."}
+            {"raster": {"upload_id": "upl-..."}}
+            {"vector": {"upload_id": "upl-..."}}
         """
-        if not isinstance(inputs, dict):
-            return inputs
+        try:
+            return self.upload_reference_resolver.resolve_inputs(inputs)
+        except UploadReferenceResolverError as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
 
-        resolved = dict(inputs)
-
-        raster_ref = resolved.pop("raster_ref", None)
-
-        if raster_ref is None:
-            raster_payload = resolved.get("raster")
-
-            if isinstance(raster_payload, dict):
-                raster_ref = (
-                    raster_payload.get("upload_id")
-                    or raster_payload.get("ref")
-                    or raster_payload.get("raster_ref")
-                )
-
-        if raster_ref:
-            try:
-                resolved["raster"] = self.upload_storage.read_json_content(
-                    str(raster_ref)
-                )
-            except UploadStorageError as exc:
-                raise OrchestratorServiceError(
-                    f"Could not resolve raster_ref {raster_ref}: {exc}"
-                ) from exc
-
-        return resolved
 
     def save_request_outputs(
         self,

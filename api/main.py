@@ -104,11 +104,55 @@ def create_app(
         svc = _service(request)
         return _json_safe(svc.get_health())
 
+    @app.post("/projects")
+    def create_project(
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        svc = _service(request)
+
+        try:
+            return _json_safe(
+                svc.create_project(
+                    name=str(payload.get("name") or "").strip(),
+                    description=payload.get("description"),
+                    metadata=payload.get("metadata") or {},
+                )
+            )
+        except OrchestratorServiceError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+    @app.get("/projects")
+    def list_projects(
+        request: Request,
+    ) -> list[dict[str, Any]]:
+        svc = _service(request)
+        return _json_safe(svc.list_projects())
+
+    @app.get("/projects/{project_id}")
+    def get_project(
+        request: Request,
+        project_id: str,
+    ) -> dict[str, Any]:
+        svc = _service(request)
+
+        try:
+            return _json_safe(svc.get_project(project_id))
+        except OrchestratorServiceError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
     @app.post("/uploads/raster")
     async def upload_raster(
         request: Request,
         file: UploadFile = File(...),
         kind: str = Form("raster"),
+        project_id: str | None = Form(None),
     ) -> dict[str, Any]:
         """
         Upload a raster file.
@@ -130,6 +174,44 @@ def create_app(
                 user_context={
                     "source": "api_upload",
                 },
+                project_id=project_id,
+            )
+        except OrchestratorServiceError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+        return _json_safe(payload)
+
+    @app.post("/uploads/vector")
+    async def upload_vector(
+        request: Request,
+        file: UploadFile = File(...),
+        kind: str = Form("vector"),
+        project_id: str | None = Form(None),
+    ) -> dict[str, Any]:
+        """
+        Upload a vector file.
+
+        MVP:
+            - GeoJSON/JSON can be used directly.
+            - GPKG/SHP ZIP/KML are stored and should be resolved by local_vector_loader.
+        """
+        svc = _service(request)
+
+        content = await file.read()
+
+        try:
+            payload = svc.save_upload(
+                filename=file.filename or "upload_vector.bin",
+                content=content,
+                content_type=file.content_type,
+                kind=kind,
+                user_context={
+                    "source": "api_vector_upload",
+                },
+                project_id=project_id,
             )
         except OrchestratorServiceError as exc:
             raise HTTPException(

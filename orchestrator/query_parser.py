@@ -22,6 +22,9 @@ class SimpleNaturalLanguageParser:
         NDVI vegetation extraction with threshold and polygonization.
     """
 
+    def __init__(self, *, strict: bool = True) -> None:
+        self.strict = strict
+
     def parse(self, query: str) -> QueryIntent:
         if not isinstance(query, str) or not query.strip():
             raise ValueError("query must be a non-empty string.")
@@ -29,7 +32,14 @@ class SimpleNaturalLanguageParser:
         normalized = query.strip().lower()
 
         if "ndvi" not in normalized and "پوشش گیاهی" not in normalized:
-            raise ValueError("Only NDVI vegetation extraction query is supported in this parser version.")
+            if self.strict:
+                raise ValueError("Only NDVI vegetation extraction query is supported in this parser version.")
+            # Non-strict mode is used by the API/workbench MVP.
+            # Keep the deterministic NDVI pipeline alive by falling back to
+            # vegetation extraction intent instead of hard-failing.
+            # The original user query remains available in the raw query field
+            # if QueryIntent stores it.
+            pass
 
         threshold = self._extract_threshold(normalized)
 

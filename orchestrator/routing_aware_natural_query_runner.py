@@ -61,7 +61,7 @@ def run_natural_query_with_routing_evidence(
     If enforce_llm_gate is True:
         blocked LLM gate results raise LLMGateBlockedError.
     """
-    parser = SimpleNaturalLanguageParser()
+    parser = SimpleNaturalLanguageParser(strict=False)
     final_router = router or KeywordScoringCapabilityRouter()
 
     planner = RoutingAwarePlanBuilder(

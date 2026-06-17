@@ -46,7 +46,7 @@ def run_natural_query(
             This allows using RegistryBackedCapabilityRouter without changing
             parser/planner/executor code.
     """
-    parser = SimpleNaturalLanguageParser()
+    parser = SimpleNaturalLanguageParser(strict=False)
     final_router = router or SimpleCapabilityRouter()
     planner = SimplePlanBuilder(final_router)
     executor = SimplePipelineExecutor(final_router)

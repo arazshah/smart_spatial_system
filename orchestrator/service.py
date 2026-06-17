@@ -552,6 +552,109 @@ class OrchestratorService:
         except ProjectStoreError as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
+    def get_runtime_settings(
+        self,
+    ) -> dict[str, Any]:
+        """
+        Return non-sensitive runtime settings for UI/debugging.
+
+        Secrets such as API keys are never returned.
+        """
+        import os
+
+        config = getattr(self, "config", None)
+
+        plugin_modules = (
+            getattr(config, "plugin_module_names", None)
+            or getattr(config, "plugin_modules", None)
+            or getattr(config, "plugins", None)
+            or []
+        )
+
+        if isinstance(plugin_modules, tuple):
+            plugin_modules = list(plugin_modules)
+
+        if not isinstance(plugin_modules, list):
+            plugin_modules = list(plugin_modules) if plugin_modules else []
+
+        registry = getattr(self, "registry", None)
+        bindings = getattr(registry, "_bindings", {}) or {}
+
+        capability_names: list[str] = []
+        plugin_ids: list[str] = []
+
+        if isinstance(bindings, dict):
+            capability_names = sorted(str(name) for name in bindings.keys())
+
+            for binding in bindings.values():
+                plugin_id = (
+                    getattr(binding, "plugin_id", None)
+                    or getattr(binding, "plugin_name", None)
+                    or getattr(binding, "source_plugin", None)
+                )
+
+                if plugin_id:
+                    plugin_ids.append(str(plugin_id))
+
+        plugin_ids = sorted(set(plugin_ids))
+
+        return {
+            "llm": {
+                "provider": os.getenv("LLM_PROVIDER", "not_configured"),
+                "base_url": os.getenv("OPENAI_BASE_URL") or os.getenv("LLM_BASE_URL"),
+                "fast_model": os.getenv("LLM_FAST_MODEL"),
+                "strong_model": os.getenv("LLM_STRONG_MODEL"),
+                "default_model": os.getenv("LLM_DEFAULT_MODEL"),
+                "temperature": os.getenv("LLM_TEMPERATURE"),
+                "timeout_seconds": os.getenv("LLM_TIMEOUT_SECONDS"),
+                "api_key_configured": bool(
+                    os.getenv("OPENAI_API_KEY")
+                    or os.getenv("AVALAI_API_KEY")
+                    or os.getenv("LLM_API_KEY")
+                ),
+            },
+            "plugins": {
+                "module_names": plugin_modules,
+                "plugin_ids": plugin_ids,
+                "capabilities": capability_names,
+                "capability_count": len(capability_names),
+            },
+            "runtime": {
+                "resolve_upload_refs_with_plugins": getattr(
+                    config,
+                    "resolve_upload_refs_with_plugins",
+                    None,
+                ),
+                "raster_loader_plugin_module": getattr(
+                    config,
+                    "raster_loader_plugin_module",
+                    None,
+                ),
+                "vector_loader_plugin_module": getattr(
+                    config,
+                    "vector_loader_plugin_module",
+                    None,
+                ),
+            },
+        }
+
+    def run_llm_smoke_test(
+        self,
+    ) -> dict[str, Any]:
+        """
+        Run a non-sensitive backend LLM connectivity smoke test.
+        """
+        from orchestrator.llm_client import (
+            LLMClientError,
+            LLMConfigError,
+            run_llm_smoke_test,
+        )
+
+        try:
+            return run_llm_smoke_test()
+        except (LLMConfigError, LLMClientError) as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
+
     def save_upload(
         self,
         *,

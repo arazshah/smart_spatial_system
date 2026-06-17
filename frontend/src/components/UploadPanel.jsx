@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { uploadFileByKind } from "../api/client";
 
-export default function UploadPanel({ onUploaded }) {
+export default function UploadPanel({ project, onUploaded }) {
   const [kind, setKind] = useState("raster");
   const [file, setFile] = useState(null);
   const [upload, setUpload] = useState(null);
@@ -10,6 +10,11 @@ export default function UploadPanel({ onUploaded }) {
 
   async function handleUpload(event) {
     event.preventDefault();
+
+    if (!project?.project_id) {
+      setError("ابتدا یک پروژه فعال انتخاب یا ایجاد کنید.");
+      return;
+    }
 
     if (!file) {
       setError("ابتدا یک فایل انتخاب کنید.");
@@ -21,12 +26,9 @@ export default function UploadPanel({ onUploaded }) {
     setUpload(null);
 
     try {
-      const payload = await uploadFileByKind(kind, file);
+      const payload = await uploadFileByKind(kind, file, project.project_id);
       setUpload(payload);
-
-      if (onUploaded) {
-        onUploaded(payload);
-      }
+      onUploaded?.(payload);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -40,31 +42,25 @@ export default function UploadPanel({ onUploaded }) {
       : ".json,.geojson,.gpkg,.zip,.shp,.kml,application/json,application/geo+json";
 
   return (
-    <section className="card">
-      <div className="card-header">
-        <h2>آپلود فایل مکانی</h2>
-        <span className="badge">Raster / Vector</span>
+    <section className="panel-card">
+      <div className="panel-card-header">
+        <div>
+          <h2>Upload Center</h2>
+          <p>آپلود فایل‌های Raster و Vector در پروژه فعال</p>
+        </div>
       </div>
 
       <form onSubmit={handleUpload} className="form">
         <label>
-          نوع فایل
-          <select
-            value={kind}
-            onChange={(event) => {
-              setKind(event.target.value);
-              setFile(null);
-              setUpload(null);
-              setError("");
-            }}
-          >
+          نوع داده
+          <select value={kind} onChange={(e) => setKind(e.target.value)}>
             <option value="raster">Raster</option>
             <option value="vector">Vector</option>
           </select>
         </label>
 
         <label>
-          فایل {kind === "raster" ? "Raster" : "Vector"}
+          فایل
           <input
             key={kind}
             type="file"
@@ -73,36 +69,21 @@ export default function UploadPanel({ onUploaded }) {
           />
         </label>
 
-        <button type="submit" disabled={loading}>
-          {loading ? "در حال آپلود..." : "آپلود فایل"}
+        <button type="submit" disabled={loading || !project}>
+          {loading ? "در حال آپلود..." : "آپلود در پروژه فعال"}
         </button>
       </form>
 
       {error && <div className="alert error">{error}</div>}
 
       {upload && (
-        <div className="alert info">
-          <strong>فایل آپلود شد.</strong>
-          <div dir="ltr">kind: {upload.kind}</div>
-          <div dir="ltr">upload_id: {upload.upload_id}</div>
-          <div>filename: {upload.filename}</div>
-          <div>parsed_json_available: {String(upload.parsed_json_available)}</div>
+        <div className="result-card">
+          <div className="result-row"><span>Kind</span><strong>{upload.kind}</strong></div>
+          <div className="result-row"><span>Upload ID</span><strong dir="ltr">{upload.upload_id}</strong></div>
+          <div className="result-row"><span>Filename</span><strong>{upload.filename}</strong></div>
+          <div className="result-row"><span>Project ID</span><strong dir="ltr">{upload.project_id}</strong></div>
         </div>
       )}
-
-      {upload && (
-        <details>
-          <summary>JSON آپلود</summary>
-          <pre dir="ltr" className="json-box">
-            {JSON.stringify(upload, null, 2)}
-          </pre>
-        </details>
-      )}
-
-      <p className="muted">
-        در حالت عملیاتی، فایل‌های Raster از مسیر پلاگین local_raster_loader و
-        فایل‌های Vector از مسیر پلاگین local_vector_loader resolve می‌شوند.
-      </p>
     </section>
   );
 }

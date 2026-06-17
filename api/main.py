@@ -20,6 +20,10 @@ Run:
 
 from __future__ import annotations
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from dataclasses import asdict, dataclass, is_dataclass
 from typing import Any
 
@@ -144,6 +148,37 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=404,
+                detail=str(exc),
+            ) from exc
+
+    @app.get("/settings/runtime")
+    def get_runtime_settings(
+        request: Request,
+    ) -> dict[str, Any]:
+        """
+        Return non-sensitive runtime settings.
+
+        This endpoint intentionally never returns secrets/API keys.
+        """
+        svc = _service(request)
+        return _json_safe(svc.get_runtime_settings())
+
+    @app.post("/settings/llm/smoke-test")
+    def llm_smoke_test(
+        request: Request,
+    ) -> dict[str, Any]:
+        """
+        Verify backend-to-LLM connectivity.
+
+        This endpoint never returns secrets.
+        """
+        svc = _service(request)
+
+        try:
+            return _json_safe(svc.run_llm_smoke_test())
+        except OrchestratorServiceError as exc:
+            raise HTTPException(
+                status_code=502,
                 detail=str(exc),
             ) from exc
 

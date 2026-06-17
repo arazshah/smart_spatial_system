@@ -1,0 +1,19 @@
+default_engine: python
+default_band_index: 1
+
+default_output: both
+default_slope_unit: degree
+
+default_nodata: null
+default_output_nodata: null
+
+default_x_resolution: 1.0
+default_y_resolution: 1.0
+
+flat_aspect_value: null
+
+coordinate_precision: 6
+preserve_metadata: true
+
+source_crs: null
+warn_if_geographic_crs: false

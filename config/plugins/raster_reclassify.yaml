@@ -1,0 +1,16 @@
+default_engine: python
+default_band_index: 1
+
+default_nodata: null
+default_output_nodata: null
+
+default_keep_unmatched: true
+default_unmatched_value: null
+
+coordinate_precision: 6
+preserve_metadata: true
+
+source_crs: null
+warn_if_geographic_crs: false
+
+default_rules: []

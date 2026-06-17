@@ -1,0 +1,49 @@
+# Example config for raster_reclassify.
+#
+# Raster data format:
+#   2D:
+#     data[row][col]
+#   3D band-first:
+#     data[band][row][col]
+#
+# Band indices are 1-based.
+#
+# Rule formats:
+#
+# Range rule:
+#   - min: 0.0
+#     max: 0.2
+#     value: 1
+#     label: low
+#     inclusive_min: true
+#     inclusive_max: false
+#
+# Exact rule:
+#   - equals: 5
+#     value: 10
+#     label: class_5
+#
+# Values rule:
+#   - values: [1, 2, 3]
+#     value: 100
+#     label: group_a
+
+default_engine: python
+default_band_index: 1
+
+default_nodata: null
+default_output_nodata: null
+
+# If keep_unmatched is true, unmatched pixels keep original value.
+# If false, unmatched pixels become unmatched_value.
+default_keep_unmatched: true
+default_unmatched_value: null
+
+coordinate_precision: 6
+preserve_metadata: true
+
+source_crs: null
+warn_if_geographic_crs: false
+
+# Optional default rules. Usually empty and passed at runtime.
+default_rules: []

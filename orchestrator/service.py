@@ -35,12 +35,23 @@ from orchestrator.capability_registry import CapabilityRegistry
 from orchestrator.capability_scoring import KeywordScoringCapabilityRouter
 from orchestrator.feedback import FeedbackCollector, UserFeedbackInput
 from orchestrator.learning_signals import RouterLearningSignalBuilder
+from orchestrator.map_layers import MapLayerBuilder
+from orchestrator.output_storage import (
+    OutputStorage,
+    OutputStorageConfig,
+    OutputStorageError,
+)
 from orchestrator.production_response import (
     ProductionResponseBuilder,
     ProductionResponseConfig,
 )
 from orchestrator.routing_aware_natural_query_runner import (
     run_natural_query_with_routing_evidence,
+)
+from orchestrator.upload_storage import (
+    UploadStorage,
+    UploadStorageConfig,
+    UploadStorageError,
 )
 from orchestrator.weight_proposals import (
     InMemoryRouterWeightStore,
@@ -75,6 +86,9 @@ class OrchestratorServiceConfig:
     use_weighted_router: bool = True
     load_persisted_weights: bool = True
     weights_path: str | Path = "weights/router_weights.json"
+    outputs_path: str | Path = "outputs"
+    uploads_path: str | Path = "uploads"
+    persist_outputs: bool = True
 
     default_weight: float = 1.0
     min_weight: float = 0.0
@@ -152,6 +166,20 @@ class OrchestratorService:
 
         self.weight_store = weight_store or self._load_weight_store()
 
+        self.map_layer_builder = MapLayerBuilder()
+
+        self.output_storage = OutputStorage(
+            OutputStorageConfig(
+                root_dir=self.config.outputs_path,
+            )
+        )
+
+        self.upload_storage = UploadStorage(
+            UploadStorageConfig(
+                root_dir=self.config.uploads_path,
+            )
+        )
+
         self.response_builder = ProductionResponseBuilder(
             ProductionResponseConfig(
                 language=self.config.response_language,
@@ -197,10 +225,11 @@ class OrchestratorService:
 
         try:
             router = self._build_router()
+            resolved_inputs = self._resolve_input_references(inputs)
 
             run_result = run_natural_query_with_routing_evidence(
                 query,
-                inputs=inputs,
+                inputs=resolved_inputs,
                 band_map=band_map or {},
                 router=router,
                 min_score=self.config.min_score if min_score is None else min_score,
@@ -217,7 +246,8 @@ class OrchestratorService:
                 record={
                     "request_id": final_request_id,
                     "query": query,
-                    "inputs": _json_safe(inputs),
+                    "inputs": _json_safe(resolved_inputs),
+                    "original_inputs": _json_safe(inputs),
                     "band_map": _json_safe(band_map or {}),
                     "user_context": _json_safe(user_context or {}),
                     "metadata": _json_safe(metadata or {}),
@@ -226,6 +256,11 @@ class OrchestratorService:
                     "production_response": production_response,
                 },
             )
+
+            stored_record = self.get_request(final_request_id)
+
+            if stored_record is not None and self.config.persist_outputs:
+                self._persist_outputs_for_record(stored_record)
 
             return production_response
 
@@ -429,6 +464,227 @@ class OrchestratorService:
             )
 
         return items
+
+    def save_upload(
+        self,
+        *,
+        filename: str,
+        content: bytes,
+        content_type: str | None = None,
+        kind: str = "raster",
+        user_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Save uploaded user file and return upload metadata.
+        """
+        try:
+            return self.upload_storage.save_upload(
+                filename=filename,
+                content=content,
+                content_type=content_type,
+                kind=kind,
+                user_context=user_context,
+            )
+        except UploadStorageError as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
+
+    def list_uploads(self) -> list[dict[str, Any]]:
+        """
+        List stored uploads.
+        """
+        return self.upload_storage.list_uploads()
+
+    def get_upload_metadata(
+        self,
+        upload_id: str,
+    ) -> dict[str, Any]:
+        """
+        Return upload metadata.
+        """
+        try:
+            return self.upload_storage.read_metadata(upload_id)
+        except UploadStorageError as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
+
+    def get_upload_file_path(
+        self,
+        upload_id: str,
+    ) -> Path:
+        """
+        Return safe uploaded file path.
+        """
+        try:
+            return self.upload_storage.get_file_path(upload_id)
+        except UploadStorageError as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
+
+    def get_upload_file_media_type(
+        self,
+        upload_id: str,
+    ) -> str:
+        try:
+            return self.upload_storage.get_media_type(upload_id)
+        except UploadStorageError as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
+
+    def _resolve_input_references(
+        self,
+        inputs: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Resolve input references such as:
+            {"raster_ref": "upl-..."}
+        into:
+            {"raster": <parsed JSON raster>}
+        """
+        if not isinstance(inputs, dict):
+            return inputs
+
+        resolved = dict(inputs)
+
+        raster_ref = resolved.pop("raster_ref", None)
+
+        if raster_ref is None:
+            raster_payload = resolved.get("raster")
+
+            if isinstance(raster_payload, dict):
+                raster_ref = (
+                    raster_payload.get("upload_id")
+                    or raster_payload.get("ref")
+                    or raster_payload.get("raster_ref")
+                )
+
+        if raster_ref:
+            try:
+                resolved["raster"] = self.upload_storage.read_json_content(
+                    str(raster_ref)
+                )
+            except UploadStorageError as exc:
+                raise OrchestratorServiceError(
+                    f"Could not resolve raster_ref {raster_ref}: {exc}"
+                ) from exc
+
+        return resolved
+
+    def save_request_outputs(
+        self,
+        request_id: str,
+    ) -> dict[str, Any]:
+        """
+        Persist output files for a stored request and return manifest.
+        """
+        record = self.get_request(request_id)
+
+        if record is None:
+            raise OrchestratorServiceError(
+                f"Unknown request_id: {request_id}"
+            )
+
+        return self._persist_outputs_for_record(record)
+
+    def get_output_manifest(
+        self,
+        request_id: str,
+    ) -> dict[str, Any]:
+        """
+        Return persisted output manifest for a request.
+        """
+        record = self.get_request(request_id)
+
+        if record is not None and isinstance(record.get("output_manifest"), dict):
+            return record["output_manifest"]
+
+        try:
+            return self.output_storage.read_manifest(request_id)
+        except OutputStorageError as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
+
+    def list_output_files(
+        self,
+        request_id: str,
+    ) -> list[dict[str, Any]]:
+        """
+        List persisted output files for a request.
+        """
+        try:
+            return self.output_storage.list_files(request_id)
+        except OutputStorageError as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
+
+    def get_output_file_path(
+        self,
+        request_id: str,
+        filename: str,
+    ) -> Path:
+        """
+        Return safe path for a persisted output file.
+        """
+        try:
+            return self.output_storage.get_file_path(
+                request_id,
+                filename,
+            )
+        except OutputStorageError as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
+
+    def get_output_file_media_type(
+        self,
+        filename: str,
+    ) -> str:
+        return self.output_storage.get_media_type(filename)
+
+    def _persist_outputs_for_record(
+        self,
+        record: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Internal helper to persist request outputs.
+        """
+        try:
+            map_layers_payload = self.map_layer_builder.build_for_request_record(record)
+
+            manifest = self.output_storage.save_request_record(
+                record,
+                map_layers_payload=map_layers_payload,
+            )
+
+            record["output_manifest"] = manifest
+
+            production_response = record.get("production_response")
+
+            if isinstance(production_response, dict):
+                metadata = production_response.setdefault("metadata", {})
+                metadata["outputs_persisted"] = True
+                metadata["output_manifest_file"] = "manifest.json"
+
+            return manifest
+
+        except Exception as exc:
+            production_response = record.get("production_response")
+
+            if isinstance(production_response, dict):
+                warnings = production_response.setdefault("warnings", [])
+                warnings.append(f"Output persistence failed: {exc}")
+
+            raise OrchestratorServiceError(
+                f"Output persistence failed: {exc}"
+            ) from exc
+
+    def get_map_layers(
+        self,
+        request_id: str,
+    ) -> dict[str, Any]:
+        """
+        Return Leaflet-ready map layers for a stored request.
+        """
+        record = self.get_request(request_id)
+
+        if record is None:
+            raise OrchestratorServiceError(
+                f"Unknown request_id: {request_id}"
+            )
+
+        return self.map_layer_builder.build_for_request_record(record)
 
     def get_weights(self) -> dict[str, Any]:
         """

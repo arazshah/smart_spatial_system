@@ -1,0 +1,28 @@
+default_engine: python
+default_band_index: 1
+
+default_mode: cells
+default_connectivity: 4
+
+default_include_values:
+  - 1
+
+default_exclude_values: []
+
+default_nodata: null
+
+default_origin_x: 0.0
+default_origin_y: 0.0
+default_x_resolution: 1.0
+default_y_resolution: 1.0
+
+coordinate_precision: 6
+preserve_metadata: true
+
+source_crs: null
+warn_if_geographic_crs: false
+
+include_pixel_properties: true
+include_component_cells: false
+
+max_features: null

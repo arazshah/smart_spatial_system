@@ -1,0 +1,56 @@
+# Example config for raster_to_vector.
+#
+# Raster data format:
+#   2D:
+#     data[row][col]
+#   3D band-first:
+#     data[band][row][col]
+#
+# Band indices are 1-based.
+#
+# Modes:
+#   cells:
+#     each selected pixel becomes one polygon feature
+#
+#   components:
+#     connected selected pixels become grouped features.
+#     In this dependency-free implementation, each component geometry is
+#     represented by its bounding-box polygon.
+#
+# Connectivity:
+#   4 or 8
+
+default_engine: python
+default_band_index: 1
+
+default_mode: cells          # cells | components
+default_connectivity: 4      # 4 | 8
+
+# If include_values is null, all valid non-nodata pixels are vectorized.
+# For binary masks, [1] is usually preferred.
+default_include_values:
+  - 1
+
+default_exclude_values: []
+
+default_nodata: null
+
+# Default transform if raster metadata has no transform.
+# North-up convention:
+#   x = origin_x + col * x_resolution
+#   y = origin_y - row * y_resolution
+default_origin_x: 0.0
+default_origin_y: 0.0
+default_x_resolution: 1.0
+default_y_resolution: 1.0
+
+coordinate_precision: 6
+preserve_metadata: true
+
+source_crs: null
+warn_if_geographic_crs: false
+
+include_pixel_properties: true
+include_component_cells: false
+
+max_features: null

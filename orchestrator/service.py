@@ -82,6 +82,27 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.spectral_indices",
     "plugins.raster_threshold",
     "plugins.raster_to_vector",
+    "plugins.ndvi_calculator",
+    "plugins.ndvi_analysis",
+    "plugins.raster_statistics",
+    "plugins.raster_reclassify",
+    "plugins.band_math",
+    "plugins.raster_clip_mask",
+    "plugins.slope_aspect",
+    "plugins.zonal_statistics",
+    "plugins.buffer_analysis",
+    "plugins.centroid_extractor",
+    "plugins.geometry_validator",
+    "plugins.spatial_query_filter",
+    "plugins.spatial_intersection",
+    "plugins.spatial_join",
+    "plugins.nearest_neighbor",
+    "plugins.distance_calculator",
+    "plugins.area_perimeter_calc",
+    "plugins.dissolve_aggregator",
+    "plugins.attribute_statistics",
+    "plugins.crs_transformer",
+    "plugins.data_writer_exporter",
 ]
 
 
@@ -172,6 +193,7 @@ class OrchestratorService:
 
         self.registry = CapabilityRegistry.from_plugin_modules(
             self.config.plugin_modules,
+            tolerant=True,
         )
 
         self.persistence = RouterWeightStorePersistence(
@@ -229,6 +251,81 @@ class OrchestratorService:
 
         self._history: dict[str, dict[str, Any]] = {}
 
+    @staticmethod
+    def _llm_planning_enabled() -> bool:
+        """
+        Whether LLM-based intent planning is enabled for /query.
+        """
+        import os
+
+        value = os.getenv("LLM_PLANNING_ENABLED", "false").strip().lower()
+        return value in {"1", "true", "yes", "on"}
+
+    def _maybe_plan_llm_intent(
+        self,
+        query: str,
+    ) -> dict[str, Any] | None:
+        """
+        Best-effort LLM intent planning. Never breaks the pipeline.
+        """
+        if not self._llm_planning_enabled():
+            return None
+
+        try:
+            planned = self.plan_intent_with_llm(query)
+        except OrchestratorServiceError:
+            return None
+        except Exception:
+            return None
+
+        if not isinstance(planned, dict):
+            return None
+
+        return planned.get("intent")
+
+    @staticmethod
+    def _apply_intent_to_query(
+        query: str,
+        intent: dict[str, Any] | None,
+    ) -> str:
+        """
+        Rewrite the natural query so the current deterministic parser
+        can trigger the right workflow.
+
+        Currently specialized for vegetation_extraction (NDVI pipeline).
+        """
+        if not intent or not isinstance(intent, dict):
+            return query
+
+        intent_name = str(intent.get("intent_name") or "")
+
+        if intent_name == "vegetation_extraction":
+            params = intent.get("parameters") or {}
+
+            try:
+                threshold = float(params.get("threshold", 0.3))
+            except Exception:
+                threshold = 0.3
+
+            vectorize = bool(params.get("vectorize", False))
+
+            parts = [
+                "NDVI vegetation extraction.",
+                f"greater than {threshold}.",
+            ]
+
+            if vectorize:
+                parts.append("polygon vectorize استخراج کن.")
+
+            parts.append(f"original_query: {query}")
+
+            return " ".join(parts)
+
+        if intent_name == "raster_vectorization":
+            return "NDVI raster_to_vector polygon استخراج کن. " + f"original_query: {query}"
+
+        return query
+
     def handle_query(
         self,
         *,
@@ -258,12 +355,21 @@ class OrchestratorService:
         if metadata:
             final_metadata.update(dict(metadata))
 
+        llm_intent = self._maybe_plan_llm_intent(query)
+        effective_query = self._apply_intent_to_query(query, llm_intent)
+
+        final_metadata["llm_planning_enabled"] = self._llm_planning_enabled()
+        if llm_intent is not None:
+            final_metadata["llm_intent"] = _json_safe(llm_intent)
+            final_metadata["original_query"] = query
+            final_metadata["effective_query"] = effective_query
+
         try:
             router = self._build_router()
             resolved_inputs = self._resolve_input_references(inputs)
 
             run_result = run_natural_query_with_routing_evidence(
-                query,
+                effective_query,
                 inputs=resolved_inputs,
                 band_map=band_map or {},
                 router=router,
@@ -598,6 +704,8 @@ class OrchestratorService:
 
         plugin_ids = sorted(set(plugin_ids))
 
+        skipped_plugins = list(getattr(registry, "skipped_plugins", []) or [])
+
         return {
             "llm": {
                 "provider": os.getenv("LLM_PROVIDER", "not_configured"),
@@ -618,6 +726,7 @@ class OrchestratorService:
                 "plugin_ids": plugin_ids,
                 "capabilities": capability_names,
                 "capability_count": len(capability_names),
+                "skipped_plugins": skipped_plugins,
             },
             "runtime": {
                 "resolve_upload_refs_with_plugins": getattr(
@@ -653,6 +762,37 @@ class OrchestratorService:
         try:
             return run_llm_smoke_test()
         except (LLMConfigError, LLMClientError) as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
+
+    def plan_intent_with_llm(
+        self,
+        query: str,
+    ) -> dict[str, Any]:
+        """
+        Plan geospatial query intent using the configured LLM.
+
+        This method does not execute plugins.
+        """
+        from orchestrator.llm_client import LLMClientError, LLMConfigError
+        from orchestrator.llm_intent_planner import (
+            LLMIntentPlannerError,
+            plan_intent_with_llm,
+        )
+
+        registry = getattr(self, "registry", None)
+        bindings = getattr(registry, "_bindings", {}) or {}
+
+        capability_names: list[str] = []
+
+        if isinstance(bindings, dict):
+            capability_names = sorted(str(name) for name in bindings.keys())
+
+        try:
+            return plan_intent_with_llm(
+                query=query,
+                available_capabilities=capability_names,
+            )
+        except (LLMConfigError, LLMClientError, LLMIntentPlannerError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
     def save_upload(

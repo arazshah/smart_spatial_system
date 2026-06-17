@@ -49,11 +49,14 @@ class CapabilityRegistry:
         self._bindings: dict[str, CapabilityBinding] = {}
         self._descriptors: dict[str, Any] = {}
         self._plugin_ids: set[str] = set()
+        self.skipped_plugins: list[dict[str, Any]] = []
 
     @classmethod
     def from_plugin_modules(
         cls,
         plugin_module_names: list[str] | None = None,
+        *,
+        tolerant: bool = False,
     ) -> "CapabilityRegistry":
         """
         Build registry from plugin module names.
@@ -64,14 +67,29 @@ class CapabilityRegistry:
                     ["plugins.spectral_indices", "plugins.raster_threshold"]
 
                 If None, DEFAULT_SAFE_PLUGIN_MODULES is used.
+            tolerant:
+                If True, plugins that fail to import/register are skipped
+                instead of raising. Skipped plugins are recorded in
+                registry.skipped_plugins.
         """
         registry = cls()
+        registry.skipped_plugins = []
 
         module_names = plugin_module_names or DEFAULT_SAFE_PLUGIN_MODULES
 
         for module_name in module_names:
-            module = importlib.import_module(module_name)
-            registry.register_plugin_module(module)
+            try:
+                module = importlib.import_module(module_name)
+                registry.register_plugin_module(module)
+            except Exception as exc:
+                if not tolerant:
+                    raise
+                registry.skipped_plugins.append(
+                    {
+                        "module": module_name,
+                        "error": f"{type(exc).__name__}: {exc}",
+                    }
+                )
 
         return registry
 

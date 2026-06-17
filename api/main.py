@@ -182,6 +182,28 @@ def create_app(
                 detail=str(exc),
             ) from exc
 
+    @app.post("/planner/intent")
+    def plan_intent(
+        request: Request,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Plan natural geospatial query intent using LLM.
+
+        Does not execute plugins.
+        """
+        svc = _service(request)
+
+        query = payload.get("query")
+
+        try:
+            return _json_safe(svc.plan_intent_with_llm(query))
+        except OrchestratorServiceError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
     @app.post("/uploads/raster")
     async def upload_raster(
         request: Request,

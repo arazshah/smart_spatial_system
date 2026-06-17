@@ -1,0 +1,16 @@
+[
+  {
+    "plugin_id": "raster_slope",
+    "goal": "Compute slope from a digital elevation model",
+    "importance": "medium",
+    "plugin_type": "raster",
+    "expected_output": "raster"
+  },
+  {
+    "plugin_id": "raster_aspect",
+    "goal": "Calculate aspect (slope direction) from a DEM",
+    "importance": "medium",
+    "plugin_type": "raster",
+    "expected_output": "raster"
+  }
+]

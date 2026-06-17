@@ -1,0 +1,41 @@
+# Example config for raster_statistics.
+#
+# Raster data format:
+#   2D:
+#     data[row][col]
+#   3D band-first:
+#     data[band][row][col]
+
+default_engine: python
+
+default_stats:
+  - count
+  - valid_count
+  - nodata_count
+  - numeric_count
+  - non_numeric_count
+  - min
+  - max
+  - sum
+  - mean
+  - median
+  - sample_stdev
+  - population_stdev
+  - p25
+  - p75
+  - unique_count
+  - majority
+  - minority
+
+default_bands: null       # null means all bands, band indices are 1-based
+default_nodata: null
+
+histogram:
+  enabled: false
+  bins: 10
+
+coordinate_precision: 6
+preserve_metadata: true
+
+source_crs: null
+warn_if_geographic_crs: false

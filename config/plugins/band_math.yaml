@@ -1,0 +1,13 @@
+default_engine: python
+default_output_dtype: float
+default_nodata: null
+coordinate_precision: 6
+preserve_metadata: true
+
+presets:
+  ndvi: "safe_div(b8 - b4, b8 + b4, 0)"
+  ndwi: "safe_div(b3 - b8, b3 + b8, 0)"
+  ndbi: "safe_div(b11 - b8, b11 + b8, 0)"
+
+source_crs: null
+warn_if_geographic_crs: false

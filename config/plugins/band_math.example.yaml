@@ -1,0 +1,30 @@
+# Example config for band_math.
+#
+# This plugin applies safe mathematical expressions on raster bands.
+#
+# Raster data format:
+#   2D:
+#     data[row][col]
+#   3D band-first:
+#     data[band][row][col]
+#
+# Expression examples:
+#   "(b4 - b3) / (b4 + b3)"
+#   "safe_div(b4 - b3, b4 + b3, 0)"
+#   "clip(safe_div(b5 - b4, b5 + b4, 0), -1, 1)"
+#   "where(b1 > 100, b1, 0)"
+
+default_engine: python
+default_output_dtype: float
+default_nodata: null
+coordinate_precision: 6
+preserve_metadata: true
+
+# Optional named presets.
+presets:
+  ndvi: "safe_div(b8 - b4, b8 + b4, 0)"
+  ndwi: "safe_div(b3 - b8, b3 + b8, 0)"
+  ndbi: "safe_div(b11 - b8, b11 + b8, 0)"
+
+source_crs: null
+warn_if_geographic_crs: false

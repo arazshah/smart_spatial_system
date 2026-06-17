@@ -1,0 +1,17 @@
+default_engine: python
+
+default_red_band: 1
+default_nir_band: 2
+
+default_nodata: null
+division_by_zero_value: null
+
+clip_output: true
+output_min: -1.0
+output_max: 1.0
+
+coordinate_precision: 6
+preserve_metadata: true
+
+source_crs: null
+warn_if_geographic_crs: false

@@ -1,0 +1,55 @@
+# Example config for zonal_statistics.
+#
+# This plugin calculates raster statistics inside vector zones.
+#
+# Raster data format:
+#   2D:
+#     data[row][col]
+#   3D band-first:
+#     data[band][row][col]
+#
+# Transform format:
+#   [a, b, c, d, e, f]
+#
+# For north-up raster:
+#   x = a * col + b * row + c
+#   y = d * col + e * row + f
+#
+# Usually:
+#   [pixel_width, 0, origin_x, 0, -pixel_height, origin_y]
+
+default_engine: python
+default_band_index: 1           # 1-based band index
+default_all_touched: false
+default_include_zone_geometry: true
+preserve_properties: true
+stat_prefix: zonal_
+
+default_stats:
+  - count
+  - valid_count
+  - nodata_count
+  - numeric_count
+  - min
+  - max
+  - sum
+  - mean
+  - median
+  - sample_stdev
+  - population_stdev
+  - unique_count
+  - majority
+  - minority
+
+default_nodata: null
+coordinate_precision: 6
+
+source_crs: null
+warn_if_geographic_crs: false
+
+fields:
+  zone_index_field: zone_index
+  zone_id_field: zone_id
+  status_field: status
+  engine_field: engine
+  band_index_field: band_index

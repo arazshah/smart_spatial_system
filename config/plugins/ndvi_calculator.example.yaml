@@ -1,0 +1,38 @@
+# Example config for ndvi_calculator.
+#
+# NDVI formula:
+#   (NIR - RED) / (NIR + RED)
+#
+# Raster data format:
+#   2D:
+#     data[row][col]
+#   3D band-first:
+#     data[band][row][col]
+#
+# Band indices are 1-based.
+#
+# For generic 2-band tests:
+#   red_band: 1
+#   nir_band: 2
+#
+# For Sentinel-2 common order if full stack is loaded:
+#   red_band: 4
+#   nir_band: 8
+
+default_engine: python
+
+default_red_band: 1
+default_nir_band: 2
+
+default_nodata: null
+division_by_zero_value: null     # null means output nodata on NIR + RED == 0
+
+clip_output: true
+output_min: -1.0
+output_max: 1.0
+
+coordinate_precision: 6
+preserve_metadata: true
+
+source_crs: null
+warn_if_geographic_crs: false

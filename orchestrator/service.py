@@ -710,8 +710,11 @@ class OrchestratorService:
         else:
             message = "Vector layer is ready for map display."
             result_payload = {
-                "type": "FeatureCollection",
-                "geojson": feature_collection,
+                "type": "vector_display",
+                "layer_ids": ["active_vector"],
+                "feature_count": summary.get("feature_count", 0),
+                "geometry_counts": summary.get("geometry_counts", {}),
+                "property_keys": summary.get("property_keys", []),
                 "summary": summary,
             }
 

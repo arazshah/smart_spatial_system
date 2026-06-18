@@ -103,17 +103,15 @@ function geoJsonSignature(value) {
   const features = collection.features;
 
   /*
-    We use geometry + common stable identifiers for duplicate detection.
-    This prevents the same GeoJSON from being counted twice when backend
-    returns it in response.layers, outputs.vectors and result.geojson.
+    Geometry-only signature:
+    active_vector and Result GeoJSON may have different ids/names,
+    but if their geometries are the same, they represent the same map layer.
   */
-  const sample = features.slice(0, 50).map((feature) => ({
-    geometry: feature?.geometry || null,
-    id: feature?.id ?? feature?.properties?.id ?? null,
-    name: feature?.properties?.name ?? null,
-  }));
+  const geometries = features
+    .map((feature) => stableStringify(feature?.geometry || null))
+    .sort();
 
-  return `geojson:${features.length}:${stableStringify(sample)}`;
+  return `geojson:${features.length}:${geometries.join("|")}`;
 }
 
 function dedupeLayers(layers) {
@@ -127,8 +125,8 @@ function dedupeLayers(layers) {
     const idKey = layer.id ? String(layer.id) : null;
     const signature = layer._geojsonSignature || geoJsonSignature(layer);
 
-    if (idKey && seenIds.has(idKey)) continue;
     if (signature && seenGeoJson.has(signature)) continue;
+    if (!signature && idKey && seenIds.has(idKey)) continue;
 
     if (idKey) seenIds.add(idKey);
     if (signature) seenGeoJson.add(signature);
@@ -147,8 +145,8 @@ function dedupeLayers(layers) {
 
 export function extractInlineGeoJsonLayers(response) {
   const layers = [];
-  const seenIds = new Set();
   const seenGeoJson = new Set();
+  const seenIds = new Set();
 
   const push = (source, name, rawLayerOrGeojson, extra = {}) => {
     const collection = getGeoJsonCandidate(rawLayerOrGeojson);
@@ -157,8 +155,8 @@ export function extractInlineGeoJsonLayers(response) {
     const signature = geoJsonSignature(collection);
     const id = extra.id || `${source}-${layers.length + 1}`;
 
-    if (id && seenIds.has(String(id))) return;
     if (signature && seenGeoJson.has(signature)) return;
+    if (!signature && id && seenIds.has(String(id))) return;
 
     if (id) seenIds.add(String(id));
     if (signature) seenGeoJson.add(signature);
@@ -183,16 +181,6 @@ export function extractInlineGeoJsonLayers(response) {
       layers: [],
     };
   }
-
-  /*
-    Priority:
-    1. response.layers is canonical.
-    2. response.outputs.vectors is fallback/additional.
-    3. response.result.geojson is fallback.
-    4. response.geojson is fallback.
-
-    All paths are deduped by actual GeoJSON content.
-  */
 
   if (Array.isArray(response.layers)) {
     response.layers.forEach((layer, index) => {

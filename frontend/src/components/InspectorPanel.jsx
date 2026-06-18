@@ -12,6 +12,10 @@ function shortId(value) {
   return `${text.slice(0, 10)}…${text.slice(-6)}`;
 }
 
+function getLayerKey(layer, index) {
+  return String(layer?.id || layer?.name || layer?.title || `layer-${index}`);
+}
+
 function normalizeStatus(response, activeRequest, loading, error) {
   if (loading) return "running";
   if (error) return "failed";
@@ -111,14 +115,8 @@ function collectLayers(response, mapLayers) {
       ...layer,
       geojson,
       source: layer.source || source,
-      id:
-        layer.id ||
-        layer.name ||
-        `${source}-${result.length + 1}`,
-      name:
-        layer.name ||
-        layer.id ||
-        `Layer ${result.length + 1}`,
+      id: layer.id || layer.name || `${source}-${result.length + 1}`,
+      name: layer.name || layer.id || `Layer ${result.length + 1}`,
       type: layer.type || "vector",
       format: layer.format || "geojson",
       visible: layer.visible !== false,
@@ -250,7 +248,16 @@ function MetricCard({ label, value, icon, tone = "default" }) {
   );
 }
 
-function LayerCard({ layer }) {
+function LayerCard({
+  layer,
+  layerKey,
+  isHidden,
+  isRemoved,
+  onZoom,
+  onStyle,
+  onToggleVisibility,
+  onRemove,
+}) {
   const featureCount = featureCountFromLayer(layer);
   const geometryCounts = geometryCountsFromLayer(layer);
   const geometryText = Object.entries(geometryCounts)
@@ -258,14 +265,14 @@ function LayerCard({ layer }) {
     .join(" · ");
 
   return (
-    <article className="inspector-layer-card">
+    <article className={`inspector-layer-card ${isRemoved ? "is-removed" : ""}`}>
       <div className="inspector-layer-main">
         <div className="inspector-layer-icon">◈</div>
         <div className="inspector-layer-info">
           <div className="inspector-layer-title-row">
             <strong>{layer.name || "Unnamed layer"}</strong>
-            <span className={`layer-visibility ${layer.visible === false ? "off" : "on"}`}>
-              {layer.visible === false ? "Hidden" : "Visible"}
+            <span className={`layer-visibility ${isHidden ? "off" : "on"}`}>
+              {isRemoved ? "Removed" : isHidden ? "Hidden" : "Visible"}
             </span>
           </div>
 
@@ -282,11 +289,21 @@ function LayerCard({ layer }) {
       </div>
 
       <div className="inspector-layer-actions">
-        <button type="button" title="Zoom action will be connected in next steps">
+        <button type="button" onClick={() => onZoom(layerKey)} disabled={isRemoved}>
           ⌖ Zoom
         </button>
-        <button type="button" title="Style editor will be added later">
+        <button type="button" onClick={() => onStyle(layerKey)} disabled={isRemoved}>
           🎨 Style
+        </button>
+        <button
+          type="button"
+          onClick={() => onToggleVisibility(layerKey)}
+          disabled={isRemoved}
+        >
+          {isHidden ? "⊘ Show" : "👁 Hide"}
+        </button>
+        <button type="button" onClick={() => onRemove(layerKey)} disabled={isRemoved}>
+          × Remove
         </button>
       </div>
     </article>
@@ -322,6 +339,8 @@ export default function InspectorPanel({
   activeRequest,
   loading = false,
   error = "",
+  layerWorkspace = null,
+  onLayerWorkspaceChange = null,
 }) {
   const [tab, setTab] = useState("summary");
 
@@ -369,6 +388,56 @@ export default function InspectorPanel({
     "هنوز نتیجه‌ای برای نمایش وجود ندارد.";
 
   const steps = asArray(response?.steps || response?.audit?.steps || response?.run_result?.steps);
+
+  const hiddenLayerKeys = layerWorkspace?.hiddenLayerKeys || new Set();
+  const removedLayerKeys = layerWorkspace?.removedLayerKeys || new Set();
+
+  const zoomToLayer = (layerKey) => {
+    if (!onLayerWorkspaceChange) return;
+    onLayerWorkspaceChange((previous) => ({
+      ...previous,
+      fitRequest: {
+        key: layerKey,
+        trigger: Date.now(),
+      },
+    }));
+  };
+
+  const openStyleEditor = (layerKey) => {
+    if (!onLayerWorkspaceChange) return;
+    onLayerWorkspaceChange((previous) => ({
+      ...previous,
+      styleLayerKey: layerKey,
+    }));
+  };
+
+  const toggleLayerVisibility = (layerKey) => {
+    if (!onLayerWorkspaceChange) return;
+    onLayerWorkspaceChange((previous) => {
+      const next = new Set(previous.hiddenLayerKeys || []);
+      if (next.has(layerKey)) next.delete(layerKey);
+      else next.add(layerKey);
+
+      return {
+        ...previous,
+        hiddenLayerKeys: next,
+      };
+    });
+  };
+
+  const removeLayerFromMap = (layerKey) => {
+    if (!onLayerWorkspaceChange) return;
+    onLayerWorkspaceChange((previous) => {
+      const removed = new Set(previous.removedLayerKeys || []);
+      removed.add(layerKey);
+
+      return {
+        ...previous,
+        removedLayerKeys: removed,
+        styleLayerKey: previous.styleLayerKey === layerKey ? null : previous.styleLayerKey,
+      };
+    });
+  };
 
   return (
     <aside className="inspector-pro">
@@ -451,30 +520,10 @@ export default function InspectorPanel({
                 ) : null}
 
                 <div className="inspector-metrics-grid">
-                  <MetricCard
-                    icon="▧"
-                    label="Layers"
-                    value={layers.length}
-                    tone="blue"
-                  />
-                  <MetricCard
-                    icon="•"
-                    label="Features"
-                    value={featureCount}
-                    tone="green"
-                  />
-                  <MetricCard
-                    icon="⇩"
-                    label="Files"
-                    value={fileCount}
-                    tone="purple"
-                  />
-                  <MetricCard
-                    icon="⚙"
-                    label="Status"
-                    value={meta.label}
-                    tone={meta.className}
-                  />
+                  <MetricCard icon="▧" label="Layers" value={layers.length} tone="blue" />
+                  <MetricCard icon="•" label="Features" value={featureCount} tone="green" />
+                  <MetricCard icon="⇩" label="Files" value={fileCount} tone="purple" />
+                  <MetricCard icon="⚙" label="Status" value={meta.label} tone={meta.className} />
                 </div>
 
                 {Object.keys(geometryCounts).length ? (
@@ -516,12 +565,22 @@ export default function InspectorPanel({
           <div className="inspector-section">
             {layers.length ? (
               <div className="inspector-card-list">
-                {layers.map((layer, index) => (
-                  <LayerCard
-                    key={`${layer.id || layer.name || "layer"}-${index}`}
-                    layer={layer}
-                  />
-                ))}
+                {layers.map((layer, index) => {
+                  const layerKey = getLayerKey(layer, index);
+                  return (
+                    <LayerCard
+                      key={layerKey}
+                      layer={layer}
+                      layerKey={layerKey}
+                      isHidden={hiddenLayerKeys.has(layerKey)}
+                      isRemoved={removedLayerKeys.has(layerKey)}
+                      onZoom={zoomToLayer}
+                      onStyle={openStyleEditor}
+                      onToggleVisibility={toggleLayerVisibility}
+                      onRemove={removeLayerFromMap}
+                    />
+                  );
+                })}
               </div>
             ) : (
               <EmptyState

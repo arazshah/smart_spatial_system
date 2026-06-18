@@ -184,6 +184,14 @@ export default function App() {
   const [mapLayers, setMapLayers] = useState(null);
   const [outputManifest, setOutputManifest] = useState(null);
 
+  const [layerWorkspace, setLayerWorkspace] = useState({
+    hiddenLayerKeys: new Set(),
+    removedLayerKeys: new Set(),
+    layerStyles: {},
+    fitRequest: { key: null, trigger: 0 },
+    styleLayerKey: null,
+  });
+
   const [activeTool, setActiveTool] = useState(null);
   const [loading, setLoading] = useState(false);
   const [bootLoading, setBootLoading] = useState(true);
@@ -661,6 +669,8 @@ export default function App() {
           selectedUpload={selectedUpload}
           mapLayers={mapLayers}
           loading={loading}
+          layerWorkspace={layerWorkspace}
+          onLayerWorkspaceChange={setLayerWorkspace}
         />
       </main>
 
@@ -671,6 +681,8 @@ export default function App() {
         activeRequest={activeRequest}
         loading={loading}
         error={globalError}
+        layerWorkspace={layerWorkspace}
+        onLayerWorkspaceChange={setLayerWorkspace}
       />
 
       <Modal

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   GeoJSON,
   LayersControl,
@@ -234,6 +234,25 @@ function FitToGeoJsonLayers({ collections, signature, fitTrigger }) {
   return null;
 }
 
+function LeafletSafePanel({ className, children, onClick }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const element = ref.current;
+
+    if (!element) return;
+
+    L.DomEvent.disableClickPropagation(element);
+    L.DomEvent.disableScrollPropagation(element);
+  }, []);
+
+  return (
+    <div ref={ref} className={className} onClick={onClick}>
+      {children}
+    </div>
+  );
+}
+
 function countFeatures(collections) {
   return collections.reduce((sum, collection) => {
     return sum + (Array.isArray(collection?.features) ? collection.features.length : 0);
@@ -283,14 +302,13 @@ function mapLayerGeoJsonSignature(collection) {
 
   const features = collection.features;
 
-  const sample = features.slice(0, 50).map((feature) => ({
-    geometry: feature?.geometry || null,
-    id: feature?.id ?? feature?.properties?.id ?? null,
-    name: feature?.properties?.name ?? null,
-  }));
+  const geometries = features
+    .map((feature) => stableStringify(feature?.geometry || null))
+    .sort();
 
-  return `geojson:${features.length}:${stableStringify(sample)}`;
+  return `geojson:${features.length}:${geometries.join("|")}`;
 }
+
 
 function MapStatusChip({ icon, label, value, tone = "default" }) {
   return (
@@ -309,14 +327,133 @@ export default function MapStage({
   selectedUpload,
   mapLayers,
   loading,
+  layerWorkspace = null,
+  onLayerWorkspaceChange = null,
 }) {
-  const [fitTrigger, setFitTrigger] = useState(0);
+  const [internalFitRequest, setInternalFitRequest] = useState({
+    key: null,
+    trigger: 0,
+  });
+  const [internalHiddenLayerKeys, setInternalHiddenLayerKeys] = useState(() => new Set());
+  const [internalRemovedLayerKeys, setInternalRemovedLayerKeys] = useState(() => new Set());
+  const [internalLayerStyles, setInternalLayerStyles] = useState({});
+  const [internalStyleLayerKey, setInternalStyleLayerKey] = useState(null);
+
+  const fitRequest = layerWorkspace?.fitRequest || internalFitRequest;
+  const hiddenLayerKeys = layerWorkspace?.hiddenLayerKeys || internalHiddenLayerKeys;
+  const removedLayerKeys = layerWorkspace?.removedLayerKeys || internalRemovedLayerKeys;
+  const layerStyles = layerWorkspace?.layerStyles || internalLayerStyles;
+  const styleLayerKey =
+    layerWorkspace && Object.prototype.hasOwnProperty.call(layerWorkspace, "styleLayerKey")
+      ? layerWorkspace.styleLayerKey
+      : internalStyleLayerKey;
+
+  const setFitRequest = (value) => {
+    if (onLayerWorkspaceChange) {
+      onLayerWorkspaceChange((previous) => ({
+        ...previous,
+        fitRequest: typeof value === "function" ? value(previous.fitRequest) : value,
+      }));
+      return;
+    }
+    setInternalFitRequest(value);
+  };
+
+  const setHiddenLayerKeys = (value) => {
+    if (onLayerWorkspaceChange) {
+      onLayerWorkspaceChange((previous) => ({
+        ...previous,
+        hiddenLayerKeys:
+          typeof value === "function" ? value(previous.hiddenLayerKeys) : value,
+      }));
+      return;
+    }
+    setInternalHiddenLayerKeys(value);
+  };
+
+  const setRemovedLayerKeys = (value) => {
+    if (onLayerWorkspaceChange) {
+      onLayerWorkspaceChange((previous) => ({
+        ...previous,
+        removedLayerKeys:
+          typeof value === "function" ? value(previous.removedLayerKeys) : value,
+      }));
+      return;
+    }
+    setInternalRemovedLayerKeys(value);
+  };
+
+  const setLayerStyles = (value) => {
+    if (onLayerWorkspaceChange) {
+      onLayerWorkspaceChange((previous) => ({
+        ...previous,
+        layerStyles:
+          typeof value === "function" ? value(previous.layerStyles) : value,
+      }));
+      return;
+    }
+    setInternalLayerStyles(value);
+  };
+
+  const setStyleLayerKey = (value) => {
+    if (onLayerWorkspaceChange) {
+      onLayerWorkspaceChange((previous) => ({
+        ...previous,
+        styleLayerKey:
+          typeof value === "function" ? value(previous.styleLayerKey) : value,
+      }));
+      return;
+    }
+    setInternalStyleLayerKey(value);
+  };
 
   const rawLayers = Array.isArray(mapLayers?.layers)
     ? mapLayers.layers
     : EMPTY_LAYERS;
 
-  const renderableLayers = useMemo(() => {
+  const rawLayersSignature = useMemo(() => {
+    return rawLayers
+      .map((layer, index) => {
+        const geojson = extractGeoJsonFromLayer(layer);
+        const count = Array.isArray(geojson?.features) ? geojson.features.length : 0;
+        return `${getLayerKey(layer, index)}:${count}`;
+      })
+      .join("|");
+  }, [rawLayers]);
+
+  useEffect(() => {
+    setHiddenLayerKeys(new Set());
+    setRemovedLayerKeys(new Set());
+    setStyleLayerKey(null);
+    setFitRequest({
+      key: null,
+      trigger: Date.now(),
+    });
+  }, [rawLayersSignature]);
+
+  const getDefaultStyle = (color) => ({
+    color,
+    fillColor: color,
+    weight: 2,
+    opacity: 0.9,
+    fillOpacity: 0.22,
+    radius: 7,
+  });
+
+  const normalizeStyle = (style, color) => {
+    const fallback = getDefaultStyle(color);
+
+    return {
+      color: style?.color || fallback.color,
+      fillColor: style?.fillColor || style?.color || fallback.fillColor,
+      weight: Number(style?.weight ?? fallback.weight),
+      opacity: Number(style?.opacity ?? fallback.opacity),
+      fillOpacity: Number(style?.fillOpacity ?? fallback.fillOpacity),
+      radius: Number(style?.radius ?? fallback.radius),
+    };
+  };
+
+  const allRenderableLayers = useMemo(() => {
     if (!rawLayers.length) return [];
 
     const seenKeys = new Set();
@@ -331,33 +468,55 @@ export default function MapStage({
       const layerKey = getLayerKey(layer, index);
       const signature = mapLayerGeoJsonSignature(geojson);
 
+      if (removedLayerKeys.has(layerKey)) return;
       if (signature && seenGeoJson.has(signature)) return;
       if (!signature && seenKeys.has(layerKey)) return;
 
       if (signature) seenGeoJson.add(signature);
       seenKeys.add(layerKey);
 
+      const baseColor = COLORS[output.length % COLORS.length];
+
       output.push({
         key: layerKey,
         name: getLayerName(layer, index),
         geojson,
-        color: COLORS[output.length % COLORS.length],
+        color: baseColor,
+        style: normalizeStyle(layerStyles[layerKey], baseColor),
+        visible: !hiddenLayerKeys.has(layerKey),
         source: layer?.source || "workspace",
+        summary: layer?.summary || null,
       });
     });
 
     return output;
-  }, [rawLayers]);
+  }, [rawLayers, hiddenLayerKeys, removedLayerKeys, layerStyles]);
+
+  const visibleRenderableLayers = useMemo(() => {
+    return allRenderableLayers.filter((layer) => layer.visible);
+  }, [allRenderableLayers]);
 
   const collections = useMemo(() => {
-    return renderableLayers.map((item) => item.geojson);
-  }, [renderableLayers]);
+    return visibleRenderableLayers.map((item) => item.geojson);
+  }, [visibleRenderableLayers]);
 
-  const fitSignature = useMemo(() => {
-    return renderableLayers
+  const visibleSignature = useMemo(() => {
+    return visibleRenderableLayers
       .map((item) => `${item.key}:${item.geojson.features?.length || 0}`)
       .join("|");
-  }, [renderableLayers]);
+  }, [visibleRenderableLayers]);
+
+  const fitCollections = useMemo(() => {
+    if (!fitRequest.key) return collections;
+
+    const target = allRenderableLayers.find((layer) => layer.key === fitRequest.key);
+
+    return target?.geojson ? [target.geojson] : collections;
+  }, [fitRequest.key, allRenderableLayers, collections]);
+
+  const fitSignature = useMemo(() => {
+    return `${visibleSignature}|fit:${fitRequest.key || "all"}:${fitRequest.trigger}`;
+  }, [visibleSignature, fitRequest]);
 
   const totalFeatures = useMemo(() => countFeatures(collections), [collections]);
   const geometries = useMemo(() => geometrySummary(collections), [collections]);
@@ -369,6 +528,73 @@ export default function MapStage({
 
   const activeDataName = getUploadName(selectedUpload);
   const activeDataKind = getUploadKind(selectedUpload);
+
+  const styleTargetLayer = useMemo(() => {
+    if (!styleLayerKey) return null;
+    return allRenderableLayers.find((layer) => layer.key === styleLayerKey) || null;
+  }, [styleLayerKey, allRenderableLayers]);
+
+  const updateLayerStyle = (layerKey, patch) => {
+    setLayerStyles((previous) => {
+      const layer = allRenderableLayers.find((item) => item.key === layerKey);
+      const baseColor = layer?.color || COLORS[0];
+      const current = normalizeStyle(previous[layerKey], baseColor);
+
+      return {
+        ...previous,
+        [layerKey]: {
+          ...current,
+          ...patch,
+        },
+      };
+    });
+  };
+
+  const resetLayerStyle = (layerKey) => {
+    setLayerStyles((previous) => {
+      const next = { ...previous };
+      delete next[layerKey];
+      return next;
+    });
+  };
+
+  const toggleLayerVisibility = (layerKey) => {
+    setHiddenLayerKeys((previous) => {
+      const next = new Set(previous);
+
+      if (next.has(layerKey)) {
+        next.delete(layerKey);
+      } else {
+        next.add(layerKey);
+      }
+
+      return next;
+    });
+  };
+
+  const removeLayerFromMap = (layerKey) => {
+    setRemovedLayerKeys((previous) => {
+      const next = new Set(previous);
+      next.add(layerKey);
+      return next;
+    });
+
+    setStyleLayerKey((current) => (current === layerKey ? null : current));
+  };
+
+  const zoomToAllVisibleLayers = () => {
+    setFitRequest({
+      key: null,
+      trigger: Date.now(),
+    });
+  };
+
+  const zoomToLayer = (layerKey) => {
+    setFitRequest({
+      key: layerKey,
+      trigger: Date.now(),
+    });
+  };
 
   return (
     <section className="map-stage map-stage-pro leaflet-stage">
@@ -395,7 +621,7 @@ export default function MapStage({
           <MapStatusChip
             icon="▧"
             label="Layers"
-            value={renderableLayers.length}
+            value={visibleRenderableLayers.length}
             tone="blue"
           />
 
@@ -441,29 +667,29 @@ export default function MapStage({
               />
             </LayersControl.BaseLayer>
 
-            {renderableLayers.map((item, index) => (
+            {visibleRenderableLayers.map((item, index) => (
               <LayersControl.Overlay
                 key={item.key}
                 checked
                 name={item.name}
               >
                 <GeoJSON
-                  key={`${item.key}-${index}`}
+                  key={`${item.key}-${index}-${JSON.stringify(item.style)}`}
                   data={item.geojson}
                   style={() => ({
-                    color: item.color,
-                    weight: 2,
-                    opacity: 0.9,
-                    fillColor: item.color,
-                    fillOpacity: 0.22,
+                    color: item.style.color,
+                    weight: item.style.weight,
+                    opacity: item.style.opacity,
+                    fillColor: item.style.fillColor,
+                    fillOpacity: item.style.fillOpacity,
                   })}
                   pointToLayer={(feature, latlng) =>
                     L.circleMarker(latlng, {
-                      radius: 7,
+                      radius: item.style.radius,
                       color: "#ffffff",
                       weight: 2,
-                      fillColor: item.color,
-                      fillOpacity: 0.88,
+                      fillColor: item.style.fillColor || item.style.color,
+                      fillOpacity: Math.max(item.style.fillOpacity, 0.35),
                       opacity: 1,
                     })
                   }
@@ -481,17 +707,17 @@ export default function MapStage({
           <ScaleControl position="bottomleft" />
 
           <FitToGeoJsonLayers
-            collections={collections}
+            collections={fitCollections}
             signature={fitSignature}
-            fitTrigger={fitTrigger}
+            fitTrigger={fitRequest.trigger}
           />
         </MapContainer>
 
         <div className="map-floating-toolbar-pro">
           <button
             type="button"
-            onClick={() => setFitTrigger((value) => value + 1)}
-            disabled={!renderableLayers.length}
+            onClick={zoomToAllVisibleLayers}
+            disabled={!visibleRenderableLayers.length}
             title="Zoom to visible layers"
           >
             ⌖
@@ -500,7 +726,7 @@ export default function MapStage({
 
           <button
             type="button"
-            title="Use the layer control on the map to change basemap or layer visibility"
+            title="Use the layer panel or Leaflet layer control to change visibility"
           >
             ▧
             <span>Layers</span>
@@ -527,7 +753,7 @@ export default function MapStage({
           </div>
         )}
 
-        {renderableLayers.length === 0 && !loading && (
+        {allRenderableLayers.length === 0 && !loading && (
           <div className="map-empty-overlay-pro">
             <div className="map-empty-card-pro">
               <div className="map-empty-icon-pro">⌖</div>
@@ -539,31 +765,234 @@ export default function MapStage({
           </div>
         )}
 
-        {renderableLayers.length > 0 && (
+        {allRenderableLayers.length > 0 && (
           <>
-            <div className="map-layer-stack-pro leaflet-layer-stack">
+            <LeafletSafePanel className="map-layer-stack-pro leaflet-layer-stack">
               <div className="map-layer-stack-header">
-                <span>Visible layers</span>
-                <strong>{renderableLayers.length}</strong>
+                <span>Layers</span>
+                <strong>
+                  {visibleRenderableLayers.length}/{allRenderableLayers.length}
+                </strong>
               </div>
 
-              {renderableLayers.slice(0, 5).map((item) => (
-                <div key={item.key} className="map-layer-chip-pro">
-                  <span
-                    className="layer-color-dot-pro"
-                    style={{ background: item.color }}
-                  />
-                  <span title={item.name}>{item.name}</span>
-                </div>
-              ))}
-            </div>
+              <div className="map-layer-stack-list-pro">
+                {allRenderableLayers.slice(0, 8).map((item) => (
+                  <div
+                    key={item.key}
+                    className={`map-layer-chip-pro map-layer-chip-advanced-pro ${
+                      item.visible ? "" : "is-hidden"
+                    }`}
+                  >
+                    <div className="map-layer-chip-main-pro">
+                      <span
+                        className="layer-color-dot-pro"
+                        style={{ background: item.style.fillColor || item.style.color }}
+                      />
+                      <div className="map-layer-chip-text-pro">
+                        <strong title={item.name}>{item.name}</strong>
+                        <small>
+                          {item.visible ? "Visible" : "Hidden"} ·{" "}
+                          {item.geojson.features?.length || 0} features
+                        </small>
+                      </div>
+                    </div>
+
+                    <div className="map-layer-chip-actions-pro">
+                      <button
+                        type="button"
+                        onClick={() => { console.log("ZOOM CLICK", item.key); zoomToLayer(item.key); }}
+                        title="Zoom to this layer"
+                      >
+                        ⌖
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setStyleLayerKey(item.key)}
+                        title="Style layer"
+                      >
+                        🎨
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleLayerVisibility(item.key)}
+                        title={item.visible ? "Hide layer" : "Show layer"}
+                      >
+                        {item.visible ? "👁" : "⊘"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => removeLayerFromMap(item.key)}
+                        title="Remove from map workspace"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </LeafletSafePanel>
 
             <div className="map-bottom-status-pro">
               <span>CRS: EPSG:4326</span>
-              <span>{totalFeatures} features</span>
+              <span>{totalFeatures} visible features</span>
               {geometryText ? <span>{geometryText}</span> : null}
             </div>
           </>
+        )}
+
+        {styleTargetLayer && (
+          <div
+            className="map-style-modal-backdrop-pro"
+            onClick={() => setStyleLayerKey(null)}
+          >
+            <div
+              className="map-style-modal-pro"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="map-style-modal-header-pro">
+                <div>
+                  <span>Layer Style</span>
+                  <strong>{styleTargetLayer.name}</strong>
+                </div>
+
+                <button type="button" onClick={() => setStyleLayerKey(null)}>
+                  ×
+                </button>
+              </div>
+
+              <div className="map-style-grid-pro">
+                <label>
+                  <span>Stroke color</span>
+                  <input
+                    type="color"
+                    value={styleTargetLayer.style.color}
+                    onChange={(event) =>
+                      updateLayerStyle(styleTargetLayer.key, {
+                        color: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+
+                <label>
+                  <span>Fill color</span>
+                  <input
+                    type="color"
+                    value={styleTargetLayer.style.fillColor}
+                    onChange={(event) =>
+                      updateLayerStyle(styleTargetLayer.key, {
+                        fillColor: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+
+                <label>
+                  <span>Stroke weight</span>
+                  <input
+                    type="range"
+                    min="1"
+                    max="8"
+                    step="1"
+                    value={styleTargetLayer.style.weight}
+                    onChange={(event) =>
+                      updateLayerStyle(styleTargetLayer.key, {
+                        weight: Number(event.target.value),
+                      })
+                    }
+                  />
+                  <strong>{styleTargetLayer.style.weight}</strong>
+                </label>
+
+                <label>
+                  <span>Opacity</span>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="1"
+                    step="0.05"
+                    value={styleTargetLayer.style.opacity}
+                    onChange={(event) =>
+                      updateLayerStyle(styleTargetLayer.key, {
+                        opacity: Number(event.target.value),
+                      })
+                    }
+                  />
+                  <strong>{styleTargetLayer.style.opacity.toFixed(2)}</strong>
+                </label>
+
+                <label>
+                  <span>Fill opacity</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={styleTargetLayer.style.fillOpacity}
+                    onChange={(event) =>
+                      updateLayerStyle(styleTargetLayer.key, {
+                        fillOpacity: Number(event.target.value),
+                      })
+                    }
+                  />
+                  <strong>{styleTargetLayer.style.fillOpacity.toFixed(2)}</strong>
+                </label>
+
+                <label>
+                  <span>Point radius</span>
+                  <input
+                    type="range"
+                    min="3"
+                    max="18"
+                    step="1"
+                    value={styleTargetLayer.style.radius}
+                    onChange={(event) =>
+                      updateLayerStyle(styleTargetLayer.key, {
+                        radius: Number(event.target.value),
+                      })
+                    }
+                  />
+                  <strong>{styleTargetLayer.style.radius}</strong>
+                </label>
+              </div>
+
+              <div className="map-style-preview-pro">
+                <span
+                  style={{
+                    borderColor: styleTargetLayer.style.color,
+                    background: styleTargetLayer.style.fillColor,
+                    opacity: styleTargetLayer.style.opacity,
+                  }}
+                />
+                <div>
+                  <strong>Preview</strong>
+                  <small>
+                    {styleTargetLayer.geojson.features?.length || 0} features
+                  </small>
+                </div>
+              </div>
+
+              <div className="map-style-modal-actions-pro">
+                <button
+                  type="button"
+                  onClick={() => resetLayerStyle(styleTargetLayer.key)}
+                >
+                  Reset
+                </button>
+
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => setStyleLayerKey(null)}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </section>

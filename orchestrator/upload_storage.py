@@ -52,6 +52,8 @@ class UploadStorageConfig:
         ".zip",
         ".shp",
         ".kml",
+        ".csv",
+        ".tsv",
     )
     indent: int = 2
     ensure_ascii: bool = False
@@ -155,6 +157,77 @@ class UploadStorage:
             "parsed_json_available": parsed_json_available,
             "parsed_json_error": parsed_json_error,
             "user_context": _json_safe(user_context or {}),
+        }
+
+        self._write_json(
+            directory / "metadata.json",
+            metadata,
+        )
+
+        return metadata
+
+
+    def save_external_source(
+        self,
+        *,
+        source_type: str,
+        kind: str,
+        display_name: str,
+        payload: dict[str, Any],
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Store a non-file data source registration as metadata.
+
+        Used by DSM for sources such as CSV/Table URL, WMS, WFS, PostGIS, API.
+        It creates an upload-like record so the existing project/uploads/data-source
+        pipeline can list, preview, edit and delete it consistently.
+        """
+        source_type = str(source_type or "").strip().lower()
+        kind = str(kind or "external").strip().lower()
+        display_name = str(display_name or "").strip()
+
+        if not source_type:
+            raise UploadStorageError("source_type is required.")
+
+        if not display_name:
+            display_name = source_type.upper()
+
+        upload_id = f"upl-{uuid.uuid4()}"
+        directory = self.upload_dir(upload_id)
+        directory.mkdir(parents=True, exist_ok=True)
+
+        now = datetime.now(timezone.utc).isoformat()
+        safe_payload = _json_safe(payload or {})
+
+        metadata = {
+            "schema_version": UPLOAD_STORAGE_SCHEMA_VERSION,
+            "upload_id": upload_id,
+            "kind": kind,
+            "source_type": source_type,
+            "external": True,
+            "display_name": display_name,
+            "description": safe_payload.get("description") or "",
+            "tags": safe_payload.get("tags") or [],
+            "filename": None,
+            "original_filename": None,
+            "extension": None,
+            "content_type": "application/json",
+            "size_bytes": 0,
+            "sha256": None,
+            "stored_at": now,
+            "updated_at": now,
+            "directory": str(directory),
+            "path": None,
+            "parsed_json_available": False,
+            "parsed_json_error": None,
+            "project_id": project_id,
+            "status": "ready",
+            "connection": safe_payload,
+            "user_context": {
+                "source_type": source_type,
+                "project_id": project_id,
+            },
         }
 
         self._write_json(

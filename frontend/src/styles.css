@@ -4810,3 +4810,1142 @@ details.modal-section[open] summary::before {
     border-top-color: rgba(129, 140, 248, 0.14);
   }
 }
+
+
+/* ── DSM Modal ──────────────────────────────────────────────── */
+
+.dsm-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  border-radius: 10px;
+  padding: 4px;
+}
+
+.dsm-tab {
+  flex: 1;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.dsm-tab:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--text-heading, #1e293b);
+}
+
+.dsm-tab.active {
+  background: rgba(99, 102, 241, 0.15);
+  color: #6366f1;
+}
+
+.dsm-tab:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dsm-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dsm-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.dsm-field-sm {
+  max-width: 110px;
+}
+
+.dsm-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+}
+
+.dsm-form label input,
+.dsm-form label select,
+.dsm-form label textarea {
+  margin-top: 2px;
+  padding: 7px 10px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 7px;
+  background: var(--surface, #fff);
+  font-size: 13px;
+  color: var(--text-heading, #1e293b);
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dsm-form label input:focus,
+.dsm-form label select:focus {
+  border-color: #6366f1;
+}
+
+.dsm-form label input[type="password"] {
+  letter-spacing: 0.1em;
+}
+
+@media (prefers-color-scheme: dark) {
+  .dsm-tabs {
+    background: rgba(99, 102, 241, 0.09);
+    border-color: rgba(129, 140, 248, 0.18);
+  }
+
+  .dsm-tab.active {
+    background: rgba(99, 102, 241, 0.2);
+    color: #818cf8;
+  }
+
+  .dsm-form label input,
+  .dsm-form label select,
+  .dsm-form label textarea {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(129, 140, 248, 0.2);
+    color: #e2e8f0;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Data Source Manager Drawer Polish
+   Hide old upload form + redesign ds-toolbar
+   ───────────────────────────────────────────────────────────── */
+
+/* فرم آپلود قدیمی داخل drawer دیگر لازم نیست، چون آپلود به DSM modal منتقل شد */
+.compact-form.drawer-form-pro.ds-upload-form,
+.ds-upload-form {
+  display: none !important;
+}
+
+/* Toolbar جدید مدیریت منابع داده */
+.ds-toolbar {
+  direction: rtl;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  margin: 0 0 14px;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(53, 104, 212, 0.12), transparent 32%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(255, 250, 240, 0.66));
+  border: 1px solid rgba(83, 71, 54, 0.14);
+  box-shadow: 0 12px 28px rgba(78, 62, 39, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.ds-toolbar > * {
+  min-width: 0;
+}
+
+.ds-toolbar-title,
+.ds-toolbar h3,
+.ds-toolbar strong {
+  margin: 0;
+  color: #1f1a12;
+  font-size: 14px;
+  font-weight: 950;
+  line-height: 1.4;
+}
+
+.ds-toolbar p,
+.ds-toolbar small,
+.ds-toolbar .muted {
+  margin: 2px 0 0;
+  color: #746855;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.ds-toolbar-actions,
+.ds-toolbar .actions {
+  direction: ltr;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+
+.ds-toolbar button,
+.ds-toolbar .button,
+.ds-toolbar a {
+  min-height: 38px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(83, 71, 54, 0.16);
+  background: rgba(255, 255, 255, 0.72);
+  color: #4c4233;
+  font-size: 12px;
+  font-weight: 850;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.ds-toolbar button:hover,
+.ds-toolbar .button:hover,
+.ds-toolbar a:hover {
+  transform: translateY(-1px);
+  background: #ffffff;
+  color: #2854b8;
+  border-color: rgba(53, 104, 212, 0.28);
+  box-shadow: 0 10px 22px rgba(78, 62, 39, 0.1);
+}
+
+.ds-toolbar button.primary,
+.ds-toolbar .primary,
+.ds-toolbar .button.primary {
+  color: #ffffff;
+  border-color: rgba(53, 104, 212, 0.32);
+  background: linear-gradient(135deg, #3568d4, #16846f);
+  box-shadow: 0 12px 26px rgba(53, 104, 212, 0.18);
+}
+
+.ds-toolbar button.primary:hover,
+.ds-toolbar .primary:hover,
+.ds-toolbar .button.primary:hover {
+  color: #ffffff;
+  border-color: rgba(53, 104, 212, 0.42);
+  box-shadow: 0 16px 32px rgba(53, 104, 212, 0.24);
+}
+
+.ds-toolbar input,
+.ds-toolbar select {
+  min-height: 38px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(83, 71, 54, 0.16);
+  background: rgba(255, 255, 255, 0.82);
+  color: #1f1a12;
+  outline: none;
+  direction: ltr;
+  text-align: left;
+}
+
+.ds-toolbar input:focus,
+.ds-toolbar select:focus {
+  background: #ffffff;
+  border-color: rgba(53, 104, 212, 0.62);
+  box-shadow: 0 0 0 4px rgba(53, 104, 212, 0.12);
+}
+
+/* کارت‌های انتخاب نوع منبع داده */
+.ds-type-tile {
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease;
+}
+
+.ds-type-tile:hover {
+  transform: translateY(-1px);
+  border-color: rgba(53, 104, 212, 0.28) !important;
+  box-shadow: 0 12px 28px rgba(78, 62, 39, 0.1);
+}
+
+.ds-type-tile.active {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(53, 104, 212, 0.14), transparent 34%),
+    rgba(255, 255, 255, 0.86) !important;
+  border-color: rgba(53, 104, 212, 0.34) !important;
+  box-shadow:
+    0 14px 32px rgba(78, 62, 39, 0.12),
+    inset 0 1px 0 rgba(255,255,255,0.82);
+}
+
+.ds-type-tile.active::after {
+  content: "Open";
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  direction: ltr;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(53, 104, 212, 0.1);
+  color: #2854b8;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 720px) {
+  .ds-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ds-toolbar-actions,
+  .ds-toolbar .actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .ds-toolbar-actions > *,
+  .ds-toolbar .actions > * {
+    flex: 1;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Data Source Drawer - Professional Toolbar & Tiles Override
+   ───────────────────────────────────────────────────────────── */
+
+.compact-form.drawer-form-pro.ds-upload-form,
+.ds-upload-form {
+  display: none !important;
+}
+
+.ds-upload-moved-card {
+  direction: rtl;
+  margin: 12px 0 16px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(53, 104, 212, 0.1), transparent 32%),
+    rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(83, 71, 54, 0.14);
+  box-shadow: 0 10px 24px rgba(78, 62, 39, 0.07);
+}
+
+.ds-upload-moved-card strong {
+  display: block;
+  color: #1f1a12;
+  font-size: 13px;
+  font-weight: 950;
+  margin-bottom: 4px;
+}
+
+.ds-upload-moved-card p {
+  margin: 0;
+  color: #746855;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+/* Toolbar جدید و تمیز برای Data Source Manager */
+.ds-toolbar {
+  direction: rtl;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px;
+  margin: 0 0 16px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(53, 104, 212, 0.13), transparent 30%),
+    radial-gradient(circle at 100% 0%, rgba(22, 132, 111, 0.1), transparent 30%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(255, 250, 240, 0.68));
+  border: 1px solid rgba(83, 71, 54, 0.14);
+  box-shadow:
+    0 14px 32px rgba(78, 62, 39, 0.09),
+    inset 0 1px 0 rgba(255,255,255,0.78);
+  backdrop-filter: blur(16px);
+}
+
+.ds-toolbar > * {
+  min-width: 0;
+}
+
+.ds-toolbar h3,
+.ds-toolbar strong,
+.ds-toolbar-title {
+  margin: 0;
+  color: #1f1a12;
+  font-size: 14px;
+  font-weight: 950;
+  line-height: 1.4;
+}
+
+.ds-toolbar p,
+.ds-toolbar small,
+.ds-toolbar .muted {
+  margin: 3px 0 0;
+  color: #706552;
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.ds-toolbar-actions,
+.ds-toolbar .actions {
+  direction: ltr;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+
+.ds-toolbar button,
+.ds-toolbar .button,
+.ds-toolbar a {
+  min-height: 38px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(83, 71, 54, 0.16);
+  background: rgba(255, 255, 255, 0.78);
+  color: #4c4233;
+  font-size: 12px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.ds-toolbar button:hover,
+.ds-toolbar .button:hover,
+.ds-toolbar a:hover {
+  transform: translateY(-1px);
+  background: #ffffff;
+  color: #2854b8;
+  border-color: rgba(53, 104, 212, 0.3);
+  box-shadow: 0 12px 24px rgba(78, 62, 39, 0.11);
+}
+
+.ds-toolbar button.primary,
+.ds-toolbar .primary,
+.ds-toolbar .button.primary {
+  color: #ffffff;
+  border-color: rgba(53, 104, 212, 0.32);
+  background: linear-gradient(135deg, #3568d4, #16846f);
+  box-shadow: 0 14px 28px rgba(53, 104, 212, 0.2);
+}
+
+.ds-toolbar button.primary:hover,
+.ds-toolbar .primary:hover,
+.ds-toolbar .button.primary:hover {
+  color: #ffffff;
+  box-shadow: 0 18px 34px rgba(53, 104, 212, 0.26);
+}
+
+.ds-toolbar input,
+.ds-toolbar select {
+  min-height: 38px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(83, 71, 54, 0.16);
+  background: rgba(255, 255, 255, 0.84);
+  color: #1f1a12;
+  outline: none;
+  direction: ltr;
+  text-align: left;
+}
+
+.ds-toolbar input:focus,
+.ds-toolbar select:focus {
+  background: #ffffff;
+  border-color: rgba(53, 104, 212, 0.62);
+  box-shadow: 0 0 0 4px rgba(53, 104, 212, 0.12);
+}
+
+/* کارت‌های انتخاب نوع منبع داده */
+.ds-type-tile {
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px !important;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease;
+}
+
+.ds-type-tile:not([disabled]):hover {
+  transform: translateY(-2px);
+  border-color: rgba(53, 104, 212, 0.32) !important;
+  box-shadow: 0 14px 30px rgba(78, 62, 39, 0.12);
+}
+
+.ds-type-tile.active {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(53, 104, 212, 0.15), transparent 34%),
+    rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(53, 104, 212, 0.36) !important;
+  box-shadow:
+    0 16px 34px rgba(78, 62, 39, 0.13),
+    inset 0 1px 0 rgba(255,255,255,0.84);
+}
+
+.ds-type-tile.active::after {
+  content: "Open DSM";
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  direction: ltr;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(53, 104, 212, 0.11);
+  color: #2854b8;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 720px) {
+  .ds-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ds-toolbar-actions,
+  .ds-toolbar .actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .ds-toolbar-actions > *,
+  .ds-toolbar .actions > * {
+    flex: 1;
+  }
+}
+
+/* Old drawer upload form is disabled because DSM modal handles vector/raster upload now */
+.compact-form.drawer-form-pro.ds-upload-form,
+.ds-upload-form,
+.ds-upload-moved-card {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Professional Modal Polish: Preview / Edit / Delete
+   ───────────────────────────────────────────────────────────── */
+
+.modal-delete-copy,
+.modal-preview-copy,
+.modal-edit-copy,
+.data-source-preview,
+.preview-modal-body,
+.edit-modal-body {
+  direction: rtl;
+  text-align: right;
+  color: #1f1a12;
+}
+
+/* بدنه مودال‌های عملیاتی */
+.modal-delete-copy,
+.modal-preview-copy,
+.modal-edit-copy,
+.preview-modal-body,
+.edit-modal-body {
+  padding: 2px;
+}
+
+/* متن توضیحی داخل مودال‌ها */
+.modal-delete-copy p,
+.modal-preview-copy p,
+.modal-edit-copy p,
+.preview-modal-body p,
+.edit-modal-body p {
+  margin: 0 0 12px;
+  color: #665c4c;
+  font-size: 13px;
+  line-height: 1.85;
+}
+
+/* کارت هشدار حذف */
+.modal-delete-copy {
+  position: relative;
+  padding: 18px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(220, 38, 38, 0.12), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(255, 248, 242, 0.78));
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  box-shadow: 0 14px 32px rgba(78, 62, 39, 0.09);
+}
+
+.modal-delete-copy::before {
+  content: "!";
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+  font-size: 22px;
+  font-weight: 950;
+}
+
+.modal-delete-copy p {
+  padding-left: 54px;
+  color: #2a2117;
+  font-weight: 850;
+}
+
+/* لیست نکات حذف */
+.modal-delete-copy ul {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.modal-delete-copy li {
+  position: relative;
+  padding: 10px 12px 10px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(220, 38, 38, 0.12);
+  color: #5f5140;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.6;
+}
+
+.modal-delete-copy li::before {
+  content: "•";
+  color: #dc2626;
+  font-weight: 950;
+  margin-left: 8px;
+}
+
+/* فرم‌های edit داخل مودال */
+.modal-edit-copy form,
+.edit-modal-body form,
+.modal-edit-copy .compact-form,
+.edit-modal-body .compact-form {
+  display: grid;
+  gap: 14px;
+}
+
+.modal-edit-copy label,
+.edit-modal-body label,
+.modal-preview-copy label,
+.preview-modal-body label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #2b2418;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.modal-edit-copy input,
+.modal-edit-copy textarea,
+.modal-edit-copy select,
+.edit-modal-body input,
+.edit-modal-body textarea,
+.edit-modal-body select,
+.modal-preview-copy input,
+.modal-preview-copy textarea,
+.modal-preview-copy select,
+.preview-modal-body input,
+.preview-modal-body textarea,
+.preview-modal-body select {
+  width: 100%;
+  min-height: 42px;
+  padding: 11px 13px;
+  border-radius: 14px;
+  border: 1px solid rgba(83, 71, 54, 0.18);
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f1a12;
+  outline: none;
+  transition: 0.16s ease;
+}
+
+/* چون مقادیر متادیتا/نام فایل‌ها معمولاً انگلیسی هستند */
+.modal-edit-copy input,
+.modal-edit-copy textarea,
+.modal-edit-copy select,
+.edit-modal-body input,
+.edit-modal-body textarea,
+.edit-modal-body select {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: plaintext;
+}
+
+.modal-edit-copy input:focus,
+.modal-edit-copy textarea:focus,
+.modal-edit-copy select:focus,
+.edit-modal-body input:focus,
+.edit-modal-body textarea:focus,
+.edit-modal-body select:focus,
+.modal-preview-copy input:focus,
+.modal-preview-copy textarea:focus,
+.modal-preview-copy select:focus,
+.preview-modal-body input:focus,
+.preview-modal-body textarea:focus,
+.preview-modal-body select:focus {
+  background: #ffffff;
+  border-color: rgba(53, 104, 212, 0.64);
+  box-shadow: 0 0 0 4px rgba(53, 104, 212, 0.12);
+}
+
+/* Preview cards */
+.data-source-preview,
+.preview-modal-body,
+.modal-preview-copy {
+  display: grid;
+  gap: 14px;
+}
+
+.preview-modal-body,
+.modal-preview-copy,
+.data-source-preview {
+  padding: 16px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(53, 104, 212, 0.1), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 250, 240, 0.72));
+  border: 1px solid rgba(83, 71, 54, 0.14);
+  box-shadow: 0 14px 32px rgba(78, 62, 39, 0.08);
+}
+
+/* جدول/لیست اطلاعات preview */
+.preview-modal-body dl,
+.modal-preview-copy dl,
+.data-source-preview dl,
+.preview-modal-body .meta-grid,
+.modal-preview-copy .meta-grid,
+.data-source-preview .meta-grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.42fr) minmax(0, 1fr);
+  gap: 8px;
+  margin: 0;
+}
+
+.preview-modal-body dt,
+.modal-preview-copy dt,
+.data-source-preview dt,
+.preview-modal-body .meta-label,
+.modal-preview-copy .meta-label,
+.data-source-preview .meta-label {
+  color: #7a6d5a;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.preview-modal-body dd,
+.modal-preview-copy dd,
+.data-source-preview dd,
+.preview-modal-body .meta-value,
+.modal-preview-copy .meta-value,
+.data-source-preview .meta-value {
+  margin: 0;
+  color: #1f1a12;
+  font-size: 12px;
+  font-weight: 850;
+  direction: ltr;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+/* JSON / code preview */
+.preview-modal-body pre,
+.modal-preview-copy pre,
+.data-source-preview pre,
+.preview-modal-body code,
+.modal-preview-copy code,
+.data-source-preview code {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: plaintext;
+  border-radius: 16px;
+  background: #151a22;
+  color: #e8edf7;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.preview-modal-body pre,
+.modal-preview-copy pre,
+.data-source-preview pre {
+  max-height: 360px;
+  overflow: auto;
+  padding: 14px;
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+/* Buttons inside modal footers - general safe polish */
+.modal-footer button,
+.modal-actions button {
+  min-height: 40px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(83, 71, 54, 0.16);
+  background: rgba(255, 255, 255, 0.82);
+  color: #40372b;
+  font-size: 13px;
+  font-weight: 900;
+  transition: 0.16s ease;
+}
+
+.modal-footer button:hover,
+.modal-actions button:hover {
+  transform: translateY(-1px);
+  background: #ffffff;
+  border-color: rgba(53, 104, 212, 0.28);
+  color: #2854b8;
+  box-shadow: 0 10px 22px rgba(78, 62, 39, 0.11);
+}
+
+.modal-footer button.primary,
+.modal-actions button.primary {
+  color: #ffffff;
+  border-color: rgba(53, 104, 212, 0.34);
+  background: linear-gradient(135deg, #3568d4, #16846f);
+  box-shadow: 0 14px 28px rgba(53, 104, 212, 0.2);
+}
+
+.modal-footer button.danger,
+.modal-actions button.danger {
+  color: #ffffff;
+  border-color: rgba(220, 38, 38, 0.34);
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  box-shadow: 0 14px 28px rgba(220, 38, 38, 0.18);
+}
+
+.modal-footer button:disabled,
+.modal-actions button:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Old drawer upload form is disabled because DSM modal handles vector/raster upload now */
+.compact-form.drawer-form-pro.ds-upload-form,
+.ds-upload-form,
+.ds-upload-moved-card {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Professional Modal Polish: Preview / Edit / Delete
+   ───────────────────────────────────────────────────────────── */
+
+.modal-delete-copy,
+.modal-preview-copy,
+.modal-edit-copy,
+.data-source-preview,
+.preview-modal-body,
+.edit-modal-body {
+  direction: rtl;
+  text-align: right;
+  color: #1f1a12;
+}
+
+.modal-delete-copy,
+.modal-preview-copy,
+.modal-edit-copy,
+.preview-modal-body,
+.edit-modal-body {
+  padding: 2px;
+}
+
+.modal-delete-copy p,
+.modal-preview-copy p,
+.modal-edit-copy p,
+.preview-modal-body p,
+.edit-modal-body p {
+  margin: 0 0 12px;
+  color: #665c4c;
+  font-size: 13px;
+  line-height: 1.85;
+}
+
+/* Delete modal */
+.modal-delete-copy {
+  position: relative;
+  padding: 18px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(220, 38, 38, 0.12), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(255, 248, 242, 0.78));
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  box-shadow: 0 14px 32px rgba(78, 62, 39, 0.09);
+}
+
+.modal-delete-copy::before {
+  content: "!";
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+  font-size: 22px;
+  font-weight: 950;
+}
+
+.modal-delete-copy p {
+  padding-left: 54px;
+  color: #2a2117;
+  font-weight: 850;
+}
+
+.modal-delete-copy ul {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.modal-delete-copy li {
+  position: relative;
+  padding: 10px 12px 10px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(220, 38, 38, 0.12);
+  color: #5f5140;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.6;
+}
+
+.modal-delete-copy li::before {
+  content: "•";
+  color: #dc2626;
+  font-weight: 950;
+  margin-left: 8px;
+}
+
+/* Edit forms */
+.modal-edit-copy form,
+.edit-modal-body form,
+.modal-edit-copy .compact-form,
+.edit-modal-body .compact-form {
+  display: grid;
+  gap: 14px;
+}
+
+.modal-edit-copy label,
+.edit-modal-body label,
+.modal-preview-copy label,
+.preview-modal-body label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #2b2418;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.modal-edit-copy input,
+.modal-edit-copy textarea,
+.modal-edit-copy select,
+.edit-modal-body input,
+.edit-modal-body textarea,
+.edit-modal-body select,
+.modal-preview-copy input,
+.modal-preview-copy textarea,
+.modal-preview-copy select,
+.preview-modal-body input,
+.preview-modal-body textarea,
+.preview-modal-body select {
+  width: 100%;
+  min-height: 42px;
+  padding: 11px 13px;
+  border-radius: 14px;
+  border: 1px solid rgba(83, 71, 54, 0.18);
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f1a12;
+  outline: none;
+  transition: 0.16s ease;
+}
+
+.modal-edit-copy input,
+.modal-edit-copy textarea,
+.modal-edit-copy select,
+.edit-modal-body input,
+.edit-modal-body textarea,
+.edit-modal-body select {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: plaintext;
+}
+
+.modal-edit-copy input:focus,
+.modal-edit-copy textarea:focus,
+.modal-edit-copy select:focus,
+.edit-modal-body input:focus,
+.edit-modal-body textarea:focus,
+.edit-modal-body select:focus,
+.modal-preview-copy input:focus,
+.modal-preview-copy textarea:focus,
+.modal-preview-copy select:focus,
+.preview-modal-body input:focus,
+.preview-modal-body textarea:focus,
+.preview-modal-body select:focus {
+  background: #ffffff;
+  border-color: rgba(53, 104, 212, 0.64);
+  box-shadow: 0 0 0 4px rgba(53, 104, 212, 0.12);
+}
+
+/* Preview cards */
+.data-source-preview,
+.preview-modal-body,
+.modal-preview-copy {
+  display: grid;
+  gap: 14px;
+}
+
+.preview-modal-body,
+.modal-preview-copy,
+.data-source-preview {
+  padding: 16px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(53, 104, 212, 0.1), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 250, 240, 0.72));
+  border: 1px solid rgba(83, 71, 54, 0.14);
+  box-shadow: 0 14px 32px rgba(78, 62, 39, 0.08);
+}
+
+.preview-modal-body dl,
+.modal-preview-copy dl,
+.data-source-preview dl,
+.preview-modal-body .meta-grid,
+.modal-preview-copy .meta-grid,
+.data-source-preview .meta-grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.42fr) minmax(0, 1fr);
+  gap: 8px;
+  margin: 0;
+}
+
+.preview-modal-body dt,
+.modal-preview-copy dt,
+.data-source-preview dt,
+.preview-modal-body .meta-label,
+.modal-preview-copy .meta-label,
+.data-source-preview .meta-label {
+  color: #7a6d5a;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.preview-modal-body dd,
+.modal-preview-copy dd,
+.data-source-preview dd,
+.preview-modal-body .meta-value,
+.modal-preview-copy .meta-value,
+.data-source-preview .meta-value {
+  margin: 0;
+  color: #1f1a12;
+  font-size: 12px;
+  font-weight: 850;
+  direction: ltr;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+/* JSON / code preview */
+.preview-modal-body pre,
+.modal-preview-copy pre,
+.data-source-preview pre,
+.preview-modal-body code,
+.modal-preview-copy code,
+.data-source-preview code {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: plaintext;
+  border-radius: 16px;
+  background: #151a22;
+  color: #e8edf7;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.preview-modal-body pre,
+.modal-preview-copy pre,
+.data-source-preview pre {
+  max-height: 360px;
+  overflow: auto;
+  padding: 14px;
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+/* Modal footer buttons */
+.modal-footer button,
+.modal-actions button {
+  min-height: 40px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(83, 71, 54, 0.16);
+  background: rgba(255, 255, 255, 0.82);
+  color: #40372b;
+  font-size: 13px;
+  font-weight: 900;
+  transition: 0.16s ease;
+}
+
+.modal-footer button:hover,
+.modal-actions button:hover {
+  transform: translateY(-1px);
+  background: #ffffff;
+  border-color: rgba(53, 104, 212, 0.28);
+  color: #2854b8;
+  box-shadow: 0 10px 22px rgba(78, 62, 39, 0.11);
+}
+
+.modal-footer button.primary,
+.modal-actions button.primary {
+  color: #ffffff;
+  border-color: rgba(53, 104, 212, 0.34);
+  background: linear-gradient(135deg, #3568d4, #16846f);
+  box-shadow: 0 14px 28px rgba(53, 104, 212, 0.2);
+}
+
+.modal-footer button.danger,
+.modal-actions button.danger {
+  color: #ffffff;
+  border-color: rgba(220, 38, 38, 0.34);
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  box-shadow: 0 14px 28px rgba(220, 38, 38, 0.18);
+}
+
+.modal-footer button:disabled,
+.modal-actions button:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}

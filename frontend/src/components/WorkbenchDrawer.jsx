@@ -361,7 +361,57 @@ export default function WorkbenchDrawer({
   onPreviewUpload,
   onEditUpload,
   onDeleteUpload,
+  onAddExternalSource,
 }) {
+
+  function resolveDsmTabFromTileText(value = "") {
+    const raw = String(value).toLowerCase();
+
+    if (raw.includes("wfs")) return "wfs";
+
+    if (
+      raw.includes("url") ||
+      raw.includes("api") ||
+      raw.includes("wms") ||
+      raw.includes("service") ||
+      raw.includes("external")
+    ) {
+      return "url";
+    }
+
+    if (
+      raw.includes("file") ||
+      raw.includes("upload") ||
+      raw.includes("vector") ||
+      raw.includes("raster") ||
+      raw.includes("فایل") ||
+      raw.includes("آپلود") ||
+      raw.includes("وکتور") ||
+      raw.includes("رستر")
+    ) {
+      return "file";
+    }
+
+    if (
+      raw.includes("postgis") ||
+      raw.includes("database") ||
+      raw.includes("db") ||
+      raw.includes("دیتابیس")
+    ) {
+      return "postgis";
+    }
+
+    return "postgis";
+  }
+
+  function handleDsmTileClick(event, fallback = "") {
+    const text = event?.currentTarget?.textContent || fallback;
+    const tab = resolveDsmTabFromTileText(text);
+    if (typeof onAddExternalSource === "function") {
+      onAddExternalSource(tab);
+    }
+  }
+
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
   const [uploadKind, setUploadKind] = useState("vector");
@@ -663,83 +713,50 @@ export default function WorkbenchDrawer({
               title="File Upload"
               text="Raster / Vector"
               active={dataSourceMode === "file"}
-              onClick={() => setDataSourceMode("file")}
+              onClick={() => onAddExternalSource && onAddExternalSource("file")}
             />
 
             <DataSourceTypeTile
               icon="◍"
-              title="Database"
-              text="PostGIS"
-              active={dataSourceMode === "database"}
-              disabled
+              title="PostGIS"
+              text="Spatial Database"
+              active={false}
+              onClick={() => onAddExternalSource && onAddExternalSource("postgis")}
             />
 
             <DataSourceTypeTile
               icon="◎"
-              title="WMS/WFS"
-              text="Online GIS"
-              active={dataSourceMode === "online"}
-              disabled
+              title="WFS"
+              text="Online Vector"
+              active={false}
+              onClick={() => onAddExternalSource && onAddExternalSource("wfs")}
             />
 
             <DataSourceTypeTile
-              icon="{ }"
-              title="API"
-              text="REST/JSON"
-              active={dataSourceMode === "api"}
-              disabled
+              icon="↗"
+              title="URL / API"
+              text="REST / GeoJSON"
+              active={false}
+              onClick={() => onAddExternalSource && onAddExternalSource("url")}
             />
 
             <DataSourceTypeTile
               icon="≡"
               title="CSV/Table"
-              text="Coming soon"
-              active={dataSourceMode === "table"}
-              disabled
+              text="Tabular / XY"
+              active={false}
+              onClick={() => onAddExternalSource && onAddExternalSource("csv")}
             />
 
             <DataSourceTypeTile
-              icon="↗"
-              title="URL/S3"
-              text="Remote file"
-              active={dataSourceMode === "remote"}
-              disabled
+              icon="▦"
+              title="WMS"
+              text="Map Service"
+              active={false}
+              onClick={() => onAddExternalSource && onAddExternalSource("wms")}
             />
           </div>
-
-          {dataSourceMode === "file" && (
-            <form className="compact-form drawer-form-pro ds-upload-form" onSubmit={handleUpload}>
-              <label>
-                نوع فایل
-                <select
-                  value={uploadKind}
-                  onChange={(event) => setUploadKind(event.target.value)}
-                >
-                  <option value="vector">Vector - GeoJSON/Shapefile/GPKG</option>
-                  <option value="raster">Raster - GeoTIFF/COG/DEM</option>
-                </select>
-              </label>
-
-              <label>
-                فایل
-                <input
-                  type="file"
-                  onChange={(event) => setFile(event.target.files?.[0] || null)}
-                />
-              </label>
-
-              <div className="ds-upload-hint">
-                <span>i</span>
-                فعلاً endpointهای backend برای آپلود raster و vector فعال هستند. سایر منابع داده در فاز Data Source Manager اضافه می‌شوند.
-              </div>
-
-              <button type="submit" disabled={busy || !activeProject}>
-                {busy ? "در حال آپلود..." : "آپلود و اتصال به پروژه"}
-              </button>
-            </form>
-          )}
-
-          <SectionHeader title="داده‌های پروژه فعال" count={filteredProjectUploads.length} />
+<SectionHeader title="داده‌های پروژه فعال" count={filteredProjectUploads.length} />
 
           <div className="ds-toolbar">
             <input

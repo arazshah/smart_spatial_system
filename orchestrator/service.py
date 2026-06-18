@@ -1339,6 +1339,138 @@ class OrchestratorService:
             raise OrchestratorServiceError(str(exc)) from exc
 
 
+
+    def register_csv_table_source(
+        self,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Register a CSV/Table source in the project data catalog.
+
+        MVP behavior:
+        - Stores metadata only.
+        - If x/y columns are provided, frontend/next phases can treat it as a point layer.
+        """
+        if not isinstance(payload, dict):
+            raise OrchestratorServiceError("CSV/Table payload must be an object.")
+
+        project_id = str(payload.get("project_id") or "").strip() or None
+        display_name = str(
+            payload.get("display_name")
+            or payload.get("name")
+            or payload.get("table_name")
+            or payload.get("url")
+            or "CSV/Table Source"
+        ).strip()
+
+        source_url = str(payload.get("url") or "").strip()
+        table_name = str(payload.get("table_name") or "").strip()
+
+        if not source_url and not table_name:
+            raise OrchestratorServiceError("CSV/Table source requires url or table_name.")
+
+        normalized_payload = {
+            "display_name": display_name,
+            "description": payload.get("description") or "",
+            "tags": payload.get("tags") or [],
+            "url": source_url or None,
+            "table_name": table_name or None,
+            "delimiter": payload.get("delimiter") or ",",
+            "encoding": payload.get("encoding") or "utf-8",
+            "has_header": bool(payload.get("has_header", True)),
+            "x_column": payload.get("x_column") or payload.get("longitude_column") or None,
+            "y_column": payload.get("y_column") or payload.get("latitude_column") or None,
+            "crs": payload.get("crs") or "EPSG:4326",
+            "geometry_mode": payload.get("geometry_mode") or "xy",
+            "source_kind": "csv_table",
+        }
+
+        try:
+            metadata = self.upload_storage.save_external_source(
+                source_type="csv_table",
+                kind="table",
+                display_name=display_name,
+                payload=normalized_payload,
+                project_id=project_id,
+            )
+
+            if project_id:
+                self.project_store.attach_upload(project_id, metadata["upload_id"])
+
+            return self._normalize_data_source_metadata(
+                metadata,
+                project_id=project_id,
+            )
+        except (UploadStorageError, ProjectStoreError) as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
+
+    def register_wms_source(
+        self,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Register a WMS source in the project data catalog.
+
+        MVP behavior:
+        - Stores WMS connection metadata.
+        - Map rendering can later read connection.base_url/layer_name/options.
+        """
+        if not isinstance(payload, dict):
+            raise OrchestratorServiceError("WMS payload must be an object.")
+
+        project_id = str(payload.get("project_id") or "").strip() or None
+        base_url = str(payload.get("base_url") or payload.get("url") or "").strip()
+        layer_name = str(payload.get("layer_name") or payload.get("layers") or "").strip()
+
+        if not base_url:
+            raise OrchestratorServiceError("WMS base_url is required.")
+
+        if not layer_name:
+            raise OrchestratorServiceError("WMS layer_name is required.")
+
+        display_name = str(
+            payload.get("display_name")
+            or payload.get("name")
+            or layer_name
+            or "WMS Source"
+        ).strip()
+
+        normalized_payload = {
+            "display_name": display_name,
+            "description": payload.get("description") or "",
+            "tags": payload.get("tags") or [],
+            "base_url": base_url,
+            "url": base_url,
+            "layer_name": layer_name,
+            "layers": layer_name,
+            "version": payload.get("version") or "1.3.0",
+            "format": payload.get("format") or "image/png",
+            "transparent": bool(payload.get("transparent", True)),
+            "crs": payload.get("crs") or "EPSG:3857",
+            "attribution": payload.get("attribution") or "",
+            "opacity": payload.get("opacity", 0.85),
+            "source_kind": "wms",
+        }
+
+        try:
+            metadata = self.upload_storage.save_external_source(
+                source_type="wms",
+                kind="online",
+                display_name=display_name,
+                payload=normalized_payload,
+                project_id=project_id,
+            )
+
+            if project_id:
+                self.project_store.attach_upload(project_id, metadata["upload_id"])
+
+            return self._normalize_data_source_metadata(
+                metadata,
+                project_id=project_id,
+            )
+        except (UploadStorageError, ProjectStoreError) as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
+
     def list_project_data_sources(
         self,
         project_id: str,
@@ -1471,6 +1603,18 @@ class OrchestratorService:
             ),
             "content_type": metadata.get("content_type"),
             "sha256": metadata.get("sha256"),
+            "source_type": metadata.get("source_type"),
+            "external": bool(metadata.get("external")),
+            "status": metadata.get("status") or "ready",
+            "connection": metadata.get("connection") or {},
+            "crs": (metadata.get("connection") or {}).get("crs"),
+            "url": (metadata.get("connection") or {}).get("url")
+            or (metadata.get("connection") or {}).get("base_url"),
+            "base_url": (metadata.get("connection") or {}).get("base_url"),
+            "layer_name": (metadata.get("connection") or {}).get("layer_name"),
+            "table_name": (metadata.get("connection") or {}).get("table_name"),
+            "x_column": (metadata.get("connection") or {}).get("x_column"),
+            "y_column": (metadata.get("connection") or {}).get("y_column"),
         }
 
 
@@ -1525,6 +1669,16 @@ class OrchestratorService:
             metadata,
             project_id=project_id,
         )
+
+        if metadata.get("external"):
+            connection = metadata.get("connection") or {}
+            base["preview"] = {
+                "type": metadata.get("source_type") or "external",
+                "message": "External data source metadata preview.",
+                "connection": connection,
+                "fields": sorted(connection.keys()) if isinstance(connection, dict) else [],
+            }
+            return base
 
         if metadata.get("parsed_json_available"):
             try:

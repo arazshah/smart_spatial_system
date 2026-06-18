@@ -1,3 +1,4 @@
+import "./App.css";
 import { useEffect, useMemo, useState } from "react";
 import {
   createProject,
@@ -14,7 +15,12 @@ import {
   listProjectDataSources,
   previewDataSource,
   updateDataSource,
-  deleteDataSource
+  deleteDataSource,
+  registerPostGISSource,
+  registerWFSSource,
+  registerURLSource,
+  registerCSVTableSource,
+  registerWMSSource,
 } from "./api/client";
 import InspectorPanel from "./components/InspectorPanel";
 import MapStage from "./components/MapStage";
@@ -299,6 +305,58 @@ export default function App() {
   const [previewModalData, setPreviewModalData] = useState(null);
   const [editModalUpload, setEditModalUpload] = useState(null);
   const [deleteModalUpload, setDeleteModalUpload] = useState(null);
+
+  // ── DSM: Add External Source Modal ──────────────────────────
+  const [dsmModalOpen, setDsmModalOpen] = useState(false);
+  const [dsmTab, setDsmTab] = useState("postgis"); // "postgis" | "wfs" | "url"
+  const [dsmBusy, setDsmBusy] = useState(false);
+  const [dsmError, setDsmError] = useState("");
+
+  // PostGIS form
+  const [dsmPGHost, setDsmPGHost] = useState("");
+  const [dsmPGPort, setDsmPGPort] = useState("5432");
+  const [dsmPGDatabase, setDsmPGDatabase] = useState("");
+  const [dsmPGUser, setDsmPGUser] = useState("");
+  const [dsmPGPassword, setDsmPGPassword] = useState("");
+  const [dsmPGSchema, setDsmPGSchema] = useState("public");
+  const [dsmPGTable, setDsmPGTable] = useState("");
+  const [dsmPGWhere, setDsmPGWhere] = useState("");
+  const [dsmPGLimit, setDsmPGLimit] = useState("1000");
+  const [dsmPGName, setDsmPGName] = useState("");
+
+  // WFS form
+  const [dsmWFSUrl, setDsmWFSUrl] = useState("");
+  const [dsmWFSTypeName, setDsmWFSTypeName] = useState("");
+  const [dsmWFSVersion, setDsmWFSVersion] = useState("2.0.0");
+  const [dsmWFSMaxFeatures, setDsmWFSMaxFeatures] = useState("1000");
+  const [dsmWFSName, setDsmWFSName] = useState("");
+
+  // URL form
+  const [dsmURLValue, setDsmURLValue] = useState("");
+  const [dsmURLName, setDsmURLName] = useState("");
+  const [dsmURLKind, setDsmURLKind] = useState("vector");
+  
+  const [dsmCSVName, setDsmCSVName] = useState("");
+  const [dsmCSVUrl, setDsmCSVUrl] = useState("");
+  const [dsmCSVTableName, setDsmCSVTableName] = useState("");
+  const [dsmCSVXColumn, setDsmCSVXColumn] = useState("longitude");
+  const [dsmCSVYColumn, setDsmCSVYColumn] = useState("latitude");
+  const [dsmCSVDelimiter, setDsmCSVDelimiter] = useState(",");
+  const [dsmCSVEncoding, setDsmCSVEncoding] = useState("utf-8");
+  const [dsmCSVCrs, setDsmCSVCrs] = useState("EPSG:4326");
+  const [dsmCSVHasHeader, setDsmCSVHasHeader] = useState(true);
+
+  const [dsmWMSName, setDsmWMSName] = useState("");
+  const [dsmWMSUrl, setDsmWMSUrl] = useState("");
+  const [dsmWMSLayer, setDsmWMSLayer] = useState("");
+  const [dsmWMSVersion, setDsmWMSVersion] = useState("1.3.0");
+  const [dsmWMSFormat, setDsmWMSFormat] = useState("image/png");
+  const [dsmWMSCrs, setDsmWMSCrs] = useState("EPSG:3857");
+  const [dsmWMSTransparent, setDsmWMSTransparent] = useState(true);
+  const [dsmWMSAttribution, setDsmWMSAttribution] = useState("");
+  const [dsmWMSOpacity, setDsmWMSOpacity] = useState("0.85");
+const [dsmUploadKind, setDsmUploadKind] = useState("vector");
+  const [dsmUploadFile, setDsmUploadFile] = useState(null);
 
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
@@ -691,6 +749,269 @@ export default function App() {
     return upload;
   }
 
+  // ── DSM Handlers ────────────────────────────────────────────
+
+  function resetDsmForms() {
+    setDsmPGHost(""); setDsmPGPort("5432"); setDsmPGDatabase("");
+    setDsmPGUser(""); setDsmPGPassword(""); setDsmPGSchema("public");
+    setDsmPGTable(""); setDsmPGWhere(""); setDsmPGLimit("1000"); setDsmPGName("");
+    setDsmWFSUrl(""); setDsmWFSTypeName(""); setDsmWFSVersion("2.0.0");
+    setDsmWFSMaxFeatures("1000"); setDsmWFSName("");
+    setDsmURLValue(""); setDsmURLName(""); setDsmURLKind("vector");
+    setDsmCSVName(""); setDsmCSVUrl(""); setDsmCSVTableName("");
+    setDsmCSVXColumn("longitude"); setDsmCSVYColumn("latitude");
+    setDsmCSVDelimiter(","); setDsmCSVEncoding("utf-8"); setDsmCSVCrs("EPSG:4326");
+    setDsmCSVHasHeader(true);
+    setDsmWMSName(""); setDsmWMSUrl(""); setDsmWMSLayer("");
+    setDsmWMSVersion("1.3.0"); setDsmWMSFormat("image/png"); setDsmWMSCrs("EPSG:3857");
+    setDsmWMSTransparent(true); setDsmWMSAttribution(""); setDsmWMSOpacity("0.85");
+    setDsmError("");
+  }
+
+  function openDsmModal(tab = "postgis") {
+    resetDsmForms();
+    setDsmTab(tab);
+    setDsmModalOpen(true);
+  }
+
+  function getDsmUploadProjectId() {
+    const candidates = [];
+
+    if (typeof activeProject !== "undefined" && activeProject) candidates.push(activeProject);
+    if (typeof selectedProject !== "undefined" && selectedProject) candidates.push(selectedProject);
+    if (typeof currentProject !== "undefined" && currentProject) candidates.push(currentProject);
+
+    const project = candidates.find(Boolean);
+    if (project?.id) return project.id;
+    if (project?.project_id) return project.project_id;
+
+    if (typeof activeProjectId !== "undefined" && activeProjectId) return activeProjectId;
+    if (typeof selectedProjectId !== "undefined" && selectedProjectId) return selectedProjectId;
+    if (typeof currentProjectId !== "undefined" && currentProjectId) return currentProjectId;
+
+    return undefined;
+  }
+
+  async function refreshAfterDsmFileUpload(uploadedSource = null) {
+    const normalizedSource =
+      uploadedSource?.data_source ||
+      uploadedSource?.source ||
+      uploadedSource?.upload ||
+      uploadedSource?.data ||
+      uploadedSource;
+
+    const projectId =
+      activeProject?.project_id ||
+      activeProject?.id ||
+      getDsmUploadProjectId();
+
+    let refreshed = false;
+
+    if (projectId) {
+      try {
+        const payload = await listProjectDataSources(projectId);
+        const nextUploads = normalizeDataSourceList(
+          asList(payload, ["uploads", "data_sources", "dataSources", "items", "results"])
+        );
+
+        setUploads(nextUploads);
+        refreshed = true;
+      } catch (err) {
+        console.warn("DSM listProjectDataSources refresh failed:", err);
+      }
+
+      try {
+        const full = await getProject(projectId);
+        setActiveProject(full);
+        setProjects((prev) =>
+          Array.isArray(prev)
+            ? prev.map((project) =>
+                project.project_id === projectId || project.id === projectId ? full : project
+              )
+            : prev
+        );
+      } catch (err) {
+        console.warn("DSM getProject refresh failed:", err);
+      }
+    }
+
+    if (
+      !refreshed &&
+      normalizedSource &&
+      typeof setUploads === "function" &&
+      (normalizedSource.upload_id || normalizedSource.id || normalizedSource.data_source_id)
+    ) {
+      setUploads((prev) => {
+        const current = Array.isArray(prev) ? prev : [];
+        const sourceId =
+          normalizedSource.upload_id ||
+          normalizedSource.id ||
+          normalizedSource.data_source_id;
+
+        const filtered = current.filter((item) => {
+          const itemId = item.upload_id || item.id || item.data_source_id;
+          return itemId !== sourceId;
+        });
+
+        return [normalizedSource, ...filtered];
+      });
+    }
+
+    window.dispatchEvent(
+      new CustomEvent("dsm:data-source-uploaded", {
+        detail: { uploadedSource: normalizedSource, projectId },
+      })
+    );
+
+    window.dispatchEvent(
+      new CustomEvent("smart-spatial:data-sources-changed", {
+        detail: { uploadedSource: normalizedSource, projectId },
+      })
+    );
+
+    window.dispatchEvent(
+      new CustomEvent("smart-spatial:refresh-data-sources", {
+        detail: { uploadedSource: normalizedSource, projectId },
+      })
+    );
+  }
+
+  async function handleDsmFileUpload() {
+    if (!dsmUploadFile) {
+      setDsmError("لطفاً یک فایل برای آپلود انتخاب کنید.");
+      return;
+    }
+
+    setDsmBusy(true);
+    setDsmError("");
+
+    try {
+      const { uploadRaster, uploadVector } = await import("./api/client");
+      const projectId = getDsmUploadProjectId();
+
+      let uploadedSource = null;
+
+      if (dsmUploadKind === "raster") {
+        uploadedSource = await uploadRaster(dsmUploadFile, projectId);
+      } else {
+        uploadedSource = await uploadVector(dsmUploadFile, projectId);
+      }
+
+      setDsmUploadFile(null);
+      await refreshAfterDsmFileUpload(uploadedSource);
+      setDsmModalOpen(false);
+    } catch (err) {
+      setDsmError(err?.message || "آپلود فایل با خطا مواجه شد.");
+    } finally {
+      setDsmBusy(false);
+    }
+  }
+
+  async function handleDsmSubmit() {
+    setDsmError("");
+    setDsmBusy(true);
+
+    try {
+      let result = null;
+
+      if (dsmTab === "postgis") {
+        if (!dsmPGTable.trim()) throw new Error("نام جدول الزامی است.");
+        if (!dsmPGHost.trim() && !dsmPGDatabase.trim())
+          throw new Error("host و database الزامی هستند.");
+
+        result = await registerPostGISSource({
+          project_id: selectedProject?.project_id || activeProject?.project_id || getDsmUploadProjectId() || null,
+          display_name: dsmPGName.trim() || dsmPGTable.trim(),
+          host: dsmPGHost.trim() || undefined,
+          port: dsmPGPort ? parseInt(dsmPGPort) : undefined,
+          database: dsmPGDatabase.trim() || undefined,
+          user: dsmPGUser.trim() || undefined,
+          password: dsmPGPassword || undefined,
+          schema: dsmPGSchema.trim() || "public",
+          table: dsmPGTable.trim(),
+          where: dsmPGWhere.trim() || undefined,
+          limit: dsmPGLimit ? parseInt(dsmPGLimit) : 1000,
+        });
+      } else if (dsmTab === "wfs") {
+        if (!dsmWFSUrl.trim()) throw new Error("آدرس سرویس WFS الزامی است.");
+        if (!dsmWFSTypeName.trim()) throw new Error("نام لایه (TypeName) الزامی است.");
+
+        result = await registerWFSSource({
+          project_id: selectedProject?.project_id || activeProject?.project_id || getDsmUploadProjectId() || null,
+          display_name: dsmWFSName.trim() || dsmWFSTypeName.trim(),
+          base_url: dsmWFSUrl.trim(),
+          type_name: dsmWFSTypeName.trim(),
+          version: dsmWFSVersion || "2.0.0",
+          max_features: dsmWFSMaxFeatures ? parseInt(dsmWFSMaxFeatures) : 1000,
+        });
+      } else if (dsmTab === "url") {
+        if (!dsmURLValue.trim()) throw new Error("آدرس URL الزامی است.");
+
+        result = await registerURLSource({
+          project_id: selectedProject?.project_id || activeProject?.project_id || getDsmUploadProjectId() || null,
+          display_name: dsmURLName.trim() || undefined,
+          url: dsmURLValue.trim(),
+          kind: dsmURLKind || "vector",
+        });
+      } else if (dsmTab === "csv") {
+        if (!dsmCSVUrl.trim() && !dsmCSVTableName.trim()) {
+          throw new Error("برای CSV/Table حداقل URL یا نام جدول الزامی است.");
+        }
+
+        result = await registerCSVTableSource({
+          project_id: selectedProject?.project_id || activeProject?.project_id || getDsmUploadProjectId() || null,
+          display_name: dsmCSVName.trim() || dsmCSVTableName.trim() || undefined,
+          url: dsmCSVUrl.trim() || undefined,
+          table_name: dsmCSVTableName.trim() || undefined,
+          x_column: dsmCSVXColumn.trim() || undefined,
+          y_column: dsmCSVYColumn.trim() || undefined,
+          delimiter: dsmCSVDelimiter || ",",
+          encoding: dsmCSVEncoding || "utf-8",
+          crs: dsmCSVCrs || "EPSG:4326",
+          has_header: Boolean(dsmCSVHasHeader),
+        });
+      } else if (dsmTab === "wms") {
+        if (!dsmWMSUrl.trim()) throw new Error("آدرس سرویس WMS الزامی است.");
+        if (!dsmWMSLayer.trim()) throw new Error("نام لایه WMS الزامی است.");
+
+        result = await registerWMSSource({
+          project_id: selectedProject?.project_id || activeProject?.project_id || getDsmUploadProjectId() || null,
+          display_name: dsmWMSName.trim() || dsmWMSLayer.trim(),
+          base_url: dsmWMSUrl.trim(),
+          layer_name: dsmWMSLayer.trim(),
+          version: dsmWMSVersion || "1.3.0",
+          format: dsmWMSFormat || "image/png",
+          crs: dsmWMSCrs || "EPSG:3857",
+          transparent: Boolean(dsmWMSTransparent),
+          attribution: dsmWMSAttribution.trim() || undefined,
+          opacity: dsmWMSOpacity ? Number(dsmWMSOpacity) : 0.85,
+        });
+      }
+
+      if (result) {
+        setUploads((prev) => {
+          const list = Array.isArray(prev) ? prev : [];
+          const resultId = result.upload_id || result.data_source_id || result.id;
+          const filtered = list.filter((item) => {
+            const itemId = item.upload_id || item.data_source_id || item.id;
+            return itemId !== resultId;
+          });
+          return [result, ...filtered];
+        });
+
+        await refreshAfterDsmFileUpload(result);
+      }
+
+      setDsmModalOpen(false);
+      resetDsmForms();
+
+    } catch (err) {
+      setDsmError(err?.message || "خطا در ثبت منبع داده.");
+    } finally {
+      setDsmBusy(false);
+    }
+  }
+
   async function handleConfirmDeleteModal() {
     if (!deleteModalUpload?.upload_id) return null;
 
@@ -732,6 +1053,8 @@ export default function App() {
     setPreviewModalData(null);
     setEditModalUpload(null);
     setDeleteModalUpload(null);
+    setDsmModalOpen(false);
+    setDsmError("");
     setModalError("");
   }
 
@@ -764,6 +1087,7 @@ export default function App() {
         onPreviewUpload={handlePreviewUpload}
         onEditUpload={handleEditUpload}
         onDeleteUpload={handleDeleteUpload}
+        onAddExternalSource={openDsmModal}
       />
 
       <main className="workbench-main">
@@ -950,48 +1274,7 @@ export default function App() {
         }
       >
         <div className="modal-form">
-
-          {editModalUpload && (
-            <div className="modal-ds-summary">
-              <div className="modal-ds-summary-row">
-                <span className="modal-ds-meta-item">
-                  <small>Kind</small>
-                  <b>{getDataSourceKind(editModalUpload) || "—"}</b>
-                </span>
-                <span className="modal-ds-meta-item">
-                  <small>Status</small>
-                  <b>{getDataSourceStatus(editModalUpload) || "—"}</b>
-                </span>
-                <span className="modal-ds-meta-item">
-                  <small>Size</small>
-                  <b>{formatPreviewBytes(getDataSourceSize(editModalUpload))}</b>
-                </span>
-                <span className="modal-ds-meta-item">
-                  <small>Features</small>
-                  <b>{getDataSourceFeatureCount(editModalUpload) ?? "—"}</b>
-                </span>
-                <span className="modal-ds-meta-item">
-                  <small>Geometry</small>
-                  <b>{getDataSourceGeometryType(editModalUpload) || "—"}</b>
-                </span>
-                <span className="modal-ds-meta-item">
-                  <small>CRS</small>
-                  <b>{getDataSourceCrsLabel(editModalUpload)}</b>
-                </span>
-              </div>
-
-              {(editModalUpload?.filename || editModalUpload?.original_filename) && (
-                <div className="modal-ds-filename">
-                  <small>File:</small>
-                  <span dir="ltr">
-                    {editModalUpload.filename || editModalUpload.original_filename}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          <label>
+<label>
             نام نمایشی
             <input
               value={editName}
@@ -1064,6 +1347,369 @@ export default function App() {
           </ul>
 
           {modalError ? <div className="alert error">{modalError}</div> : null}
+        </div>
+      </Modal>
+
+      <Modal
+        open={dsmModalOpen}
+        title="ثبت منبع داده خارجی (DSM)"
+        subtitle="اتصال به دیتابیس، سرویس‌های مکانی یا API"
+        onClose={() => !dsmBusy && setDsmModalOpen(false)}
+        footer={
+          <>
+            <button type="button" onClick={() => setDsmModalOpen(false)} disabled={dsmBusy}>
+              انصراف
+            </button>
+            <button
+              type="button"
+              className="primary"
+              onClick={dsmTab === "file" ? handleDsmFileUpload : handleDsmSubmit}
+              disabled={dsmBusy || (dsmTab === "file" && !dsmUploadFile)}
+            >
+              {dsmBusy
+                ? (dsmTab === "file" ? "در حال آپلود..." : "در حال ثبت...")
+                : (dsmTab === "file" ? "آپلود فایل" : "ثبت منبع داده")}
+            </button>
+          </>
+        }
+      >
+        <div className="dsm-container dsm-container-pro">
+          <div className="dsm-hero">
+            <div>
+              <span className="dsm-kicker">Data Source Manager</span>
+              <h3>ثبت و اتصال منبع داده</h3>
+              <p>
+                منبع داده خارجی، سرویس مکانی، URL مستقیم یا فایل وکتور/رستر را به پروژه اضافه کنید.
+              </p>
+            </div>
+            <div className="dsm-hero-badge">
+              <span>DSM</span>
+            </div>
+          </div>
+
+          <div className="dsm-tabs-header dsm-tabs-header-pro" role="tablist" aria-label="DSM source type">
+            <button
+              type="button"
+              className={dsmTab === "postgis" ? "active" : ""}
+              onClick={() => setDsmTab("postgis")}
+            >
+              <span>PostGIS</span>
+              <small>Database</small>
+            </button>
+            <button
+              type="button"
+              className={dsmTab === "wfs" ? "active" : ""}
+              onClick={() => setDsmTab("wfs")}
+            >
+              <span>WFS</span>
+              <small>Service</small>
+            </button>
+            <button
+              type="button"
+              className={dsmTab === "url" ? "active" : ""}
+              onClick={() => setDsmTab("url")}
+            >
+              <span>URL</span>
+              <small>External</small>
+            </button>
+            <button
+              type="button"
+              className={dsmTab === "file" ? "active" : ""}
+              onClick={() => setDsmTab("file")}
+            >
+              <span>File</span>
+              <small>Raster / Vector</small>
+            </button>
+            <button
+              type="button"
+              className={dsmTab === "csv" ? "active" : ""}
+              onClick={() => setDsmTab("csv")}
+            >
+              <span>CSV/Table</span>
+              <small>Tabular</small>
+            </button>
+            <button
+              type="button"
+              className={dsmTab === "wms" ? "active" : ""}
+              onClick={() => setDsmTab("wms")}
+            >
+              <span>WMS</span>
+              <small>Map Service</small>
+            </button>
+          </div>
+
+          <div className="dsm-form-body dsm-form-body-pro">
+            {dsmTab === "postgis" && (
+              <div className="dsm-grid dsm-grid-pro">
+                <label className="dsm-field">
+                  <span>نام نمایشی</span>
+                  <input dir="ltr" value={dsmPGName} onChange={e => setDsmPGName(e.target.value)} placeholder="Main Database" />
+                </label>
+
+                <div className="dsm-row-2">
+                  <label className="dsm-field">
+                    <span>Host</span>
+                    <input dir="ltr" value={dsmPGHost} onChange={e => setDsmPGHost(e.target.value)} placeholder="localhost" />
+                  </label>
+                  <label className="dsm-field">
+                    <span>Port</span>
+                    <input dir="ltr" value={dsmPGPort} onChange={e => setDsmPGPort(e.target.value)} placeholder="5432" />
+                  </label>
+                </div>
+
+                <div className="dsm-row-2">
+                  <label className="dsm-field">
+                    <span>Database</span>
+                    <input dir="ltr" value={dsmPGDatabase} onChange={e => setDsmPGDatabase(e.target.value)} placeholder="spatial_db" />
+                  </label>
+                  <label className="dsm-field">
+                    <span>Schema</span>
+                    <input dir="ltr" value={dsmPGSchema} onChange={e => setDsmPGSchema(e.target.value)} placeholder="public" />
+                  </label>
+                </div>
+
+                <div className="dsm-row-2">
+                  <label className="dsm-field">
+                    <span>Username</span>
+                    <input dir="ltr" value={dsmPGUser} onChange={e => setDsmPGUser(e.target.value)} placeholder="postgres" />
+                  </label>
+                  <label className="dsm-field">
+                    <span>Password</span>
+                    <input dir="ltr" type="password" value={dsmPGPassword} onChange={e => setDsmPGPassword(e.target.value)} placeholder="••••••••" />
+                  </label>
+                </div>
+
+                <label className="dsm-field">
+                  <span>Table Name <b>Required</b></span>
+                  <input dir="ltr" value={dsmPGTable} onChange={e => setDsmPGTable(e.target.value)} placeholder="my_spatial_table" />
+                </label>
+
+                <label className="dsm-field">
+                  <span>Where Clause <em>Optional</em></span>
+                  <input dir="ltr" value={dsmPGWhere} onChange={e => setDsmPGWhere(e.target.value)} placeholder="status = 'active'" />
+                </label>
+              </div>
+            )}
+
+            {dsmTab === "wfs" && (
+              <div className="dsm-grid dsm-grid-pro">
+                <label className="dsm-field">
+                  <span>نام نمایشی</span>
+                  <input dir="ltr" value={dsmWFSName} onChange={e => setDsmWFSName(e.target.value)} placeholder="Municipality WFS" />
+                </label>
+
+                <label className="dsm-field">
+                  <span>WFS Server URL</span>
+                  <input dir="ltr" value={dsmWFSUrl} onChange={e => setDsmWFSUrl(e.target.value)} placeholder="https://geoserver.example.com/wfs" />
+                </label>
+
+                <label className="dsm-field">
+                  <span>Layer TypeName</span>
+                  <input dir="ltr" value={dsmWFSTypeName} onChange={e => setDsmWFSTypeName(e.target.value)} placeholder="workspace:layer_name" />
+                </label>
+
+                <div className="dsm-row-2">
+                  <label className="dsm-field">
+                    <span>Version</span>
+                    <input dir="ltr" value={dsmWFSVersion} onChange={e => setDsmWFSVersion(e.target.value)} placeholder="2.0.0" />
+                  </label>
+                  <label className="dsm-field">
+                    <span>Max Features</span>
+                    <input dir="ltr" type="number" value={dsmWFSMaxFeatures} onChange={e => setDsmWFSMaxFeatures(e.target.value)} placeholder="1000" />
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {dsmTab === "url" && (
+              <div className="dsm-grid dsm-grid-pro">
+                <label className="dsm-field">
+                  <span>نام نمایشی</span>
+                  <input dir="ltr" value={dsmURLName} onChange={e => setDsmURLName(e.target.value)} placeholder="Tehran Points URL" />
+                </label>
+
+                <label className="dsm-field">
+                  <span>Direct URL</span>
+                  <input dir="ltr" value={dsmURLValue} onChange={e => setDsmURLValue(e.target.value)} placeholder="https://data.example.com/points.geojson" />
+                </label>
+
+                <label className="dsm-field">
+                  <span>Data Type</span>
+                  <select dir="ltr" value={dsmURLKind} onChange={e => setDsmURLKind(e.target.value)}>
+                    <option value="vector">Vector (GeoJSON)</option>
+                    <option value="raster">Raster (GeoTIFF)</option>
+                  </select>
+                </label>
+              </div>
+            )}
+
+
+            {dsmTab === "csv" && (
+              <div className="dsm-grid dsm-grid-pro">
+                <label className="dsm-field">
+                  <span>نام نمایشی</span>
+                  <input dir="ltr" value={dsmCSVName} onChange={e => setDsmCSVName(e.target.value)} placeholder="Tehran CSV Points" />
+                </label>
+
+                <label className="dsm-field">
+                  <span>CSV URL <em>Optional</em></span>
+                  <input dir="ltr" value={dsmCSVUrl} onChange={e => setDsmCSVUrl(e.target.value)} placeholder="https://data.example.com/points.csv" />
+                </label>
+
+                <label className="dsm-field">
+                  <span>Table Name <em>Optional</em></span>
+                  <input dir="ltr" value={dsmCSVTableName} onChange={e => setDsmCSVTableName(e.target.value)} placeholder="survey_points_table" />
+                </label>
+
+                <div className="dsm-row-2">
+                  <label className="dsm-field">
+                    <span>X / Longitude Column</span>
+                    <input dir="ltr" value={dsmCSVXColumn} onChange={e => setDsmCSVXColumn(e.target.value)} placeholder="longitude" />
+                  </label>
+                  <label className="dsm-field">
+                    <span>Y / Latitude Column</span>
+                    <input dir="ltr" value={dsmCSVYColumn} onChange={e => setDsmCSVYColumn(e.target.value)} placeholder="latitude" />
+                  </label>
+                </div>
+
+                <div className="dsm-row-2">
+                  <label className="dsm-field">
+                    <span>CRS</span>
+                    <input dir="ltr" value={dsmCSVCrs} onChange={e => setDsmCSVCrs(e.target.value)} placeholder="EPSG:4326" />
+                  </label>
+                  <label className="dsm-field">
+                    <span>Delimiter</span>
+                    <input dir="ltr" value={dsmCSVDelimiter} onChange={e => setDsmCSVDelimiter(e.target.value)} placeholder="," />
+                  </label>
+                </div>
+
+                <div className="dsm-row-2">
+                  <label className="dsm-field">
+                    <span>Encoding</span>
+                    <input dir="ltr" value={dsmCSVEncoding} onChange={e => setDsmCSVEncoding(e.target.value)} placeholder="utf-8" />
+                  </label>
+                  <label className="dsm-field dsm-check-field">
+                    <span>Header</span>
+                    <label className="dsm-inline-check">
+                      <input type="checkbox" checked={dsmCSVHasHeader} onChange={e => setDsmCSVHasHeader(e.target.checked)} />
+                      <b>First row contains column names</b>
+                    </label>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {dsmTab === "wms" && (
+              <div className="dsm-grid dsm-grid-pro">
+                <label className="dsm-field">
+                  <span>نام نمایشی</span>
+                  <input dir="ltr" value={dsmWMSName} onChange={e => setDsmWMSName(e.target.value)} placeholder="City Base Map WMS" />
+                </label>
+
+                <label className="dsm-field">
+                  <span>WMS Server URL <b>Required</b></span>
+                  <input dir="ltr" value={dsmWMSUrl} onChange={e => setDsmWMSUrl(e.target.value)} placeholder="https://geoserver.example.com/geoserver/wms" />
+                </label>
+
+                <label className="dsm-field">
+                  <span>Layer Name <b>Required</b></span>
+                  <input dir="ltr" value={dsmWMSLayer} onChange={e => setDsmWMSLayer(e.target.value)} placeholder="workspace:layer_name" />
+                </label>
+
+                <div className="dsm-row-2">
+                  <label className="dsm-field">
+                    <span>Version</span>
+                    <input dir="ltr" value={dsmWMSVersion} onChange={e => setDsmWMSVersion(e.target.value)} placeholder="1.3.0" />
+                  </label>
+                  <label className="dsm-field">
+                    <span>Format</span>
+                    <select dir="ltr" value={dsmWMSFormat} onChange={e => setDsmWMSFormat(e.target.value)}>
+                      <option value="image/png">image/png</option>
+                      <option value="image/jpeg">image/jpeg</option>
+                      <option value="image/geotiff">image/geotiff</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="dsm-row-2">
+                  <label className="dsm-field">
+                    <span>CRS</span>
+                    <input dir="ltr" value={dsmWMSCrs} onChange={e => setDsmWMSCrs(e.target.value)} placeholder="EPSG:3857" />
+                  </label>
+                  <label className="dsm-field">
+                    <span>Opacity</span>
+                    <input dir="ltr" type="number" step="0.05" min="0" max="1" value={dsmWMSOpacity} onChange={e => setDsmWMSOpacity(e.target.value)} placeholder="0.85" />
+                  </label>
+                </div>
+
+                <label className="dsm-field">
+                  <span>Attribution <em>Optional</em></span>
+                  <input dir="ltr" value={dsmWMSAttribution} onChange={e => setDsmWMSAttribution(e.target.value)} placeholder="© GeoServer / Municipality" />
+                </label>
+
+                <label className="dsm-field dsm-check-field">
+                  <span>Transparency</span>
+                  <label className="dsm-inline-check">
+                    <input type="checkbox" checked={dsmWMSTransparent} onChange={e => setDsmWMSTransparent(e.target.checked)} />
+                    <b>Request transparent tiles</b>
+                  </label>
+                </label>
+              </div>
+            )}
+
+            {dsmTab === "file" && (
+              <div className="dsm-upload-panel">
+                <div className="dsm-upload-head">
+                  <div>
+                    <strong>آپلود فایل مکانی</strong>
+                    <p>فایل وکتور یا رستر را انتخاب کنید تا به منابع داده پروژه اضافه شود.</p>
+                  </div>
+                </div>
+
+                <div className="dsm-upload-switch">
+                  <button
+                    type="button"
+                    className={dsmUploadKind === "vector" ? "active" : ""}
+                    onClick={() => {
+                      setDsmUploadKind("vector");
+                      setDsmUploadFile(null);
+                    }}
+                  >
+                    Vector
+                    <small>GeoJSON / SHP / GPKG</small>
+                  </button>
+                  <button
+                    type="button"
+                    className={dsmUploadKind === "raster" ? "active" : ""}
+                    onClick={() => {
+                      setDsmUploadKind("raster");
+                      setDsmUploadFile(null);
+                    }}
+                  >
+                    Raster
+                    <small>GeoTIFF / TIFF</small>
+                  </button>
+                </div>
+
+                <label className="dsm-file-drop">
+                  <input
+                    type="file"
+                    accept={dsmUploadKind === "raster" ? ".tif,.tiff,.geotiff" : ".geojson,.json,.zip,.shp,.gpkg"}
+                    onChange={e => setDsmUploadFile(e.target.files?.[0] || null)}
+                  />
+                  <span className="dsm-file-icon">⬆</span>
+                  <strong>{dsmUploadFile ? dsmUploadFile.name : "Choose file"}</strong>
+                  <small>
+                    {dsmUploadKind === "raster"
+                      ? "Supported raster: .tif, .tiff, .geotiff"
+                      : "Supported vector: .geojson, .json, .zip, .shp, .gpkg"}
+                  </small>
+                </label>
+              </div>
+            )}
+
+            {dsmError && <div className="alert error dsm-error">{dsmError}</div>}
+          </div>
         </div>
       </Modal>
     </div>

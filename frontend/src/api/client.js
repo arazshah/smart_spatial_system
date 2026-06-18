@@ -184,3 +184,60 @@ export function deleteDataSource(uploadId) {
 
 
 export { API_BASE_URL };
+
+
+// ── Data Source Manager: External Sources ──────────────────────
+
+export async function registerPostGISSource(payload) {
+  const res = await fetch(`${API_BASE_URL}/data-sources/postgis`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `PostGIS register failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function registerWFSSource(payload) {
+  const res = await fetch(`${API_BASE_URL}/data-sources/wfs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `WFS register failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function registerURLSource(payload) {
+  const res = await fetch(`${API_BASE_URL}/data-sources/url`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `URL source register failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+
+export function registerCSVTableSource(payload) {
+  return request("/data-sources/csv-table", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function registerWMSSource(payload) {
+  return request("/data-sources/wms", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

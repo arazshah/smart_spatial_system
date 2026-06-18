@@ -135,6 +135,18 @@ class ProjectStore:
             item=upload_id,
         )
 
+
+    def detach_upload(
+        self,
+        project_id: str,
+        upload_id: str,
+    ) -> dict[str, Any]:
+        return self._detach_item(
+            project_id,
+            key="uploads",
+            item=upload_id,
+        )
+
     def attach_request(
         self,
         project_id: str,
@@ -197,6 +209,29 @@ class ProjectStore:
             values.append(item)
 
         project[key] = values
+        project["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        self._write_project(project_id, project)
+        return project
+
+
+    def _detach_item(
+        self,
+        project_id: str,
+        *,
+        key: str,
+        item: str,
+    ) -> dict[str, Any]:
+        project = self.get_project(project_id)
+
+        values = project.get(key)
+        if not isinstance(values, list):
+            values = []
+
+        project[key] = [
+            value for value in values
+            if value != item
+        ]
         project["updated_at"] = datetime.now(timezone.utc).isoformat()
 
         self._write_project(project_id, project)

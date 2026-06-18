@@ -156,4 +156,31 @@ export function getProject(projectId) {
   return request(`/projects/${encodeURIComponent(projectId)}`);
 }
 
+
+export function listProjectDataSources(projectId) {
+  return request(`/projects/${encodeURIComponent(projectId)}/data-sources`);
+}
+
+export function getDataSource(uploadId) {
+  return request(`/data-sources/${encodeURIComponent(uploadId)}`);
+}
+
+export function previewDataSource(uploadId) {
+  return request(`/data-sources/${encodeURIComponent(uploadId)}/preview`);
+}
+
+export function updateDataSource(uploadId, payload) {
+  return request(`/data-sources/${encodeURIComponent(uploadId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteDataSource(uploadId) {
+  return request(`/data-sources/${encodeURIComponent(uploadId)}`, {
+    method: "DELETE",
+  });
+}
+
+
 export { API_BASE_URL };

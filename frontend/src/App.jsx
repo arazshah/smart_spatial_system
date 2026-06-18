@@ -11,12 +11,17 @@ import {
   listUploads,
   runQuery,
   uploadFileByKind,
+  listProjectDataSources,
+  previewDataSource,
+  updateDataSource,
+  deleteDataSource
 } from "./api/client";
 import InspectorPanel from "./components/InspectorPanel";
 import MapStage from "./components/MapStage";
 import TopQueryBar from "./components/TopQueryBar";
 import WorkbenchDrawer from "./components/WorkbenchDrawer";
 import WorkbenchSidebar from "./components/WorkbenchSidebar";
+import Modal from "./components/Modal";
 import { extractInlineGeoJsonLayers, mergeMapLayerPayloads } from "./utils/geojsonLayers";
 
 function asList(payload, keys = []) {
@@ -183,6 +188,17 @@ export default function App() {
   const [bootLoading, setBootLoading] = useState(true);
   const [globalError, setGlobalError] = useState("");
 
+  const [previewModalData, setPreviewModalData] = useState(null);
+  const [editModalUpload, setEditModalUpload] = useState(null);
+  const [deleteModalUpload, setDeleteModalUpload] = useState(null);
+
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editTags, setEditTags] = useState("");
+
+  const [modalBusy, setModalBusy] = useState(false);
+  const [modalError, setModalError] = useState("");
+
   async function refreshProjects(preferredProjectId = null) {
     const payload = await listProjects();
     const items = asList(payload, ["projects"]);
@@ -202,7 +218,15 @@ export default function App() {
     }
   }
 
-  async function refreshUploads() {
+  async function refreshUploads(projectOverride = null) {
+    const projectId = projectOverride?.project_id || activeProject?.project_id;
+
+    if (projectId) {
+      const payload = await listProjectDataSources(projectId);
+      setUploads(asList(payload, ["uploads"]));
+      return;
+    }
+
     const payload = await listUploads();
     setUploads(asList(payload, ["uploads"]));
   }
@@ -446,6 +470,144 @@ export default function App() {
     return <div className="wb-loader">در حال آماده‌سازی محیط کاری...</div>;
   }
 
+
+  async function handlePreviewUpload(upload) {
+    if (!upload?.upload_id) return null;
+
+    setModalError("");
+    setModalBusy(true);
+
+    try {
+      const payload = await previewDataSource(upload.upload_id);
+      setPreviewModalData(payload);
+      return payload;
+    } catch (err) {
+      setModalError(err.message);
+      throw err;
+    } finally {
+      setModalBusy(false);
+    }
+  }
+
+  async function handleEditUpload(upload) {
+    if (!upload?.upload_id) return null;
+
+    setModalError("");
+    setEditModalUpload(upload);
+    setEditName(
+      upload?.display_name ||
+      upload?.name ||
+      upload?.filename ||
+      ""
+    );
+    setEditDescription(upload?.description || "");
+    setEditTags(Array.isArray(upload?.tags) ? upload.tags.join(", ") : "");
+    return upload;
+  }
+
+  async function handleSaveEditModal() {
+    if (!editModalUpload?.upload_id) return null;
+
+    const trimmedName = String(editName || "").trim();
+
+    if (!trimmedName) {
+      setModalError("نام منبع داده نمی‌تواند خالی باشد.");
+      return null;
+    }
+
+    setModalError("");
+    setModalBusy(true);
+
+    try {
+      const tags = String(editTags || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      const updated = await updateDataSource(editModalUpload.upload_id, {
+        name: trimmedName,
+        description: String(editDescription || "").trim(),
+        tags,
+      });
+
+      await refreshUploads();
+
+      setSelectedUpload((prev) =>
+        prev?.upload_id === editModalUpload.upload_id ? updated : prev
+      );
+
+      setPreviewModalData((prev) =>
+        prev?.upload_id === editModalUpload.upload_id
+          ? { ...prev, ...updated }
+          : prev
+      );
+
+      setEditModalUpload(null);
+      setEditName("");
+      setEditDescription("");
+      setEditTags("");
+
+      return updated;
+    } catch (err) {
+      setModalError(err.message);
+      throw err;
+    } finally {
+      setModalBusy(false);
+    }
+  }
+
+  async function handleDeleteUpload(upload) {
+    if (!upload?.upload_id) return null;
+
+    setModalError("");
+    setDeleteModalUpload(upload);
+    return upload;
+  }
+
+  async function handleConfirmDeleteModal() {
+    if (!deleteModalUpload?.upload_id) return null;
+
+    setModalError("");
+    setModalBusy(true);
+
+    try {
+      await deleteDataSource(deleteModalUpload.upload_id);
+
+      if (selectedUpload?.upload_id === deleteModalUpload.upload_id) {
+        setSelectedUpload(null);
+      }
+
+      if (previewModalData?.upload_id === deleteModalUpload.upload_id) {
+        setPreviewModalData(null);
+      }
+
+      if (activeProject?.project_id) {
+        const full = await getProject(activeProject.project_id);
+        setActiveProject(full);
+        await refreshUploads(full);
+      } else {
+        await refreshUploads();
+      }
+
+      setDeleteModalUpload(null);
+      return true;
+    } catch (err) {
+      setModalError(err.message);
+      throw err;
+    } finally {
+      setModalBusy(false);
+    }
+  }
+
+  function closeAllModals() {
+    if (modalBusy) return;
+
+    setPreviewModalData(null);
+    setEditModalUpload(null);
+    setDeleteModalUpload(null);
+    setModalError("");
+  }
+
   return (
     <div className="workbench-shell">
       <WorkbenchSidebar
@@ -472,6 +634,9 @@ export default function App() {
         activeRequest={activeRequest}
         onSelectRequest={handleSelectRequest}
         health={health}
+        onPreviewUpload={handlePreviewUpload}
+        onEditUpload={handleEditUpload}
+        onDeleteUpload={handleDeleteUpload}
       />
 
       <main className="workbench-main">
@@ -503,6 +668,140 @@ export default function App() {
         loading={loading}
         error={globalError}
       />
+
+      <Modal
+        open={Boolean(previewModalData)}
+        title="Data Source Preview"
+        subtitle={
+          previewModalData?.display_name ||
+          previewModalData?.name ||
+          previewModalData?.filename ||
+          previewModalData?.upload_id
+        }
+        onClose={closeAllModals}
+        size="lg"
+        footer={
+          <button type="button" onClick={closeAllModals} disabled={modalBusy}>
+            بستن
+          </button>
+        }
+      >
+        {modalError ? <div className="alert error">{modalError}</div> : null}
+
+        <div className="modal-info-grid">
+          <span>
+            <small>Kind</small>
+            <b>{previewModalData?.kind || "data"}</b>
+          </span>
+          <span>
+            <small>Format</small>
+            <b>{previewModalData?.extension || "—"}</b>
+          </span>
+          <span>
+            <small>Size</small>
+            <b>{previewModalData?.size_bytes || "—"}</b>
+          </span>
+        </div>
+
+        <div className="modal-json-block">
+          <pre>{JSON.stringify(previewModalData?.preview || {}, null, 2)}</pre>
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(editModalUpload)}
+        title="Edit Data Source"
+        subtitle={
+          editModalUpload?.display_name ||
+          editModalUpload?.name ||
+          editModalUpload?.filename ||
+          editModalUpload?.upload_id
+        }
+        onClose={closeAllModals}
+        footer={
+          <>
+            <button type="button" onClick={closeAllModals} disabled={modalBusy}>
+              انصراف
+            </button>
+            <button type="button" onClick={handleSaveEditModal} disabled={modalBusy}>
+              {modalBusy ? "در حال ذخیره..." : "ذخیره تغییرات"}
+            </button>
+          </>
+        }
+      >
+        <div className="modal-form">
+          <label>
+            نام نمایشی
+            <input
+              value={editName}
+              onChange={(event) => setEditName(event.target.value)}
+              placeholder="Display name"
+              disabled={modalBusy}
+            />
+          </label>
+
+          <label>
+            توضیح
+            <textarea
+              rows={4}
+              value={editDescription}
+              onChange={(event) => setEditDescription(event.target.value)}
+              placeholder="اختیاری"
+              disabled={modalBusy}
+            />
+          </label>
+
+          <label>
+            تگ‌ها
+            <input
+              value={editTags}
+              onChange={(event) => setEditTags(event.target.value)}
+              placeholder="sample, tehran, vector"
+              disabled={modalBusy}
+            />
+          </label>
+
+          {modalError ? <div className="alert error">{modalError}</div> : null}
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(deleteModalUpload)}
+        title="Delete Data Source"
+        subtitle={
+          deleteModalUpload?.display_name ||
+          deleteModalUpload?.name ||
+          deleteModalUpload?.filename ||
+          deleteModalUpload?.upload_id
+        }
+        onClose={closeAllModals}
+        footer={
+          <>
+            <button type="button" onClick={closeAllModals} disabled={modalBusy}>
+              انصراف
+            </button>
+            <button
+              type="button"
+              className="danger"
+              onClick={handleConfirmDeleteModal}
+              disabled={modalBusy}
+            >
+              {modalBusy ? "در حال حذف..." : "حذف"}
+            </button>
+          </>
+        }
+      >
+        <div className="modal-delete-copy">
+          <p>آیا از حذف این منبع داده مطمئن هستید؟</p>
+          <ul>
+            <li>از storage حذف می‌شود</li>
+            <li>از پروژه فعال جدا می‌شود</li>
+            <li>این عملیات قابل بازگشت نیست</li>
+          </ul>
+
+          {modalError ? <div className="alert error">{modalError}</div> : null}
+        </div>
+      </Modal>
     </div>
   );
 }

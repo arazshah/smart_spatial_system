@@ -143,7 +143,13 @@ function dataKindMeta(kind) {
 }
 
 function getUploadName(item) {
-  return item?.filename || item?.name || item?.upload_id || "Unnamed data source";
+  return (
+    item?.display_name ||
+    item?.name ||
+    item?.filename ||
+    item?.upload_id ||
+    "Unnamed data source"
+  );
 }
 
 function getUploadStatus(item) {
@@ -248,9 +254,7 @@ function EmptyDrawerState({ icon, title, text }) {
 
 function SystemStatusDot({ status }) {
   const online = String(status || "").toLowerCase() === "ok";
-  return (
-    <span className={`system-dot ${online ? "online" : "offline"}`} />
-  );
+  return <span className={`system-dot ${online ? "online" : "offline"}`} />;
 }
 
 function DataSourceTypeTile({ icon, title, text, active, disabled, onClick }) {
@@ -269,7 +273,14 @@ function DataSourceTypeTile({ icon, title, text, active, disabled, onClick }) {
   );
 }
 
-function DataSourceCard({ item, selected, onSelect }) {
+function DataSourceCard({
+  item,
+  selected,
+  onSelect,
+  onPreview,
+  onEdit,
+  onDelete,
+}) {
   const kind = normalizeDataKind(item);
   const kindMeta = dataKindMeta(kind);
   const status = statusMeta(getUploadStatus(item));
@@ -346,95 +357,19 @@ function DataSourceCard({ item, selected, onSelect }) {
           {selected ? "Selected" : "Set active"}
         </button>
 
-        <button
-          type="button"
-          disabled
-          title="Preview endpoint will be added in Data Source Manager phase"
-        >
+        <button type="button" onClick={() => onPreview(item)}>
           Preview
         </button>
 
-        <button
-          type="button"
-          disabled
-          title="Rename/Edit endpoint will be added in Data Source Manager phase"
-        >
+        <button type="button" onClick={() => onEdit(item)}>
           Edit
         </button>
 
-        <button
-          type="button"
-          disabled
-          className="danger"
-          title="Delete endpoint will be added in backend phase"
-        >
+        <button type="button" className="danger" onClick={() => onDelete(item)}>
           Delete
         </button>
       </div>
     </article>
-  );
-}
-
-
-function healthStatusMeta(health) {
-  const status = String(health?.status || "").toLowerCase();
-
-  if (["ok", "healthy", "ready", "up"].includes(status)) {
-    return {
-      label: "Operational",
-      className: "success",
-      icon: "✓",
-    };
-  }
-
-  if (["error", "failed", "down"].includes(status)) {
-    return {
-      label: "Down",
-      className: "danger",
-      icon: "!",
-    };
-  }
-
-  return {
-    label: health?.status || "Unknown",
-    className: "neutral",
-    icon: "○",
-  };
-}
-
-function SettingsMetric({ icon, label, value, tone = "default" }) {
-  return (
-    <div className={`settings-metric ${tone}`}>
-      <span>{icon}</span>
-      <div>
-        <small>{label}</small>
-        <strong>{value}</strong>
-      </div>
-    </div>
-  );
-}
-
-function SettingsSection({ title, subtitle, children }) {
-  return (
-    <section className="settings-section-pro">
-      <div className="settings-section-title">
-        <div>
-          <h3>{title}</h3>
-          {subtitle ? <p>{subtitle}</p> : null}
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function ConfigRow({ label, value, badge }) {
-  return (
-    <div className="settings-config-row">
-      <span>{label}</span>
-      <strong>{value || "Not configured"}</strong>
-      {badge ? <em>{badge}</em> : null}
-    </div>
   );
 }
 
@@ -453,6 +388,9 @@ export default function WorkbenchDrawer({
   activeRequest,
   onSelectRequest,
   health,
+  onPreviewUpload,
+  onEditUpload,
+  onDeleteUpload,
 }) {
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
@@ -509,6 +447,42 @@ export default function WorkbenchDrawer({
   }, [projectUploads]);
 
   if (!activeTool) return null;
+
+  async function handlePreviewDataSource(item) {
+    setError("");
+
+    if (!onPreviewUpload) return;
+
+    try {
+      await onPreviewUpload(item);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleEditDataSource(item) {
+    setError("");
+
+    if (!onEditUpload) return;
+
+    try {
+      await onEditUpload(item);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleDeleteDataSource(item) {
+    setError("");
+
+    if (!onDeleteUpload) return;
+
+    try {
+      await onDeleteUpload(item);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   async function handleCreateProject(event) {
     event.preventDefault();
@@ -764,6 +738,9 @@ export default function WorkbenchDrawer({
                   item={item}
                   selected={selectedUpload?.upload_id === item.upload_id}
                   onSelect={onSelectUpload}
+                  onPreview={handlePreviewDataSource}
+                  onEdit={handleEditDataSource}
+                  onDelete={handleDeleteDataSource}
                 />
               ))
             )}
@@ -840,174 +817,29 @@ export default function WorkbenchDrawer({
       )}
 
       {activeTool === "settings" && (
-        <div className="drawer-content settings-drawer-content">
-          {(() => {
-            const apiMeta = healthStatusMeta(health);
-            const pluginCount =
-              health?.plugins_count ||
-              health?.plugin_count ||
-              health?.plugins?.length ||
-              0;
+        <div className="drawer-content">
+          <div className="settings-card settings-card-pro">
+            <div className="settings-status-line">
+              <SystemStatusDot status={health?.status} />
+              <span>API Status</span>
+            </div>
+            <strong>{health?.status || "unknown"}</strong>
+          </div>
 
-            return (
-              <>
-                <div className="settings-hero-card">
-                  <div className="settings-hero-top">
-                    <div>
-                      <span>System Status</span>
-                      <h3>Smart Spatial Engine</h3>
-                    </div>
+          <div className="settings-card settings-card-pro">
+            <span>Active Project</span>
+            <strong>{activeProject?.name || "None"}</strong>
+          </div>
 
-                    <div className={`settings-hero-badge ${apiMeta.className}`}>
-                      <i>{apiMeta.icon}</i>
-                      {apiMeta.label}
-                    </div>
-                  </div>
+          <div className="settings-card settings-card-pro">
+            <span>Selected Data</span>
+            <strong>{selectedUpload?.filename || selectedUpload?.upload_id || "None"}</strong>
+          </div>
 
-                  <div className="settings-hero-status">
-                    <SystemStatusDot status={health?.status} />
-                    <p>
-                      {health?.status
-                        ? `Backend health endpoint returned: ${health.status}`
-                        : "Health endpoint information is not available."}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="settings-metrics-grid">
-                  <SettingsMetric
-                    icon="▣"
-                    label="Project"
-                    value={activeProject?.name || "None"}
-                    tone={activeProject ? "blue" : "muted"}
-                  />
-
-                  <SettingsMetric
-                    icon="◈"
-                    label="Selected Data"
-                    value={selectedUpload?.filename || selectedUpload?.upload_id || "None"}
-                    tone={selectedUpload ? "green" : "muted"}
-                  />
-
-                  <SettingsMetric
-                    icon="◷"
-                    label="Requests"
-                    value={safeRequests.length}
-                    tone="purple"
-                  />
-
-                  <SettingsMetric
-                    icon="⚙"
-                    label="Plugins"
-                    value={pluginCount}
-                    tone={pluginCount ? "green" : "muted"}
-                  />
-                </div>
-
-                <SettingsSection
-                  title="LLM Configuration"
-                  subtitle="محل تنظیم مدل‌های زبانی برای query planning و plugin generation"
-                >
-                  <div className="settings-config-card">
-                    <ConfigRow
-                      label="Provider"
-                      value={health?.llm?.provider || "AvalAI / OpenAI-compatible"}
-                      badge="Planned"
-                    />
-
-                    <ConfigRow
-                      label="Base URL"
-                      value={health?.llm?.base_url || "env: LLM_BASE_URL"}
-                    />
-
-                    <ConfigRow
-                      label="Fast model"
-                      value={health?.llm?.fast_model || "gpt-4o-mini"}
-                    />
-
-                    <ConfigRow
-                      label="Strong model"
-                      value={health?.llm?.strong_model || "chatgpt-4o / gpt-4o"}
-                    />
-
-                    <div className="settings-note">
-                      <span>i</span>
-                      در این مرحله تنظیمات LLM فقط جایگاه UI دارد. اتصال واقعی در فاز LLM Settings با endpointهای backend انجام می‌شود.
-                    </div>
-                  </div>
-                </SettingsSection>
-
-                <SettingsSection
-                  title="Plugin Manager"
-                  subtitle="نمای read-only برای آماده‌سازی مدیریت pluginها"
-                >
-                  <div className="plugin-manager-preview">
-                    <div className="plugin-preview-header">
-                      <div>
-                        <span>Plugin Registry</span>
-                        <strong>{pluginCount || "Not connected"}</strong>
-                      </div>
-                      <em>Next phase</em>
-                    </div>
-
-                    <div className="plugin-preview-grid">
-                      <div>
-                        <span>Discovery</span>
-                        <strong>Pending endpoint</strong>
-                      </div>
-
-                      <div>
-                        <span>Enable / Disable</span>
-                        <strong>Planned</strong>
-                      </div>
-
-                      <div>
-                        <span>Weights</span>
-                        <strong>Available API</strong>
-                      </div>
-
-                      <div>
-                        <span>Factory Agent</span>
-                        <strong>Planned</strong>
-                      </div>
-                    </div>
-
-                    <div className="settings-note">
-                      <span>i</span>
-                      مدیریت واقعی pluginها بعداً به endpointهایی مثل list plugins، enable/disable، reload و plugin factory وصل می‌شود.
-                    </div>
-                  </div>
-                </SettingsSection>
-
-                <SettingsSection
-                  title="Runtime"
-                  subtitle="اطلاعات runtime فعلی frontend"
-                >
-                  <div className="settings-config-card">
-                    <ConfigRow
-                      label="API Status"
-                      value={health?.status || "unknown"}
-                    />
-
-                    <ConfigRow
-                      label="Active Project ID"
-                      value={activeProject?.project_id || "None"}
-                    />
-
-                    <ConfigRow
-                      label="Selected Upload ID"
-                      value={selectedUpload?.upload_id || "None"}
-                    />
-
-                    <ConfigRow
-                      label="Requests in memory"
-                      value={safeRequests.length}
-                    />
-                  </div>
-                </SettingsSection>
-              </>
-            );
-          })()}
+          <div className="settings-card settings-card-pro">
+            <span>Requests in memory</span>
+            <strong>{safeRequests.length}</strong>
+          </div>
         </div>
       )}
     </section>

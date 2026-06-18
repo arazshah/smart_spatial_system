@@ -28,6 +28,7 @@ import hashlib
 import json
 import mimetypes
 import re
+import shutil
 import uuid
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timezone
@@ -262,12 +263,80 @@ class UploadStorage:
                 f"Failed to read upload content: {upload_id}: {exc}"
             ) from exc
 
+    def delete_upload(
+        self,
+        upload_id: str,
+    ) -> dict[str, Any]:
+        metadata = self.read_metadata(upload_id)
+        directory = self.upload_dir(upload_id)
+
+        if not directory.exists() or not directory.is_dir():
+            raise UploadStorageError(f"Upload directory not found: {upload_id}")
+
+        try:
+            shutil.rmtree(directory)
+        except OSError as exc:
+            raise UploadStorageError(
+                f"Failed to delete upload {upload_id}: {exc}"
+            ) from exc
+
+        return metadata
+
     def get_media_type(
         self,
         upload_id: str,
     ) -> str:
         metadata = self.read_metadata(upload_id)
         return str(metadata.get("content_type") or "application/octet-stream")
+
+    def update_metadata(
+        self,
+        upload_id: str,
+        patch: dict[str, Any],
+    ) -> dict[str, Any]:
+        if not isinstance(patch, dict):
+            raise UploadStorageError("Metadata patch must be an object.")
+
+        metadata = self.read_metadata(upload_id)
+
+        allowed_keys = {
+            "display_name",
+            "description",
+            "tags",
+        }
+
+        clean_patch: dict[str, Any] = {}
+
+        for key, value in patch.items():
+            if key not in allowed_keys:
+                continue
+
+            if key == "display_name":
+                text = str(value or "").strip()
+                clean_patch[key] = text or None
+
+            elif key == "description":
+                clean_patch[key] = str(value or "").strip()
+
+            elif key == "tags":
+                if value is None:
+                    clean_patch[key] = []
+                elif isinstance(value, (list, tuple, set)):
+                    clean_patch[key] = [
+                        str(item).strip()
+                        for item in value
+                        if str(item).strip()
+                    ]
+                else:
+                    clean_patch[key] = [
+                        str(value).strip()
+                    ] if str(value).strip() else []
+
+        metadata.update(clean_patch)
+        metadata["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        self._write_json(self.metadata_path(upload_id), metadata)
+        return metadata
 
     def _write_json(
         self,

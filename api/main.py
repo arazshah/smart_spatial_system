@@ -151,6 +151,83 @@ def create_app(
                 detail=str(exc),
             ) from exc
 
+
+    @app.get("/projects/{project_id}/data-sources")
+    def list_project_data_sources(
+        request: Request,
+        project_id: str,
+    ) -> list[dict[str, Any]]:
+        svc = _service(request)
+
+        try:
+            return _json_safe(svc.list_project_data_sources(project_id))
+        except OrchestratorServiceError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
+    @app.get("/data-sources/{upload_id}")
+    def get_data_source(
+        request: Request,
+        upload_id: str,
+    ) -> dict[str, Any]:
+        svc = _service(request)
+
+        try:
+            return _json_safe(svc.get_data_source(upload_id))
+        except OrchestratorServiceError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
+    @app.delete("/data-sources/{upload_id}")
+    def delete_data_source(
+        request: Request,
+        upload_id: str,
+    ) -> dict[str, Any]:
+        svc = _service(request)
+
+        try:
+            return _json_safe(svc.delete_data_source(upload_id))
+        except OrchestratorServiceError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+    @app.patch("/data-sources/{upload_id}")
+    def update_data_source(
+        request: Request,
+        upload_id: str,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        svc = _service(request)
+
+        try:
+            return _json_safe(svc.update_data_source(upload_id, payload))
+        except OrchestratorServiceError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+    @app.get("/data-sources/{upload_id}/preview")
+    def preview_data_source(
+        request: Request,
+        upload_id: str,
+    ) -> dict[str, Any]:
+        svc = _service(request)
+
+        try:
+            return _json_safe(svc.preview_data_source(upload_id))
+        except OrchestratorServiceError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
     @app.get("/settings/runtime")
     def get_runtime_settings(
         request: Request,

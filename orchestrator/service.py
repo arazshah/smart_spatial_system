@@ -31,7 +31,64 @@ from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Any
 
+
+class _EnabledOnlyRegistryView:
+    """
+    Lightweight registry-like wrapper that exposes only enabled capabilities.
+
+    Compatible with routers that expect a registry object implementing:
+      - resolve(capability_name)
+      - descriptor_for(capability_name)
+      - registered_capability_names()
+    """
+
+    def __init__(self, bindings: dict[str, Any], descriptors: dict[str, Any]) -> None:
+        self._bindings = dict(bindings or {})
+        self._descriptors = dict(descriptors or {})
+
+    def resolve(self, capability_name: str) -> Any:
+        if capability_name not in self._bindings:
+            raise ValueError(f"Capability '{capability_name}' is not registered.")
+        return self._bindings[capability_name]
+
+    def descriptor_for(self, capability_name: str) -> Any:
+        if capability_name not in self._descriptors:
+            raise ValueError(f"Capability '{capability_name}' has no descriptor.")
+        return self._descriptors[capability_name]
+
+    def registered_capability_names(self) -> list[str]:
+        return sorted(self._bindings.keys())
+
+
+
+class _EnabledOnlyCapabilityRouter:
+    """
+    Lightweight router wrapper exposing only enabled capability bindings.
+    Compatible with plan builders/executors that expect:
+      - resolve(name)
+      - registered_capability_names()
+    """
+
+    def __init__(self, bindings: dict[str, Any]) -> None:
+        self._bindings = dict(bindings or {})
+
+    def resolve(self, capability_name: str) -> Any:
+        if capability_name not in self._bindings:
+            raise ValueError(
+                f"Capability '{capability_name}' is not registered in enabled router."
+            )
+        return self._bindings[capability_name]
+
+    def registered_capability_names(self) -> list[str]:
+        return sorted(self._bindings.keys())
+
+
 from orchestrator.capability_registry import CapabilityRegistry
+from orchestrator.plugin_state import (
+    PluginStateStore,
+    PluginStateStoreConfig,
+    PluginStateStoreError,
+)
 from orchestrator.capability_scoring import KeywordScoringCapabilityRouter
 from orchestrator.feedback import FeedbackCollector, UserFeedbackInput
 from orchestrator.learning_signals import RouterLearningSignalBuilder
@@ -194,6 +251,12 @@ class OrchestratorService:
         self.registry = CapabilityRegistry.from_plugin_modules(
             self.config.plugin_modules,
             tolerant=True,
+        )
+
+        self.plugin_state_store = PluginStateStore(
+            PluginStateStoreConfig(
+                path="config/plugin_state.json",
+            )
         )
 
         self.persistence = RouterWeightStorePersistence(
@@ -1129,6 +1192,261 @@ class OrchestratorService:
         except ProjectStoreError as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
+    def list_plugins(
+        self,
+    ) -> list[dict[str, Any]]:
+        """
+        Return grouped plugin inventory for Plugin Manager.
+
+        Read-only in phase 1:
+        - enabled/disabled is read from config/plugin_state.json
+        - plugin-specific YAML config is not mutated here
+        """
+        registry = getattr(self, "registry", None)
+        if registry is None:
+            return []
+
+        inventory = list(getattr(registry, "as_plugin_inventory")() or [])
+        skipped_plugins = list(getattr(registry, "skipped_plugins", []) or [])
+
+        skipped_by_module = {
+            str(item.get("module")): item
+            for item in skipped_plugins
+            if isinstance(item, dict) and item.get("module")
+        }
+
+        items: list[dict[str, Any]] = []
+
+        for item in inventory:
+            plugin_id = str(item.get("plugin_id") or "")
+            capabilities = list(item.get("capabilities") or [])
+
+            module_names = sorted(
+                {
+                    str(cap.get("metadata", {}).get("module_name") or "")
+                    for cap in capabilities
+                    if isinstance(cap, dict)
+                }
+                - {""}
+            )
+
+            enabled = True
+            try:
+                enabled = self.plugin_state_store.is_enabled(plugin_id, default=True)
+            except PluginStateStoreError:
+                enabled = True
+
+            has_config = False
+            config_path = f"config/plugins/{plugin_id}.yaml"
+
+            try:
+                from pathlib import Path as _Path
+                has_config = _Path(config_path).exists()
+            except Exception:
+                has_config = False
+
+            payload = {
+                "plugin_id": plugin_id,
+                "enabled": enabled,
+                "state_source": "config/plugin_state.json",
+                "config_path": config_path,
+                "config_exists": has_config,
+                "module_names": module_names,
+                "capability_count": int(item.get("capability_count") or 0),
+                "capabilities": capabilities,
+                "skipped": False,
+                "skipped_error": None,
+            }
+
+            if not module_names:
+                # Try to infer from skipped plugins if available.
+                for skipped in skipped_plugins:
+                    if not isinstance(skipped, dict):
+                        continue
+                    module_name = str(skipped.get("module") or "")
+                    if plugin_id and plugin_id in module_name:
+                        payload["module_names"] = [module_name]
+                        payload["skipped"] = True
+                        payload["skipped_error"] = skipped.get("error")
+                        break
+
+            items.append(payload)
+
+        items.sort(key=lambda x: str(x.get("plugin_id") or ""))
+        return items
+
+    def _is_plugin_enabled(
+        self,
+        plugin_id: str,
+    ) -> bool:
+        """
+        Return True if plugin is enabled in plugin_state.json.
+        Missing state defaults to enabled.
+        """
+        plugin_id = str(plugin_id or "").strip()
+        if not plugin_id:
+            return False
+
+        try:
+            return bool(self.plugin_state_store.is_enabled(plugin_id, default=True))
+        except PluginStateStoreError:
+            return True
+
+    def _disabled_plugin_ids(
+        self,
+    ) -> set[str]:
+        """
+        Return disabled plugin IDs from plugin inventory.
+        """
+        disabled: set[str] = set()
+
+        for item in self.list_plugins():
+            pid = str(item.get("plugin_id") or "").strip()
+            if pid and not bool(item.get("enabled", True)):
+                disabled.add(pid)
+
+        return disabled
+
+    def _enabled_capability_names(
+        self,
+    ) -> list[str]:
+        """
+        Return registered capability names whose source plugin is enabled.
+        """
+        registry = getattr(self, "registry", None)
+        bindings = getattr(registry, "_bindings", {}) or {}
+
+        names: list[str] = []
+
+        if not isinstance(bindings, dict):
+            return names
+
+        for capability_name, binding in bindings.items():
+            plugin_id = str(getattr(binding, "plugin_id", "") or "").strip()
+            if plugin_id and self._is_plugin_enabled(plugin_id):
+                names.append(str(capability_name))
+
+        return sorted(set(names))
+
+    def _build_enabled_registry_view(
+        self,
+    ) -> Any:
+        """
+        Build a lightweight registry-like view containing only enabled
+        capabilities and descriptors.
+        """
+        registry = getattr(self, "registry", None)
+        bindings = getattr(registry, "_bindings", {}) or {}
+        descriptors = getattr(registry, "_descriptors", {}) or {}
+
+        enabled_bindings: dict[str, Any] = {}
+        enabled_descriptors: dict[str, Any] = {}
+
+        if isinstance(bindings, dict):
+            for capability_name, binding in bindings.items():
+                plugin_id = str(getattr(binding, "plugin_id", "") or "").strip()
+                if plugin_id and self._is_plugin_enabled(plugin_id):
+                    key = str(capability_name)
+                    enabled_bindings[key] = binding
+                    if isinstance(descriptors, dict) and capability_name in descriptors:
+                        enabled_descriptors[key] = descriptors[capability_name]
+
+        return _EnabledOnlyRegistryView(
+            enabled_bindings,
+            enabled_descriptors,
+        )
+
+
+    def _build_enabled_router(
+        self,
+    ) -> Any:
+        """
+        Build a lightweight router containing only enabled capabilities
+        from the registry bindings.
+        """
+        registry = getattr(self, "registry", None)
+        bindings = getattr(registry, "_bindings", {}) or {}
+
+        enabled_bindings: dict[str, Any] = {}
+
+        if isinstance(bindings, dict):
+            for capability_name, binding in bindings.items():
+                plugin_id = str(getattr(binding, "plugin_id", "") or "").strip()
+                if plugin_id and self._is_plugin_enabled(plugin_id):
+                    enabled_bindings[str(capability_name)] = binding
+
+        return _EnabledOnlyCapabilityRouter(enabled_bindings)
+
+
+    def _assert_capability_enabled(
+        self,
+        capability_name: str,
+    ) -> None:
+        """
+        Raise service error if capability exists but its plugin is disabled.
+        """
+        registry = getattr(self, "registry", None)
+        bindings = getattr(registry, "_bindings", {}) or {}
+
+        if not isinstance(bindings, dict):
+            return
+
+        binding = bindings.get(capability_name)
+        if binding is None:
+            return
+
+        plugin_id = str(getattr(binding, "plugin_id", "") or "").strip()
+        if plugin_id and not self._is_plugin_enabled(plugin_id):
+            raise OrchestratorServiceError(
+                f"Capability '{capability_name}' is disabled because plugin '{plugin_id}' is disabled."
+            )
+
+
+    def get_plugin(
+        self,
+        plugin_id: str,
+    ) -> dict[str, Any]:
+        """
+        Return one plugin inventory item by plugin_id.
+        """
+        plugin_id = str(plugin_id or "").strip()
+        if not plugin_id:
+            raise OrchestratorServiceError("plugin_id is required.")
+
+        for item in self.list_plugins():
+            if str(item.get("plugin_id")) == plugin_id:
+                return item
+
+        raise OrchestratorServiceError(f"Unknown plugin: {plugin_id}")
+
+
+    def update_plugin_state(
+        self,
+        plugin_id: str,
+        *,
+        enabled: bool | None = None,
+    ) -> dict[str, Any]:
+        """
+        Update plugin manager state for one plugin.
+
+        Phase 2 scope:
+        - supports only enabled/disabled
+        - does not mutate plugin YAML config
+        - does not yet rebuild runtime registry/router automatically
+        """
+        plugin = self.get_plugin(plugin_id)
+
+        if enabled is None:
+            raise OrchestratorServiceError("At least one mutable field is required.")
+
+        try:
+            self.plugin_state_store.set_enabled(plugin["plugin_id"], bool(enabled))
+        except PluginStateStoreError as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
+
+        return self.get_plugin(plugin["plugin_id"])
+
+
     def get_runtime_settings(
         self,
     ) -> dict[str, Any]:
@@ -1176,6 +1494,8 @@ class OrchestratorService:
         plugin_ids = sorted(set(plugin_ids))
 
         skipped_plugins = list(getattr(registry, "skipped_plugins", []) or [])
+        enabled_capability_names = self._enabled_capability_names()
+        disabled_plugin_ids = sorted(self._disabled_plugin_ids())
 
         return {
             "llm": {
@@ -1197,6 +1517,9 @@ class OrchestratorService:
                 "plugin_ids": plugin_ids,
                 "capabilities": capability_names,
                 "capability_count": len(capability_names),
+                "enabled_capabilities": enabled_capability_names,
+                "enabled_capability_count": len(enabled_capability_names),
+                "disabled_plugin_ids": disabled_plugin_ids,
                 "skipped_plugins": skipped_plugins,
             },
             "runtime": {
@@ -1250,13 +1573,7 @@ class OrchestratorService:
             plan_intent_with_llm,
         )
 
-        registry = getattr(self, "registry", None)
-        bindings = getattr(registry, "_bindings", {}) or {}
-
-        capability_names: list[str] = []
-
-        if isinstance(bindings, dict):
-            capability_names = sorted(str(name) for name in bindings.keys())
+        capability_names = self._enabled_capability_names()
 
         try:
             return plan_intent_with_llm(
@@ -1972,8 +2289,10 @@ class OrchestratorService:
         }
 
     def _build_router(self) -> Any:
+        enabled_registry = self._build_enabled_registry_view()
+
         base_router = KeywordScoringCapabilityRouter(
-            registry=self.registry,
+            registry=enabled_registry,
         )
 
         if not self.config.use_weighted_router:

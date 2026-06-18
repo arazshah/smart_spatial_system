@@ -61,6 +61,26 @@ export function getHealth() {
   return request("/health");
 }
 
+
+export function getRuntimeSettings() {
+  return request("/settings/runtime");
+}
+
+export function listPlugins() {
+  return request("/plugins");
+}
+
+export function getPlugin(pluginId) {
+  return request(`/plugins/${encodeURIComponent(pluginId)}`);
+}
+
+export function updatePluginState(pluginId, enabled) {
+  return request(`/plugins/${encodeURIComponent(pluginId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ enabled: Boolean(enabled) }),
+  });
+}
+
 export function runQuery(payload) {
   return request("/query", {
     method: "POST",

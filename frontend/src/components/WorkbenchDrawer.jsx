@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import PluginManagerPanel from "./PluginManagerPanel";
 import {
   getDataSourceCrsLabel,
   getDataSourceFeatureCount,
@@ -917,6 +918,8 @@ export default function WorkbenchDrawer({
             <span>Requests in memory</span>
             <strong>{safeRequests.length}</strong>
           </div>
+
+          <PluginManagerPanel />
         </div>
       )}
     </section>

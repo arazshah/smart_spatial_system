@@ -209,6 +209,56 @@ class CapabilityRegistry:
 
         return rows
 
+    def as_plugin_inventory(self) -> list[dict[str, Any]]:
+        """
+        Return grouped plugin inventory for Plugin Manager UI/API.
+        """
+        grouped: dict[str, dict[str, Any]] = {}
+
+        for capability_name in self.registered_capability_names():
+            binding = self._bindings[capability_name]
+            descriptor = self._descriptors[capability_name]
+
+            plugin_id = str(binding.plugin_id)
+
+            row = grouped.setdefault(
+                plugin_id,
+                {
+                    "plugin_id": plugin_id,
+                    "capabilities": [],
+                    "capability_count": 0,
+                },
+            )
+
+            row["capabilities"].append(
+                {
+                    "name": capability_name,
+                    "output_kind": binding.output_kind,
+                    "keywords": list(binding.keywords or []),
+                    "required_inputs": list(
+                        getattr(descriptor, "required_inputs", []) or []
+                    ),
+                    "optional_inputs": list(
+                        getattr(descriptor, "optional_inputs", []) or []
+                    ),
+                    "metadata": dict(getattr(descriptor, "metadata", {}) or {}),
+                }
+            )
+
+        items = list(grouped.values())
+
+        for item in items:
+            capabilities = sorted(
+                item["capabilities"],
+                key=lambda x: str(x.get("name") or ""),
+            )
+            item["capabilities"] = capabilities
+            item["capability_count"] = len(capabilities)
+
+        items.sort(key=lambda x: str(x.get("plugin_id") or ""))
+        return items
+
+
 
 class RegistryBackedCapabilityRouter:
     """

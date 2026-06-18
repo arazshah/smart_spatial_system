@@ -1,0 +1,8 @@
+{
+  "version": "1.0.0",
+  "plugins": {
+    "zonal_statistics": {
+      "enabled": true
+    }
+  }
+}

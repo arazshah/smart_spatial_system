@@ -260,6 +260,53 @@ def create_app(
             ) from exc
 
 
+
+    @app.get("/plugins")
+    def list_plugins(
+        request: Request,
+    ) -> list[dict[str, Any]]:
+        svc = _service(request)
+        return _json_safe(svc.list_plugins())
+
+    @app.get("/plugins/{plugin_id}")
+    def get_plugin(
+        request: Request,
+        plugin_id: str,
+    ) -> dict[str, Any]:
+        svc = _service(request)
+
+        try:
+            return _json_safe(svc.get_plugin(plugin_id))
+        except OrchestratorServiceError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=str(exc),
+            ) from exc
+
+
+    @app.patch("/plugins/{plugin_id}")
+    def patch_plugin(
+        request: Request,
+        plugin_id: str,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        svc = _service(request)
+
+        try:
+            return _json_safe(
+                svc.update_plugin_state(
+                    plugin_id,
+                    enabled=payload.get("enabled"),
+                )
+            )
+        except OrchestratorServiceError as exc:
+            message = str(exc)
+            raise HTTPException(
+                status_code=404 if "Unknown plugin:" in message else 400,
+                detail=message,
+            ) from exc
+
+
     @app.get("/settings/runtime")
     def get_runtime_settings(
         request: Request,

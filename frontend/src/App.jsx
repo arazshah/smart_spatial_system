@@ -17,6 +17,7 @@ import MapStage from "./components/MapStage";
 import TopQueryBar from "./components/TopQueryBar";
 import WorkbenchDrawer from "./components/WorkbenchDrawer";
 import WorkbenchSidebar from "./components/WorkbenchSidebar";
+import { extractInlineGeoJsonLayers, mergeMapLayerPayloads } from "./utils/geojsonLayers";
 
 function asList(payload, keys = []) {
   if (Array.isArray(payload)) return payload;
@@ -65,6 +66,101 @@ function inferBandMapFromQuery(query) {
   }
 
   return {};
+}
+
+
+function normalizeHistoryStatus(value) {
+  const status = String(value || "").toLowerCase();
+
+  if (["succeeded", "success", "completed", "done"].includes(status)) {
+    return "succeeded";
+  }
+
+  if (["failed", "error"].includes(status)) {
+    return "failed";
+  }
+
+  if (["running", "pending", "analyzing"].includes(status)) {
+    return "running";
+  }
+
+  return status || "unknown";
+}
+
+function makeRequestRecord(result, payload, command, project) {
+  const requestId =
+    result?.request_id ||
+    result?.id ||
+    payload?.request_id ||
+    command?.request_id ||
+    null;
+
+  if (!requestId) return null;
+
+  const query =
+    command?.query ||
+    payload?.query ||
+    payload?.question ||
+    result?.query ||
+    result?.metadata?.original_query ||
+    result?.request?.query ||
+    "";
+
+  const rawStatus =
+    result?.status ||
+    result?.run_result?.status ||
+    (result?.ok === true ? "succeeded" : result?.ok === false ? "failed" : "");
+
+  const status = normalizeHistoryStatus(rawStatus);
+
+  return {
+    ...(typeof result === "object" && result ? result : {}),
+    request_id: requestId,
+    project_id: project?.project_id || result?.project_id || payload?.project_id || null,
+    query,
+    question: query,
+    status,
+    created_at:
+      result?.created_at ||
+      result?.timestamp ||
+      result?.metadata?.created_at ||
+      new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function upsertRequestById(items, record) {
+  if (!record?.request_id) return items || [];
+
+  const list = Array.isArray(items) ? items : [];
+  const index = list.findIndex((item) => item.request_id === record.request_id);
+
+  if (index === -1) {
+    return [record, ...list];
+  }
+
+  const next = [...list];
+  next[index] = {
+    ...next[index],
+    ...record,
+  };
+
+  return next;
+}
+
+function attachRequestToProject(project, requestId) {
+  if (!project?.project_id || !requestId) return project;
+
+  const requests = Array.isArray(project.requests) ? project.requests : [];
+
+  if (requests.includes(requestId)) {
+    return project;
+  }
+
+  return {
+    ...project,
+    requests: [requestId, ...requests],
+  };
 }
 
 export default function App() {
@@ -244,7 +340,7 @@ export default function App() {
         getOutputManifest(requestId),
       ]);
 
-      setMapLayers(layers);
+      setMapLayers((previous) => mergeMapLayerPayloads(previous, layers));
       setOutputManifest(outputs);
     } catch {
       setMapLayers(null);
@@ -266,10 +362,48 @@ export default function App() {
       setOutputManifest(null);
 
       const payload = buildSmartPayload(command);
+
+      const pendingRecord = makeRequestRecord(
+        {
+          request_id: payload.request_id,
+          status: "running",
+        },
+        payload,
+        command,
+        activeProject,
+      );
+
+      if (pendingRecord?.request_id) {
+        setActiveRequest(pendingRecord);
+        setRequests((previous) => upsertRequestById(previous, pendingRecord));
+        setActiveProject((previous) =>
+          attachRequestToProject(previous, pendingRecord.request_id),
+        );
+      }
+
       const result = await runQuery(payload);
+      const inlineLayers = extractInlineGeoJsonLayers(result);
+
+      if (inlineLayers.layers.length) {
+        setMapLayers((previous) => mergeMapLayerPayloads(inlineLayers, previous));
+      }
+
+      const completedRecord = makeRequestRecord(
+        result,
+        payload,
+        command,
+        activeProject,
+      );
 
       setResponse(result);
-      setActiveRequest(result);
+      setActiveRequest(completedRecord || result);
+
+      if (completedRecord?.request_id) {
+        setRequests((previous) => upsertRequestById(previous, completedRecord));
+        setActiveProject((previous) =>
+          attachRequestToProject(previous, completedRecord.request_id),
+        );
+      }
 
       if (result?.request_id) {
         try {
@@ -278,10 +412,11 @@ export default function App() {
             getOutputManifest(result.request_id),
           ]);
 
-          setMapLayers(layers);
+          setMapLayers((previous) => mergeMapLayerPayloads(previous, layers));
           setOutputManifest(outputs);
         } catch {
-          setMapLayers(null);
+          // Keep inline GeoJSON layers extracted from the main /query response.
+          // /map-layers or /outputs may not exist for direct handlers.
           setOutputManifest(null);
         }
       }
@@ -316,6 +451,7 @@ export default function App() {
       <WorkbenchSidebar
         activeTool={activeTool}
         onSelectTool={setActiveTool}
+        health={health}
       />
 
       <WorkbenchDrawer
@@ -362,8 +498,10 @@ export default function App() {
       <InspectorPanel
         response={response}
         mapLayers={mapLayers}
-        outputFiles={outputFiles}
+        outputManifest={outputManifest}
         activeRequest={activeRequest}
+        loading={loading}
+        error={globalError}
       />
     </div>
   );

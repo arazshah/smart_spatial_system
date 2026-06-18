@@ -106,7 +106,12 @@ export default function MapViewer({ response }) {
     const layers = mapLayersPayload?.layers || [];
 
     return layers.filter((layer) => {
-      const crs = String(layer.crs || "").toUpperCase();
+      const crs = String(
+        layer.crs ||
+          layer.geojson?.crs?.properties?.name ||
+          "EPSG:4326",
+      ).toUpperCase();
+
       return layer?.geojson?.type === "FeatureCollection" && crs.includes("4326");
     });
   }, [mapLayersPayload]);

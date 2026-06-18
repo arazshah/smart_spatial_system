@@ -161,7 +161,7 @@ Never include capabilities that are not in available_capabilities.
 
 Output JSON schema:
 {
-  "intent_name": "vegetation_extraction | raster_vectorization | raster_statistics | vector_summary | vector_filter | buffer_analysis | nearest_neighbor | spatial_overlay | geometry_validation | unknown",
+  "intent_name": "vegetation_extraction | raster_vectorization | raster_statistics | vector_display | vector_summary | vector_filter | buffer_analysis | nearest_neighbor | spatial_overlay | geometry_validation | unknown",
   "language": "fa | en | mixed | unknown",
   "summary": "short summary",
   "preferred_capabilities": ["capability_name"],

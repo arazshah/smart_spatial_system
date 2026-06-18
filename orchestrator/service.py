@@ -326,6 +326,348 @@ class OrchestratorService:
 
         return query
 
+    @staticmethod
+    def _is_vector_display_query(
+        query: str,
+        intent: dict[str, Any] | None = None,
+    ) -> bool:
+        """
+        Detect simple vector-display queries.
+
+        This is intentionally deterministic and does not depend on LLM.
+        """
+        q = str(query or "").strip().lower()
+
+        display_tokens = [
+            "نمایش",
+            "نشان بده",
+            "نشان بدهد",
+            "روی نقشه",
+            "نقشه",
+            "display",
+            "show",
+            "render",
+            "draw",
+        ]
+
+        vector_tokens = [
+            "نقطه",
+            "نقاط",
+            "عارضه",
+            "عوارض",
+            "وکتور",
+            "برداری",
+            "geojson",
+            "feature",
+            "features",
+            "point",
+            "points",
+            "vector",
+            "layer",
+        ]
+
+        has_display = any(token in q for token in display_tokens)
+        has_vector = any(token in q for token in vector_tokens)
+
+        if has_display and has_vector:
+            return True
+
+        if isinstance(intent, dict):
+            name = str(intent.get("intent_name") or "").lower()
+            required = intent.get("required_inputs") or {}
+            output = intent.get("output_expectation") or {}
+            preferred = intent.get("preferred_capabilities") or []
+
+            if (
+                name in {"vector_display", "vector_summary", "vector_filter", "unknown"}
+                and bool(required.get("vector", False))
+                and not bool(required.get("raster", False))
+                and bool(output.get("map_layer", False))
+            ):
+                return True
+
+            if (
+                bool(required.get("vector", False))
+                and not bool(required.get("raster", False))
+                and any(
+                    str(cap) in {"filter_features", "extract_centroids", "export_vector_geojson"}
+                    for cap in preferred
+                )
+                and bool(output.get("map_layer", False))
+            ):
+                return True
+
+        return False
+
+    @staticmethod
+    def _read_geojson_path_if_possible(value: Any) -> dict[str, Any] | None:
+        """
+        Read a local GeoJSON-like path if value points to one.
+        """
+        try:
+            from pathlib import Path
+            import json
+
+            if not isinstance(value, str):
+                return None
+
+            p = Path(value)
+
+            if not p.exists() or not p.is_file():
+                return None
+
+            if p.suffix.lower() not in {".geojson", ".json"}:
+                return None
+
+            with p.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            if isinstance(data, dict):
+                return data
+
+        except Exception:
+            return None
+
+        return None
+
+    @classmethod
+    def _find_geojson_like(
+        cls,
+        obj: Any,
+        *,
+        max_depth: int = 8,
+    ) -> dict[str, Any] | None:
+        """
+        Recursively find a GeoJSON FeatureCollection/Feature/Geometry in inputs.
+
+        Handles common shapes:
+        - {"type": "FeatureCollection", ...}
+        - {"geojson": {...}}
+        - {"payload": {...}}
+        - {"data": {...}}
+        - {"path": "/.../file.geojson"}
+        - dataclass/object with __dict__
+        """
+        if max_depth < 0 or obj is None:
+            return None
+
+        if isinstance(obj, dict):
+            geo_type = obj.get("type")
+
+            if geo_type == "FeatureCollection":
+                features = obj.get("features")
+                if isinstance(features, list):
+                    return obj
+
+            if geo_type == "Feature":
+                return {
+                    "type": "FeatureCollection",
+                    "features": [obj],
+                }
+
+            if geo_type in {
+                "Point",
+                "MultiPoint",
+                "LineString",
+                "MultiLineString",
+                "Polygon",
+                "MultiPolygon",
+                "GeometryCollection",
+            }:
+                return {
+                    "type": "FeatureCollection",
+                    "features": [
+                        {
+                            "type": "Feature",
+                            "properties": {},
+                            "geometry": obj,
+                        }
+                    ],
+                }
+
+            for path_key in [
+                "path",
+                "file_path",
+                "local_path",
+                "stored_path",
+                "absolute_path",
+                "source_path",
+            ]:
+                loaded = cls._read_geojson_path_if_possible(obj.get(path_key))
+                if loaded is not None:
+                    found = cls._find_geojson_like(loaded, max_depth=max_depth - 1)
+                    if found is not None:
+                        return found
+
+            priority_keys = [
+                "geojson",
+                "feature_collection",
+                "payload",
+                "data",
+                "vector",
+                "vector_data",
+                "content",
+                "result",
+                "output",
+                "outputs",
+                "inputs",
+                "active_data",
+            ]
+
+            for key in priority_keys:
+                if key in obj:
+                    found = cls._find_geojson_like(obj.get(key), max_depth=max_depth - 1)
+                    if found is not None:
+                        return found
+
+            for value in obj.values():
+                found = cls._find_geojson_like(value, max_depth=max_depth - 1)
+                if found is not None:
+                    return found
+
+        if isinstance(obj, list):
+            for item in obj:
+                found = cls._find_geojson_like(item, max_depth=max_depth - 1)
+                if found is not None:
+                    return found
+
+        if isinstance(obj, str):
+            loaded = cls._read_geojson_path_if_possible(obj)
+            if loaded is not None:
+                return cls._find_geojson_like(loaded, max_depth=max_depth - 1)
+
+        if hasattr(obj, "__dict__"):
+            try:
+                return cls._find_geojson_like(vars(obj), max_depth=max_depth - 1)
+            except Exception:
+                return None
+
+        return None
+
+    @staticmethod
+    def _summarize_feature_collection(
+        feature_collection: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Lightweight summary for UI/debug.
+        """
+        features = feature_collection.get("features") or []
+
+        geometry_counts: dict[str, int] = {}
+
+        for feature in features:
+            if not isinstance(feature, dict):
+                continue
+
+            geometry = feature.get("geometry") or {}
+            geometry_type = geometry.get("type") if isinstance(geometry, dict) else None
+            geometry_type = str(geometry_type or "Unknown")
+            geometry_counts[geometry_type] = geometry_counts.get(geometry_type, 0) + 1
+
+        return {
+            "feature_count": len(features) if isinstance(features, list) else 0,
+            "geometry_counts": geometry_counts,
+        }
+
+    def _try_handle_vector_display_directly(
+        self,
+        *,
+        query: str,
+        inputs: dict[str, Any],
+        resolved_inputs: dict[str, Any],
+        final_request_id: str,
+        final_metadata: dict[str, Any],
+        band_map: dict[str, int] | None = None,
+        user_context: dict[str, Any] | None = None,
+        llm_intent: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        """
+        Direct response for simple vector-display queries.
+
+        This avoids sending vector-display requests into the older NDVI-only
+        natural query pipeline.
+        """
+        if not self._is_vector_display_query(query, llm_intent):
+            return None
+
+        feature_collection = self._find_geojson_like(resolved_inputs)
+        if feature_collection is None:
+            feature_collection = self._find_geojson_like(inputs)
+
+        if feature_collection is None:
+            return None
+
+        summary = self._summarize_feature_collection(feature_collection)
+
+        metadata = dict(final_metadata)
+        metadata["direct_handler"] = "vector_display"
+        metadata["original_query"] = query
+
+        response = {
+            "ok": True,
+            "status": "succeeded",
+            "request_id": final_request_id,
+            "query": query,
+            "message": "Vector layer is ready for map display.",
+            "summary": summary,
+            "metadata": _json_safe(metadata),
+            "outputs": {
+                "vectors": [
+                    {
+                        "id": "active_vector",
+                        "name": "active_vector",
+                        "format": "geojson",
+                        "role": "map_layer",
+                        "geojson": feature_collection,
+                        "summary": summary,
+                    }
+                ],
+                "rasters": [],
+                "tables": [],
+            },
+            "layers": [
+                {
+                    "id": "active_vector",
+                    "name": "active_vector",
+                    "type": "vector",
+                    "format": "geojson",
+                    "visible": True,
+                    "geojson": feature_collection,
+                    "summary": summary,
+                }
+            ],
+            "result": {
+                "type": "FeatureCollection",
+                "geojson": feature_collection,
+                "summary": summary,
+            },
+        }
+
+        self._remember(
+            request_id=final_request_id,
+            record={
+                "request_id": final_request_id,
+                "query": query,
+                "inputs": _json_safe(resolved_inputs),
+                "original_inputs": _json_safe(inputs),
+                "band_map": _json_safe(band_map or {}),
+                "user_context": _json_safe(user_context or {}),
+                "metadata": _json_safe(metadata),
+                "run_result": {
+                    "status": "succeeded",
+                    "direct_handler": "vector_display",
+                    "summary": summary,
+                },
+                "audit_record": {
+                    "direct_handler": "vector_display",
+                    "reason": "simple vector display query",
+                },
+                "production_response": response,
+            },
+        )
+
+        return _json_safe(response)
+
     def handle_query(
         self,
         *,
@@ -367,6 +709,20 @@ class OrchestratorService:
         try:
             router = self._build_router()
             resolved_inputs = self._resolve_input_references(inputs)
+
+            direct_vector_response = self._try_handle_vector_display_directly(
+                query=query,
+                inputs=inputs,
+                resolved_inputs=resolved_inputs,
+                final_request_id=final_request_id,
+                final_metadata=final_metadata,
+                band_map=band_map,
+                user_context=user_context,
+                llm_intent=llm_intent,
+            )
+
+            if direct_vector_response is not None:
+                return direct_vector_response
 
             run_result = run_natural_query_with_routing_evidence(
                 effective_query,

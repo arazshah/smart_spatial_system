@@ -1,4 +1,14 @@
 import { useMemo, useState } from "react";
+import {
+  getDataSourceCrsLabel,
+  getDataSourceFeatureCount,
+  getDataSourceGeometryType,
+  getDataSourceKind,
+  getDataSourceName,
+  getDataSourceSize,
+  getDataSourceStatus,
+  getDataSourceTime,
+} from "../lib/dataSources";
 
 function shortId(value) {
   if (!value) return "—";
@@ -71,18 +81,6 @@ function formatBytes(value) {
   return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
-function normalizeDataKind(item) {
-  const value = String(item?.kind || item?.type || item?.data_type || "").toLowerCase();
-
-  if (value.includes("vector")) return "vector";
-  if (value.includes("raster")) return "raster";
-  if (value.includes("csv") || value.includes("table")) return "table";
-  if (value.includes("database") || value.includes("postgis")) return "database";
-  if (value.includes("wms") || value.includes("wfs") || value.includes("online")) return "online";
-  if (value.includes("api")) return "api";
-
-  return value || "data";
-}
 
 function dataKindMeta(kind) {
   const normalized = String(kind || "").toLowerCase();
@@ -142,33 +140,9 @@ function dataKindMeta(kind) {
   };
 }
 
-function getUploadName(item) {
-  return (
-    item?.display_name ||
-    item?.name ||
-    item?.filename ||
-    item?.upload_id ||
-    "Unnamed data source"
-  );
-}
 
-function getUploadStatus(item) {
-  return item?.status || item?.state || "ready";
-}
 
-function getUploadTime(item) {
-  return item?.created_at || item?.updated_at || item?.timestamp || null;
-}
 
-function getUploadSize(item) {
-  return (
-    item?.size_bytes ||
-    item?.file_size ||
-    item?.metadata?.size_bytes ||
-    item?.storage?.size_bytes ||
-    0
-  );
-}
 
 function getRequestQuery(item) {
   return (
@@ -281,27 +255,23 @@ function DataSourceCard({
   onEdit,
   onDelete,
 }) {
-  const kind = normalizeDataKind(item);
+  const kind = getDataSourceKind(item);
   const kindMeta = dataKindMeta(kind);
-  const status = statusMeta(getUploadStatus(item));
+  const status = statusMeta(getDataSourceStatus(item));
 
-  const featureCount =
-    item?.feature_count ||
-    item?.metadata?.feature_count ||
-    item?.summary?.feature_count ||
-    null;
+  const featureCount = getDataSourceFeatureCount(item);
 
   const geometryType =
-    item?.geometry_type ||
+    getDataSourceGeometryType(item) ||
     item?.metadata?.geometry_type ||
     item?.summary?.geometry_type ||
     null;
 
-  const crs =
-    item?.crs ||
-    item?.metadata?.crs ||
-    item?.summary?.crs ||
-    null;
+  const crs = getDataSourceCrsLabel(item);
+  const featureCountLabel =
+    Number.isFinite(featureCount) || typeof featureCount === "string"
+      ? featureCount
+      : "—";
 
   return (
     <article className={`ds-card ${selected ? "active" : ""}`}>
@@ -312,7 +282,7 @@ function DataSourceCard({
 
         <div className="ds-card-info">
           <div className="ds-card-title-row">
-            <strong title={getUploadName(item)}>{getUploadName(item)}</strong>
+            <strong title={getDataSourceName(item)}>{getDataSourceName(item)}</strong>
             {selected ? <span className="ds-active-badge">Active</span> : null}
           </div>
 
@@ -329,24 +299,24 @@ function DataSourceCard({
 
             <span>
               <small>Size</small>
-              <b>{formatBytes(getUploadSize(item))}</b>
+              <b>{formatBytes(getDataSourceSize(item))}</b>
             </span>
 
             <span>
               <small>CRS</small>
-              <b>{crs || "—"}</b>
+              <b>{crs}</b>
             </span>
 
             <span>
               <small>Features</small>
-              <b>{featureCount || "—"}</b>
+              <b>{featureCountLabel}</b>
             </span>
           </div>
 
-          {(geometryType || getUploadTime(item)) && (
+          {(geometryType || getDataSourceTime(item)) && (
             <div className="ds-extra-line">
               {geometryType ? <span>{geometryType}</span> : null}
-              {getUploadTime(item) ? <span>{formatDateTime(getUploadTime(item))}</span> : null}
+              {getDataSourceTime(item) ? <span>{formatDateTime(getDataSourceTime(item))}</span> : null}
             </div>
           )}
         </div>
@@ -399,6 +369,9 @@ export default function WorkbenchDrawer({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [dataSourceMode, setDataSourceMode] = useState("file");
+  const [dataSourceQuery, setDataSourceQuery] = useState("");
+  const [dataSourceFilter, setDataSourceFilter] = useState("all");
+  const [dataSourceSort, setDataSourceSort] = useState("newest");
 
   const safeProjects = Array.isArray(projects) ? projects : [];
   const safeUploads = Array.isArray(uploads) ? uploads : [];
@@ -439,12 +412,62 @@ export default function WorkbenchDrawer({
     };
 
     for (const item of projectUploads) {
-      const kind = normalizeDataKind(item);
+      const kind = getDataSourceKind(item);
       counts[kind] = (counts[kind] || 0) + 1;
     }
 
     return counts;
   }, [projectUploads]);
+
+  const filteredProjectUploads = useMemo(() => {
+    const query = dataSourceQuery.trim().toLowerCase();
+
+    let items = [...projectUploads];
+
+    if (dataSourceFilter !== "all") {
+      items = items.filter(
+        (item) => String(getDataSourceKind(item) || "").toLowerCase() === dataSourceFilter,
+      );
+    }
+
+    if (query) {
+      items = items.filter((item) => {
+        const tags = Array.isArray(item?.tags) ? item.tags.join(" ") : "";
+        const haystack = [
+          getDataSourceName(item),
+          item?.filename,
+          item?.original_filename,
+          item?.upload_id,
+          item?.id,
+          tags,
+          getDataSourceKind(item),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return haystack.includes(query);
+      });
+    }
+
+    items.sort((a, b) => {
+      if (dataSourceSort === "name") {
+        return String(getDataSourceName(a) || "").localeCompare(
+          String(getDataSourceName(b) || ""),
+          "fa",
+          { sensitivity: "base" },
+        );
+      }
+
+      const at = new Date(getDataSourceTime(a) || 0).getTime();
+      const bt = new Date(getDataSourceTime(b) || 0).getTime();
+
+      if (dataSourceSort === "oldest") return at - bt;
+      return bt - at;
+    });
+
+    return items;
+  }, [projectUploads, dataSourceFilter, dataSourceQuery, dataSourceSort]);
 
   if (!activeTool) return null;
 
@@ -716,7 +739,38 @@ export default function WorkbenchDrawer({
             </form>
           )}
 
-          <SectionHeader title="داده‌های پروژه فعال" count={projectUploads.length} />
+          <SectionHeader title="داده‌های پروژه فعال" count={filteredProjectUploads.length} />
+
+          <div className="ds-toolbar">
+            <input
+              type="search"
+              value={dataSourceQuery}
+              onChange={(event) => setDataSourceQuery(event.target.value)}
+              placeholder="جستجو در نام، فایل، تگ یا شناسه..."
+            />
+
+            <select
+              value={dataSourceFilter}
+              onChange={(event) => setDataSourceFilter(event.target.value)}
+            >
+              <option value="all">All types</option>
+              <option value="vector">Vector</option>
+              <option value="raster">Raster</option>
+              <option value="table">Table</option>
+              <option value="database">Database</option>
+              <option value="online">Online</option>
+              <option value="api">API</option>
+            </select>
+
+            <select
+              value={dataSourceSort}
+              onChange={(event) => setDataSourceSort(event.target.value)}
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="name">Name A-Z</option>
+            </select>
+          </div>
 
           <div className="ds-list">
             {!activeProject ? (
@@ -731,8 +785,14 @@ export default function WorkbenchDrawer({
                 title="هنوز داده‌ای در پروژه نیست"
                 text="یک فایل raster یا vector آپلود کنید تا در catalog پروژه ثبت شود."
               />
+            ) : filteredProjectUploads.length === 0 ? (
+              <EmptyDrawerState
+                icon="⌕"
+                title="موردی پیدا نشد"
+                text="عبارت جستجو یا فیلتر انتخابی را تغییر دهید."
+              />
             ) : (
-              projectUploads.map((item) => (
+              filteredProjectUploads.map((item) => (
                 <DataSourceCard
                   key={item.upload_id || item.id}
                   item={item}

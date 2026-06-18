@@ -21,6 +21,21 @@ import MapStage from "./components/MapStage";
 import TopQueryBar from "./components/TopQueryBar";
 import WorkbenchDrawer from "./components/WorkbenchDrawer";
 import WorkbenchSidebar from "./components/WorkbenchSidebar";
+import {
+  getDataSourceBBox,
+  getDataSourceCrs,
+  getDataSourceCrsLabel,
+  getDataSourceFeatureCount,
+  getDataSourceGeometryType,
+  getDataSourceKind,
+  getDataSourceName,
+  getDataSourcePropertyKeys,
+  getDataSourceSize,
+  getDataSourceStatus,
+  getDataSourceTime,
+  normalizeDataSource,
+  normalizeDataSourceList,
+} from "./lib/dataSources";
 import Modal from "./components/Modal";
 import DataSourcePreviewMap from "./components/DataSourcePreviewMap";
 import { extractInlineGeoJsonLayers, mergeMapLayerPayloads } from "./utils/geojsonLayers";
@@ -72,6 +87,90 @@ function inferBandMapFromQuery(query) {
   }
 
   return {};
+}
+
+
+function formatPreviewBytes(value) {
+  const bytes = Number(value || 0);
+
+  if (!Number.isFinite(bytes) || bytes <= 0) return "—";
+
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = bytes;
+  let unitIndex = 0;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatPreviewDateTime(value) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("fa-IR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function getPreviewPropertyKeys(payload) {
+  return getDataSourcePropertyKeys(payload);
+}
+
+function getPreviewFeatureCount(payload) {
+  return getDataSourceFeatureCount(payload);
+}
+
+function getPreviewCrs(payload) {
+  return getDataSourceCrsLabel(payload) || "—";
+}
+
+function getPreviewBBox(payload) {
+  const value = getDataSourceBBox(payload);
+
+  if (!value) return "—";
+  if (Array.isArray(value)) return value.join(", ");
+  return String(value);
+}
+
+function getPreviewCrsLabel(payload) {
+  return getDataSourceCrsLabel(payload);
+}
+
+function getPreviewRasterShape(payload) {
+  const width =
+    payload?.preview?.width ??
+    payload?.metadata?.width ??
+    payload?.summary?.width ??
+    null;
+
+  const height =
+    payload?.preview?.height ??
+    payload?.metadata?.height ??
+    payload?.summary?.height ??
+    null;
+
+  if (width && height) return `${width} × ${height}`;
+  if (width) return `${width}`;
+  if (height) return `${height}`;
+  return "—";
+}
+
+function getPreviewBandCount(payload) {
+  return (
+    payload?.preview?.band_count ??
+    payload?.metadata?.band_count ??
+    payload?.summary?.band_count ??
+    payload?.bands ??
+    null
+  );
 }
 
 
@@ -232,7 +331,7 @@ export default function App() {
 
     if (projectId) {
       const payload = await listProjectDataSources(projectId);
-      setUploads(asList(payload, ["uploads"]));
+      setUploads(normalizeDataSourceList(asList(payload, ["uploads"])));
       return;
     }
 
@@ -489,8 +588,24 @@ export default function App() {
 
     try {
       const payload = await previewDataSource(upload.upload_id);
-      setPreviewModalData(payload);
-      return payload;
+      const merged = normalizeDataSource({
+        ...upload,
+        ...payload,
+        preview: payload?.preview || upload?.preview,
+      });
+
+      setUploads((prev) =>
+        prev.map((item) =>
+          item?.upload_id === upload.upload_id ? merged : item
+        )
+      );
+
+      setSelectedUpload((prev) =>
+        prev?.upload_id === upload.upload_id ? merged : prev
+      );
+
+      setPreviewModalData(merged);
+      return merged;
     } catch (err) {
       setModalError(err.message);
       throw err;
@@ -688,12 +803,7 @@ export default function App() {
       <Modal
         open={Boolean(previewModalData)}
         title="Data Source Preview"
-        subtitle={
-          previewModalData?.display_name ||
-          previewModalData?.name ||
-          previewModalData?.filename ||
-          previewModalData?.upload_id
-        }
+        subtitle={getDataSourceName(previewModalData)}
         onClose={closeAllModals}
         size="lg"
         footer={
@@ -707,7 +817,15 @@ export default function App() {
         <div className="modal-info-grid">
           <span>
             <small>Kind</small>
-            <b>{previewModalData?.kind || "data"}</b>
+            <b>{getDataSourceKind(previewModalData)}</b>
+          </span>
+          <span>
+            <small>Source</small>
+            <b>{previewModalData?.source_type || "file"}</b>
+          </span>
+          <span>
+            <small>Status</small>
+            <b>{getDataSourceStatus(previewModalData)}</b>
           </span>
           <span>
             <small>Format</small>
@@ -715,15 +833,99 @@ export default function App() {
           </span>
           <span>
             <small>Size</small>
-            <b>{previewModalData?.size_bytes || "—"}</b>
+            <b>{formatPreviewBytes(getDataSourceSize(previewModalData))}</b>
           </span>
+          <span>
+            <small>Created</small>
+            <b>{formatPreviewDateTime(previewModalData?.created_at)}</b>
+          </span>
+          <span>
+            <small>Updated</small>
+            <b>{formatPreviewDateTime(getDataSourceTime(previewModalData))}</b>
+          </span>
+          <span>
+            <small>File</small>
+            <b>{previewModalData?.filename || previewModalData?.original_filename || "—"}</b>
+          </span>
+        </div>
+
+        {previewModalData?.description ? (
+          <div className="modal-section">
+            <h4>Description</h4>
+            <p>{previewModalData.description}</p>
+          </div>
+        ) : null}
+
+        {Array.isArray(previewModalData?.tags) && previewModalData.tags.length ? (
+          <div className="modal-section">
+            <h4>Tags</h4>
+            <div className="chip-row">
+              {previewModalData.tags.map((tag) => (
+                <span key={tag} className="chip">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="modal-section">
+          <h4>Dataset Summary</h4>
+          <div className="modal-info-grid">
+            <span>
+              <small>Geometry</small>
+              <b>{getDataSourceGeometryType(previewModalData) || "—"}</b>
+            </span>
+            <span>
+              <small>Features</small>
+              <b>{getPreviewFeatureCount(previewModalData) ?? "—"}</b>
+            </span>
+            <span>
+              <small>CRS</small>
+              <b>{getPreviewCrsLabel(previewModalData)}</b>
+            </span>
+            <span>
+              <small>BBox</small>
+              <b>{getPreviewBBox(previewModalData)}</b>
+            </span>
+            <span>
+              <small>Raster Size</small>
+              <b>{getPreviewRasterShape(previewModalData)}</b>
+            </span>
+            <span>
+              <small>Bands</small>
+              <b>{getPreviewBandCount(previewModalData) ?? "—"}</b>
+            </span>
+          </div>
+
+          {getPreviewPropertyKeys(previewModalData).length ? (
+            <div className="modal-subsection">
+              <small>Property Keys</small>
+              <div className="chip-row">
+                {getPreviewPropertyKeys(previewModalData).slice(0, 20).map((key) => (
+                  <span key={key} className="chip">
+                    {key}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="muted-note">
+              {getDataSourceKind(previewModalData) === "raster"
+                ? "Preview محتوایی برای فایل رستری هنوز محدود است، اما metadata فایل در دسترس است."
+                : "اطلاعات summary بیشتری برای این منبع داده موجود نیست."}
+            </p>
+          )}
         </div>
 
         <DataSourcePreviewMap payload={previewModalData} />
 
-        <div className="modal-json-block">
-          <pre>{JSON.stringify(previewModalData?.preview || previewModalData || {}, null, 2)}</pre>
-        </div>
+        <details className="modal-section">
+          <summary>Raw Preview JSON</summary>
+          <div className="modal-json-block">
+            <pre>{JSON.stringify(previewModalData?.preview || previewModalData || {}, null, 2)}</pre>
+          </div>
+        </details>
       </Modal>
 
       <Modal
@@ -748,6 +950,47 @@ export default function App() {
         }
       >
         <div className="modal-form">
+
+          {editModalUpload && (
+            <div className="modal-ds-summary">
+              <div className="modal-ds-summary-row">
+                <span className="modal-ds-meta-item">
+                  <small>Kind</small>
+                  <b>{getDataSourceKind(editModalUpload) || "—"}</b>
+                </span>
+                <span className="modal-ds-meta-item">
+                  <small>Status</small>
+                  <b>{getDataSourceStatus(editModalUpload) || "—"}</b>
+                </span>
+                <span className="modal-ds-meta-item">
+                  <small>Size</small>
+                  <b>{formatPreviewBytes(getDataSourceSize(editModalUpload))}</b>
+                </span>
+                <span className="modal-ds-meta-item">
+                  <small>Features</small>
+                  <b>{getDataSourceFeatureCount(editModalUpload) ?? "—"}</b>
+                </span>
+                <span className="modal-ds-meta-item">
+                  <small>Geometry</small>
+                  <b>{getDataSourceGeometryType(editModalUpload) || "—"}</b>
+                </span>
+                <span className="modal-ds-meta-item">
+                  <small>CRS</small>
+                  <b>{getDataSourceCrsLabel(editModalUpload)}</b>
+                </span>
+              </div>
+
+              {(editModalUpload?.filename || editModalUpload?.original_filename) && (
+                <div className="modal-ds-filename">
+                  <small>File:</small>
+                  <span dir="ltr">
+                    {editModalUpload.filename || editModalUpload.original_filename}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           <label>
             نام نمایشی
             <input
@@ -761,7 +1004,7 @@ export default function App() {
           <label>
             توضیح
             <textarea
-              rows={4}
+              rows={3}
               value={editDescription}
               onChange={(event) => setEditDescription(event.target.value)}
               placeholder="اختیاری"
@@ -777,6 +1020,9 @@ export default function App() {
               placeholder="sample, tehran, vector"
               disabled={modalBusy}
             />
+            <small className="field-hint">
+              تگ‌ها را با کاما جدا کنید — مثلاً: tehran, vector, 2024
+            </small>
           </label>
 
           {modalError ? <div className="alert error">{modalError}</div> : null}

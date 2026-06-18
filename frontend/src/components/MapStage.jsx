@@ -253,6 +253,45 @@ function geometrySummary(collections) {
   return counts;
 }
 
+function stableStringify(value) {
+  if (value === null || value === undefined) return String(value);
+
+  if (typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(",")}]`;
+  }
+
+  const keys = Object.keys(value).sort();
+
+  return `{${keys
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+    .join(",")}}`;
+}
+
+function mapLayerGeoJsonSignature(collection) {
+  if (
+    !collection ||
+    typeof collection !== "object" ||
+    collection.type !== "FeatureCollection" ||
+    !Array.isArray(collection.features)
+  ) {
+    return null;
+  }
+
+  const features = collection.features;
+
+  const sample = features.slice(0, 50).map((feature) => ({
+    geometry: feature?.geometry || null,
+    id: feature?.id ?? feature?.properties?.id ?? null,
+    name: feature?.properties?.name ?? null,
+  }));
+
+  return `geojson:${features.length}:${stableStringify(sample)}`;
+}
+
 function MapStatusChip({ icon, label, value, tone = "default" }) {
   return (
     <div className={`map-status-chip ${tone}`}>
@@ -280,21 +319,34 @@ export default function MapStage({
   const renderableLayers = useMemo(() => {
     if (!rawLayers.length) return [];
 
-    return rawLayers
-      .map((layer, index) => {
-        const geojson = extractGeoJsonFromLayer(layer);
+    const seenKeys = new Set();
+    const seenGeoJson = new Set();
+    const output = [];
 
-        if (!geojson) return null;
+    rawLayers.forEach((layer, index) => {
+      const geojson = extractGeoJsonFromLayer(layer);
 
-        return {
-          key: getLayerKey(layer, index),
-          name: getLayerName(layer, index),
-          geojson,
-          color: COLORS[index % COLORS.length],
-          source: layer?.source || "workspace",
-        };
-      })
-      .filter(Boolean);
+      if (!geojson) return;
+
+      const layerKey = getLayerKey(layer, index);
+      const signature = mapLayerGeoJsonSignature(geojson);
+
+      if (signature && seenGeoJson.has(signature)) return;
+      if (!signature && seenKeys.has(layerKey)) return;
+
+      if (signature) seenGeoJson.add(signature);
+      seenKeys.add(layerKey);
+
+      output.push({
+        key: layerKey,
+        name: getLayerName(layer, index),
+        geojson,
+        color: COLORS[output.length % COLORS.length],
+        source: layer?.source || "workspace",
+      });
+    });
+
+    return output;
   }, [rawLayers]);
 
   const collections = useMemo(() => {

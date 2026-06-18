@@ -364,6 +364,7 @@ class OrchestratorService:
             "points",
             "vector",
             "layer",
+            "لایه",
         ]
 
         has_display = any(token in q for token in display_tokens)
@@ -379,7 +380,7 @@ class OrchestratorService:
             preferred = intent.get("preferred_capabilities") or []
 
             if (
-                name in {"vector_display", "vector_summary", "vector_filter", "unknown"}
+                name in {"vector_display", "vector_filter", "unknown"}
                 and bool(required.get("vector", False))
                 and not bool(required.get("raster", False))
                 and bool(output.get("map_layer", False))
@@ -394,6 +395,87 @@ class OrchestratorService:
                     for cap in preferred
                 )
                 and bool(output.get("map_layer", False))
+            ):
+                return True
+
+        return False
+
+    @staticmethod
+    def _is_vector_summary_query(
+        query: str,
+        intent: dict[str, Any] | None = None,
+    ) -> bool:
+        """
+        Detect vector inspection / feature-count / summary queries.
+
+        Examples:
+        - لایه وکتور را بررسی کن و تعداد عارضه‌ها را گزارش بده
+        - چند نقطه داخل فایل است؟
+        - تعداد عارضه‌های فایل را بگو
+        - summarize vector layer
+        """
+        q = str(query or "").strip().lower()
+
+        summary_tokens = [
+            "تعداد",
+            "چند",
+            "گزارش",
+            "گزارش بده",
+            "بررسی",
+            "خلاصه",
+            "آمار",
+            "شمارش",
+            "بشمار",
+            "count",
+            "summary",
+            "summarize",
+            "inspect",
+            "report",
+            "statistics",
+            "stats",
+        ]
+
+        vector_tokens = [
+            "نقطه",
+            "نقاط",
+            "عارضه",
+            "عوارض",
+            "وکتور",
+            "برداری",
+            "geojson",
+            "feature",
+            "features",
+            "point",
+            "points",
+            "vector",
+            "layer",
+            "لایه",
+            "فایل",
+        ]
+
+        has_summary = any(token in q for token in summary_tokens)
+        has_vector = any(token in q for token in vector_tokens)
+
+        if has_summary and has_vector:
+            return True
+
+        if isinstance(intent, dict):
+            name = str(intent.get("intent_name") or "").lower()
+            required = intent.get("required_inputs") or {}
+            output = intent.get("output_expectation") or {}
+
+            if (
+                name in {"vector_summary", "vector_inspect", "vector_statistics"}
+                and bool(required.get("vector", False))
+                and not bool(required.get("raster", False))
+            ):
+                return True
+
+            if (
+                bool(required.get("vector", False))
+                and not bool(required.get("raster", False))
+                and bool(output.get("text", False))
+                and not bool(output.get("map_layer", False))
             ):
                 return True
 
@@ -551,9 +633,11 @@ class OrchestratorService:
         """
         Lightweight summary for UI/debug.
         """
-        features = feature_collection.get("features") or []
+        raw_features = feature_collection.get("features") or []
+        features = raw_features if isinstance(raw_features, list) else []
 
         geometry_counts: dict[str, int] = {}
+        property_keys: set[str] = set()
 
         for feature in features:
             if not isinstance(feature, dict):
@@ -564,9 +648,14 @@ class OrchestratorService:
             geometry_type = str(geometry_type or "Unknown")
             geometry_counts[geometry_type] = geometry_counts.get(geometry_type, 0) + 1
 
+            properties = feature.get("properties")
+            if isinstance(properties, dict):
+                property_keys.update(str(key) for key in properties.keys())
+
         return {
-            "feature_count": len(features) if isinstance(features, list) else 0,
+            "feature_count": len(features),
             "geometry_counts": geometry_counts,
+            "property_keys": sorted(property_keys),
         }
 
     def _try_handle_vector_display_directly(
@@ -587,7 +676,10 @@ class OrchestratorService:
         This avoids sending vector-display requests into the older NDVI-only
         natural query pipeline.
         """
-        if not self._is_vector_display_query(query, llm_intent):
+        is_vector_display = self._is_vector_display_query(query, llm_intent)
+        is_vector_summary = self._is_vector_summary_query(query, llm_intent)
+
+        if not (is_vector_display or is_vector_summary):
             return None
 
         feature_collection = self._find_geojson_like(resolved_inputs)
@@ -599,8 +691,32 @@ class OrchestratorService:
 
         summary = self._summarize_feature_collection(feature_collection)
 
+        handler_name = "vector_summary" if is_vector_summary else "vector_display"
+
+        if handler_name == "vector_summary":
+            feature_count = summary.get("feature_count", 0)
+            geometry_counts = summary.get("geometry_counts", {})
+            geometry_text = ", ".join(
+                f"{key}: {value}" for key, value in geometry_counts.items()
+            ) or "No geometries"
+            message = f"Vector layer contains {feature_count} features. {geometry_text}."
+            result_payload = {
+                "type": "vector_summary",
+                "feature_count": feature_count,
+                "geometry_counts": geometry_counts,
+                "property_keys": summary.get("property_keys", []),
+                "summary": summary,
+            }
+        else:
+            message = "Vector layer is ready for map display."
+            result_payload = {
+                "type": "FeatureCollection",
+                "geojson": feature_collection,
+                "summary": summary,
+            }
+
         metadata = dict(final_metadata)
-        metadata["direct_handler"] = "vector_display"
+        metadata["direct_handler"] = handler_name
         metadata["original_query"] = query
 
         response = {
@@ -608,7 +724,7 @@ class OrchestratorService:
             "status": "succeeded",
             "request_id": final_request_id,
             "query": query,
-            "message": "Vector layer is ready for map display.",
+            "message": message,
             "summary": summary,
             "metadata": _json_safe(metadata),
             "outputs": {
@@ -636,11 +752,7 @@ class OrchestratorService:
                     "summary": summary,
                 }
             ],
-            "result": {
-                "type": "FeatureCollection",
-                "geojson": feature_collection,
-                "summary": summary,
-            },
+            "result": result_payload,
         }
 
         self._remember(
@@ -655,12 +767,12 @@ class OrchestratorService:
                 "metadata": _json_safe(metadata),
                 "run_result": {
                     "status": "succeeded",
-                    "direct_handler": "vector_display",
+                    "direct_handler": handler_name,
                     "summary": summary,
                 },
                 "audit_record": {
-                    "direct_handler": "vector_display",
-                    "reason": "simple vector display query",
+                    "direct_handler": handler_name,
+                    "reason": "simple vector display/summary query",
                 },
                 "production_response": response,
             },
@@ -1445,12 +1557,19 @@ class OrchestratorService:
                     and feature.get("geometry", {}).get("type")
                 })
 
+                sample_limit = 100
+
                 return {
                     "type": "geojson_summary",
                     "geojson_type": "FeatureCollection",
                     "feature_count": len(features),
                     "geometry_types": geometry_types,
                     "keys": sorted(payload.keys()),
+                    "sample_limit": sample_limit,
+                    "sample_geojson": {
+                        "type": "FeatureCollection",
+                        "features": features[:sample_limit],
+                    },
                 }
 
             if payload_type == "Feature":
@@ -1462,8 +1581,13 @@ class OrchestratorService:
                 return {
                     "type": "geojson_summary",
                     "geojson_type": "Feature",
+                    "feature_count": 1,
                     "geometry_types": [geometry_type] if geometry_type else [],
                     "keys": sorted(payload.keys()),
+                    "sample_geojson": {
+                        "type": "FeatureCollection",
+                        "features": [payload],
+                    },
                 }
 
             if payload_type in {
@@ -1478,8 +1602,19 @@ class OrchestratorService:
                 return {
                     "type": "geojson_summary",
                     "geojson_type": payload_type,
+                    "feature_count": 1,
                     "geometry_types": [payload_type],
                     "keys": sorted(payload.keys()),
+                    "sample_geojson": {
+                        "type": "FeatureCollection",
+                        "features": [
+                            {
+                                "type": "Feature",
+                                "properties": {},
+                                "geometry": payload,
+                            }
+                        ],
+                    },
                 }
 
             return {

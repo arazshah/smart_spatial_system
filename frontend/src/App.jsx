@@ -22,6 +22,7 @@ import TopQueryBar from "./components/TopQueryBar";
 import WorkbenchDrawer from "./components/WorkbenchDrawer";
 import WorkbenchSidebar from "./components/WorkbenchSidebar";
 import Modal from "./components/Modal";
+import DataSourcePreviewMap from "./components/DataSourcePreviewMap";
 import { extractInlineGeoJsonLayers, mergeMapLayerPayloads } from "./utils/geojsonLayers";
 
 function asList(payload, keys = []) {
@@ -474,6 +475,7 @@ export default function App() {
   async function handlePreviewUpload(upload) {
     if (!upload?.upload_id) return null;
 
+    setActiveTool(null);
     setModalError("");
     setModalBusy(true);
 
@@ -492,6 +494,7 @@ export default function App() {
   async function handleEditUpload(upload) {
     if (!upload?.upload_id) return null;
 
+    setActiveTool(null);
     setModalError("");
     setEditModalUpload(upload);
     setEditName(
@@ -559,6 +562,7 @@ export default function App() {
   async function handleDeleteUpload(upload) {
     if (!upload?.upload_id) return null;
 
+    setActiveTool(null);
     setModalError("");
     setDeleteModalUpload(upload);
     return upload;
@@ -703,8 +707,10 @@ export default function App() {
           </span>
         </div>
 
+        <DataSourcePreviewMap payload={previewModalData} />
+
         <div className="modal-json-block">
-          <pre>{JSON.stringify(previewModalData?.preview || {}, null, 2)}</pre>
+          <pre>{JSON.stringify(previewModalData?.preview || previewModalData || {}, null, 2)}</pre>
         </div>
       </Modal>
 

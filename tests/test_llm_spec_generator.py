@@ -483,3 +483,83 @@ def test_llm_normalizer_does_not_inject_enrichment_when_scoring_spec_is_explicit
         "find_nearest_neighbors",
         "score_features",
     ]
+
+
+def test_llm_normalizer_removes_invalid_empty_enrichment_node_and_rewrites_refs():
+    """
+    Real LLM may generate enrich_feature_properties without rules.
+    This node is not executable and must be removed safely.
+    """
+    llm_json = {
+        "raw_query": "املاک را امتیاز بده",
+        "goal": "rank_real_estate",
+        "entities": [
+            {"ref": "properties", "kind": "vector"},
+            {"ref": "poi", "kind": "vector"},
+        ],
+        "operations": [
+            {
+                "op": "filter_by_distance",
+                "inputs": {"vector": "properties", "reference": "poi"},
+                "params": {"max_distance_m": 500, "k": 1, "drop_unmatched": True},
+                "output": "near_properties",
+            },
+            {
+                "op": "enrich_feature_properties",
+                "inputs": {"vector": "near_properties"},
+                "params": {},
+                "output": "enriched_properties",
+            },
+            {
+                "op": "score_features",
+                "inputs": {"vector": "enriched_properties"},
+                "params": {},
+                "output": "scored_properties",
+            },
+            {
+                "op": "rank_features",
+                "inputs": {"vector": "scored_properties"},
+                "params": {},
+                "output": "ranked_properties",
+            },
+        ],
+        "outputs": [
+            {"kind": "vector", "source": "ranked_properties"}
+        ],
+    }
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    generator = LLMQuerySpecGenerator(client)
+
+    spec = generator.generate("املاک را امتیاز بده")
+
+    op_names = [op.op for op in spec.operations]
+
+    assert "enrich_feature_properties" in op_names
+    assert all(
+        not (
+            op.op == "enrich_feature_properties"
+            and not op.params.get("rules")
+        )
+        for op in spec.operations
+    )
+
+    # score_features must no longer depend on removed enriched_properties.
+    score_op = next(op for op in spec.operations if op.op == "score_features")
+    assert score_op.inputs["vector"] != "enriched_properties"
+
+    plan = DeterministicPlanner().build(spec)
+
+    assert all(
+        not (
+            node.capability_name == "enrich_feature_properties"
+            and "rules" not in node.static_params
+        )
+        for node in plan.nodes
+    )
+
+    assert spec.metadata["normalization"]["applied"] is True
+    assert any(
+        "removed invalid enrich_feature_properties without rules" in item
+        for item in spec.metadata["normalization"]["repairs"]
+    )

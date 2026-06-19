@@ -351,14 +351,14 @@ Important mappings:
 - For flood/earthquake/fire risk enrichment:
   use enrich_risk before score_features:
   op="enrich_risk"
-  inputs={"vector": "<features>"}
-  params={
-    "default_risks": {
+  inputs={{"vector": "<features>"}}
+  params={{
+    "default_risks": {{
       "flood_risk": "low",
       "earthquake_risk": "low",
       "fire_risk": "low"
-    }
-  }
+    }}
+  }}
 
 - "score/rank":
   use score_features then rank_features.

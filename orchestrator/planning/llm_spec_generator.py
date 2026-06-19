@@ -344,6 +344,10 @@ Important mappings:
   inputs={{"vector": "<points>", "polygon": "<polygon_layer>"}}
   params={{"predicate": "within", "drop_outside": true}}
 
+- After a distance operation, if the resulting distance field should be used for scoring,
+  use enrich_feature_properties to copy/rename it to a semantic field like:
+  distance_to_poi or distance_to_road.
+
 - "score/rank":
   use score_features then rank_features.
 

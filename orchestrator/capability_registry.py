@@ -40,6 +40,7 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.core_vector",
     "plugins.spatial_predicate",
     "plugins.feature_scoring",
+    "plugins.feature_enrichment",
 ]
 
 

@@ -222,6 +222,49 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         notes="Rank features by score field.",
     ),
 
+
+    "enrich_feature_properties": OpDescriptor(
+        op_name="enrich_feature_properties",
+        capability_name="enrich_feature_properties",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "rules": "rules",
+            "skip_missing": "skip_missing",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes="Derive/copy/rename feature properties before scoring.",
+    ),
+
+    "join_feature_properties": OpDescriptor(
+        op_name="join_feature_properties",
+        capability_name="join_feature_properties",
+        input_map={
+            "left": "left_features",
+            "right": "right_features",
+        },
+        input_types={
+            "left": "vector",
+            "right": "vector",
+        },
+        param_map={
+            "left_key": "left_key",
+            "right_key": "right_key",
+            "fields": "fields",
+            "prefix": "prefix",
+            "overwrite": "overwrite",
+            "unmatched": "unmatched",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes="Join feature properties by matching keys.",
+    ),
+
 }
 
 

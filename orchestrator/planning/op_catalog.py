@@ -288,12 +288,33 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         notes="Add flood, earthquake and fire risk fields to features.",
     ),
 
+
+    "build_report": OpDescriptor(
+        op_name="build_report",
+        capability_name="build_report",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "report_spec": "report_spec",
+            "node_outputs": "node_outputs",
+            "score_field": "score_field",
+            "rank_field": "rank_field",
+            "name_field": "name_field",
+            "metadata": "metadata",
+        },
+        output_type="report",
+        notes="Build structured report from ranked features and ReportSpec.",
+    ),
+
 }
 
 
 PENDING_OPS: set[str] = {
     "enrich_weather",
-    "build_report",
     "render_pdf",
     "filter_points_on_raster",
 }

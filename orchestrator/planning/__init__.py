@@ -6,6 +6,12 @@ from orchestrator.planning.spec import EntitySpec, OperationSpec, OutputSpec, Qu
 from orchestrator.planning.dag import DagNode, DagPlan
 from orchestrator.planning.planner import DeterministicPlanner, PlanningError
 from orchestrator.planning.runner import PlanningRunner, PlanningRunResult
+from orchestrator.planning.llm_spec_generator import (
+    LLMQuerySpecGenerator,
+    OpenAICompatibleLLMClient,
+    StaticLLMClient,
+    normalize_llm_query_spec_for_planning,
+)
 
 __all__ = [
     "EntitySpec",
@@ -18,4 +24,8 @@ __all__ = [
     "PlanningError",
     "PlanningRunner",
     "PlanningRunResult",
+    "LLMQuerySpecGenerator",
+    "OpenAICompatibleLLMClient",
+    "StaticLLMClient",
+    "normalize_llm_query_spec_for_planning",
 ]

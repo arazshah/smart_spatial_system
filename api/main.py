@@ -31,6 +31,11 @@ from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFil
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
+from orchestrator.plugin_config_store import (
+    PluginConfigStoreError,
+    read_plugin_config,
+    write_plugin_config,
+)
 from orchestrator.service import (
     OrchestratorService,
     OrchestratorServiceConfig,
@@ -306,6 +311,51 @@ def create_app(
                 detail=message,
             ) from exc
 
+
+    @app.get("/plugins/{plugin_id}/config")
+    def get_plugin_config(
+        request: Request,
+        plugin_id: str,
+    ) -> dict[str, Any]:
+        svc = _service(request)
+
+        # Ensure the plugin actually exists before exposing config.
+        try:
+            svc.get_plugin(plugin_id)
+        except OrchestratorServiceError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        try:
+            return _json_safe(read_plugin_config(plugin_id))
+        except PluginConfigStoreError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.put("/plugins/{plugin_id}/config")
+    def put_plugin_config(
+        request: Request,
+        plugin_id: str,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        svc = _service(request)
+
+        try:
+            svc.get_plugin(plugin_id)
+        except OrchestratorServiceError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        raw_yaml = payload.get("raw_yaml")
+        parsed = payload.get("parsed")
+
+        try:
+            result = write_plugin_config(
+                plugin_id,
+                raw_yaml=raw_yaml,
+                parsed=parsed,
+            )
+        except PluginConfigStoreError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        return _json_safe(result)
 
     @app.get("/settings/runtime")
     def get_runtime_settings(

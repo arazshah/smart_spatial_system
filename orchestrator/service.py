@@ -139,6 +139,9 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.spectral_indices",
     "plugins.raster_threshold",
     "plugins.raster_to_vector",
+    "plugins.core_vector",
+    "plugins.spatial_predicate",
+    "plugins.feature_scoring",
     "plugins.ndvi_calculator",
     "plugins.ndvi_analysis",
     "plugins.raster_statistics",
@@ -734,10 +737,19 @@ class OrchestratorService:
         llm_intent: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         """
-        Direct response for simple vector-display queries.
+        Capability-backed bridge for simple vector display/summary queries.
 
-        This avoids sending vector-display requests into the older NDVI-only
-        natural query pipeline.
+        Historical note:
+            This method used to build the vector display/summary response directly
+            inside the service. It now keeps only the lightweight query detection
+            and delegates actual work to official capabilities:
+
+                - inspect_vector
+                - display_vector_layer
+                - summarize_vector_layer
+
+        This keeps backward-compatible frontend output while making execution
+        auditable and capability-based.
         """
         is_vector_display = self._is_vector_display_query(query, llm_intent)
         is_vector_summary = self._is_vector_summary_query(query, llm_intent)
@@ -752,48 +764,102 @@ class OrchestratorService:
         if feature_collection is None:
             return None
 
-        summary = self._summarize_feature_collection(feature_collection)
-
         handler_name = "vector_summary" if is_vector_summary else "vector_display"
+        target_capability = (
+            "summarize_vector_layer"
+            if is_vector_summary
+            else "display_vector_layer"
+        )
 
-        if handler_name == "vector_summary":
+        router = self._build_enabled_router()
+
+        inspect_binding = router.resolve("inspect_vector")
+        target_binding = router.resolve(target_capability)
+
+        trace: list[dict[str, Any]] = []
+
+        inspection = inspect_binding.callable(
+            vector=feature_collection,
+        )
+
+        trace.append(
+            {
+                "order": 1,
+                "node_id": "node_001_inspect_vector",
+                "capability_name": "inspect_vector",
+                "plugin_id": inspect_binding.plugin_id,
+                "output_kind": inspect_binding.output_kind,
+                "status": "success",
+            }
+        )
+
+        if is_vector_summary:
+            capability_result = target_binding.callable(
+                vector=feature_collection,
+            )
+        else:
+            capability_result = target_binding.callable(
+                vector=feature_collection,
+                layer_id="active_vector",
+                name="active_vector",
+                visible=True,
+            )
+
+        trace.append(
+            {
+                "order": 2,
+                "node_id": (
+                    "node_002_summarize_vector_layer"
+                    if is_vector_summary
+                    else "node_002_display_vector_layer"
+                ),
+                "capability_name": target_capability,
+                "plugin_id": target_binding.plugin_id,
+                "output_kind": target_binding.output_kind,
+                "status": "success",
+            }
+        )
+
+        summary = (
+            capability_result.get("summary")
+            if isinstance(capability_result, dict)
+            else None
+        )
+
+        if not isinstance(summary, dict):
+            summary = (
+                inspection.get("summary")
+                if isinstance(inspection, dict)
+                else {}
+            )
+
+        if not isinstance(summary, dict):
+            summary = self._summarize_feature_collection(feature_collection)
+
+        if is_vector_summary:
             feature_count = summary.get("feature_count", 0)
             geometry_counts = summary.get("geometry_counts", {})
             geometry_text = ", ".join(
-                f"{key}: {value}" for key, value in geometry_counts.items()
+                f"{key}: {value}"
+                for key, value in geometry_counts.items()
             ) or "No geometries"
-            message = f"Vector layer contains {feature_count} features. {geometry_text}."
+
+            message = (
+                capability_result.get("message")
+                if isinstance(capability_result, dict)
+                else None
+            ) or f"Vector layer contains {feature_count} features. {geometry_text}."
+
             result_payload = {
                 "type": "vector_summary",
                 "feature_count": feature_count,
                 "geometry_counts": geometry_counts,
                 "property_keys": summary.get("property_keys", []),
                 "summary": summary,
-            }
-        else:
-            message = "Vector layer is ready for map display."
-            result_payload = {
-                "type": "vector_display",
-                "layer_ids": ["active_vector"],
-                "feature_count": summary.get("feature_count", 0),
-                "geometry_counts": summary.get("geometry_counts", {}),
-                "property_keys": summary.get("property_keys", []),
-                "summary": summary,
+                "capability_result": _json_safe(capability_result),
             }
 
-        metadata = dict(final_metadata)
-        metadata["direct_handler"] = handler_name
-        metadata["original_query"] = query
-
-        response = {
-            "ok": True,
-            "status": "succeeded",
-            "request_id": final_request_id,
-            "query": query,
-            "message": message,
-            "summary": summary,
-            "metadata": _json_safe(metadata),
-            "outputs": {
+            outputs = {
                 "vectors": [
                     {
                         "id": "active_vector",
@@ -806,8 +872,9 @@ class OrchestratorService:
                 ],
                 "rasters": [],
                 "tables": [],
-            },
-            "layers": [
+            }
+
+            layers = [
                 {
                     "id": "active_vector",
                     "name": "active_vector",
@@ -817,8 +884,111 @@ class OrchestratorService:
                     "geojson": feature_collection,
                     "summary": summary,
                 }
+            ]
+
+        else:
+            message = (
+                capability_result.get("message")
+                if isinstance(capability_result, dict)
+                else None
+            ) or "Vector layer is ready for map display."
+
+            result_payload = {
+                "type": "vector_display",
+                "layer_ids": ["active_vector"],
+                "feature_count": summary.get("feature_count", 0),
+                "geometry_counts": summary.get("geometry_counts", {}),
+                "property_keys": summary.get("property_keys", []),
+                "summary": summary,
+                "capability_result": _json_safe(capability_result),
+            }
+
+            if isinstance(capability_result, dict):
+                outputs = capability_result.get("outputs") or {}
+                layers = capability_result.get("layers") or []
+            else:
+                outputs = {}
+                layers = []
+
+            if not isinstance(outputs, dict) or "vectors" not in outputs:
+                outputs = {
+                    "vectors": [
+                        {
+                            "id": "active_vector",
+                            "name": "active_vector",
+                            "format": "geojson",
+                            "role": "map_layer",
+                            "geojson": feature_collection,
+                            "summary": summary,
+                        }
+                    ],
+                    "rasters": [],
+                    "tables": [],
+                }
+
+            if not isinstance(layers, list) or not layers:
+                layers = [
+                    {
+                        "id": "active_vector",
+                        "name": "active_vector",
+                        "type": "vector",
+                        "format": "geojson",
+                        "visible": True,
+                        "geojson": feature_collection,
+                        "summary": summary,
+                    }
+                ]
+
+        metadata = dict(final_metadata)
+        metadata["execution_mode"] = "capability_bridge"
+        metadata["legacy_handler_name"] = handler_name
+        metadata["original_query"] = query
+        metadata["capabilities"] = {
+            "inspection": "inspect_vector",
+            "target": target_capability,
+        }
+
+        audit_record = {
+            "status": "success",
+            "execution_mode": "capability_bridge",
+            "reason": "simple vector display/summary query routed through official capabilities",
+            "query": query,
+            "request_id": final_request_id,
+            "legacy_handler_name": handler_name,
+            "capabilities": [
+                "inspect_vector",
+                target_capability,
             ],
+            "trace": trace,
+            "outputs": {
+                "summary": _json_safe(summary),
+            },
+        }
+
+        run_result = {
+            "status": "succeeded",
+            "execution_mode": "capability_bridge",
+            "legacy_handler_name": handler_name,
+            "outputs": {
+                "inspection": _json_safe(inspection),
+                "result": _json_safe(capability_result),
+            },
+            "trace": trace,
+            "audit_record": audit_record,
+        }
+
+        response = {
+            "ok": True,
+            "status": "succeeded",
+            "request_id": final_request_id,
+            "query": query,
+            "message": message,
+            "summary": summary,
+            "metadata": _json_safe(metadata),
+            "outputs": outputs,
+            "layers": layers,
             "result": result_payload,
+            "audit_record": audit_record,
         }
 
         self._remember(
@@ -831,16 +1001,9 @@ class OrchestratorService:
                 "band_map": _json_safe(band_map or {}),
                 "user_context": _json_safe(user_context or {}),
                 "metadata": _json_safe(metadata),
-                "run_result": {
-                    "status": "succeeded",
-                    "direct_handler": handler_name,
-                    "summary": summary,
-                },
-                "audit_record": {
-                    "direct_handler": handler_name,
-                    "reason": "simple vector display/summary query",
-                },
-                "production_response": response,
+                "run_result": _json_safe(run_result),
+                "audit_record": _json_safe(audit_record),
+                "production_response": _json_safe(response),
             },
         )
 

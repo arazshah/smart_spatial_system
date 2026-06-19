@@ -1,0 +1,3 @@
+default_predicate: within
+default_drop_outside: true
+planar_only: true

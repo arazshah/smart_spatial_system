@@ -1,0 +1,14 @@
+default_layer_id: active_vector
+default_layer_name: active_vector
+default_visible: true
+
+inspection:
+  max_sample_properties: 5
+
+display:
+  role: map_layer
+  format: geojson
+
+summary:
+  include_bbox: true
+  include_property_keys: true

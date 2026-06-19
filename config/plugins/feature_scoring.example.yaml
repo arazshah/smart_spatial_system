@@ -1,0 +1,3 @@
+default_output_field: score
+default_scale: 100
+normalize_weights: true

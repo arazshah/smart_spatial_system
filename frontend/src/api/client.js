@@ -261,3 +261,25 @@ export function registerWMSSource(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export async function getPluginConfig(pluginId) {
+  const res = await fetch(`${API_BASE_URL}/plugins/${encodeURIComponent(pluginId)}/config`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.detail || "Failed to load plugin config.");
+  }
+  return res.json();
+}
+
+export async function updatePluginConfig(pluginId, payload) {
+  const res = await fetch(`${API_BASE_URL}/plugins/${encodeURIComponent(pluginId)}/config`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.detail || "Failed to save plugin config.");
+  }
+  return res.json();
+}

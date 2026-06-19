@@ -1,299 +1,307 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  getRuntimeSettings,
-  listPlugins,
-  updatePluginState,
-} from "../api/client";
+import { getRuntimeSettings, listPlugins, updatePluginState } from "../api/client";
+import PluginConfigModal from "./PluginConfigModal";
 
-function safeList(value) {
-  return Array.isArray(value) ? value : [];
-}
+function safeList(v) { return Array.isArray(v) ? v : []; }
 
-function normalizePlugins(payload) {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.items)) return payload.items;
-  if (Array.isArray(payload?.plugins)) return payload.plugins;
+function normalizePlugins(p) {
+  if (Array.isArray(p)) return p;
+  if (Array.isArray(p?.items)) return p.items;
+  if (Array.isArray(p?.plugins)) return p.plugins;
   return [];
 }
 
-function pluginStatus(plugin) {
-  if (plugin?.skipped) return "skipped";
-  return plugin?.enabled === false ? "disabled" : "enabled";
+function pluginStatus(p) {
+  if (p?.skipped) return "skipped";
+  return p?.enabled === false ? "disabled" : "enabled";
 }
 
-function PluginBadge({ children, tone = "neutral" }) {
-  return <span className={`pm-badge pm-${tone}`}>{children}</span>;
-}
-
-function SummaryStat({ label, value, tone = "neutral" }) {
+function CapabilityRow({ cap }) {
+  const required = safeList(cap?.required_inputs);
+  const optional = safeList(cap?.optional_inputs);
   return (
-    <div className={`pm-stat pm-${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <div className="pm-cap-row">
+      <div className="ds-card-title-row">
+        <strong style={{ fontSize: 11 }} dir="ltr">{cap?.name || "unknown"}</strong>
+        <span className="ds-active-badge">{cap?.output_kind || "json"}</span>
+      </div>
+      {(required.length || optional.length) ? (
+        <div className="ds-meta-grid" style={{ marginTop: 6 }}>
+          {required.length ? (
+            <span>
+              <small>Required</small>
+              <b dir="ltr" style={{ whiteSpace:"normal", wordBreak:"break-all" }}>
+                {required.join(", ")}
+              </b>
+            </span>
+          ) : null}
+          {optional.length ? (
+            <span>
+              <small>Optional</small>
+              <b dir="ltr" style={{ whiteSpace:"normal", wordBreak:"break-all" }}>
+                {optional.join(", ")}
+              </b>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function CapabilityDetails({ capabilities }) {
-  const items = safeList(capabilities);
+function PluginCard({ plugin, onToggleState, onConfigure, isBusy }) {
+  const id      = plugin?.plugin_id || "unknown";
+  const status  = pluginStatus(plugin);
+  const caps    = safeList(plugin?.capabilities);
+  const modules = safeList(plugin?.module_names);
 
-  if (!items.length) {
-    return <div className="pm-empty">No registered capabilities</div>;
-  }
+  const statusLabel = { enabled:"Enabled", disabled:"Disabled", skipped:"Skipped" }[status] || status;
+  const statusCls   = { enabled:"success",  disabled:"running",  skipped:"danger"  }[status] || "neutral";
 
   return (
-    <div className="pm-capability-list">
-      {items.map((capability, index) => (
-        <div
-          key={capability?.name || `capability-${index}`}
-          className="pm-capability-item"
-        >
-          <div className="pm-capability-head">
-            <strong dir="ltr">{capability?.name || "unknown_capability"}</strong>
-            <PluginBadge tone="info">{capability?.output_kind || "json"}</PluginBadge>
-          </div>
+    <article className="ds-card">
 
-          <div className="pm-capability-meta">
-            {!!safeList(capability?.required_inputs).length && (
-              <div className="pm-capability-line">
-                <span>Required</span>
-                <code dir="ltr">{safeList(capability.required_inputs).join(", ")}</code>
-              </div>
-            )}
+      {/* ── info block (بدون آیکون) ── */}
+      <div className="ds-card-info" style={{ padding: "2px 0" }}>
 
-            {!!safeList(capability?.optional_inputs).length && (
-              <div className="pm-capability-line">
-                <span>Optional</span>
-                <code dir="ltr">{safeList(capability.optional_inputs).join(", ")}</code>
-              </div>
-            )}
-          </div>
+        <div className="ds-card-title-row">
+          <strong dir="ltr">{id}</strong>
+          <span className="ds-active-badge">{statusLabel}</span>
+        </div>
 
-          {!!safeList(capability?.keywords).length && (
-            <div className="pm-keywords">
-              {safeList(capability.keywords).slice(0, 8).map((keyword, keywordIndex) => (
-                <span
-                  key={`${capability?.name || "cap"}-${keyword}-${keywordIndex}`}
-                  className="pm-keyword"
-                  dir="ltr"
-                >
-                  {keyword}
-                </span>
+        <div className="ds-card-subtitle">
+          <span dir="ltr">{plugin?.capability_count ?? 0} capabilities</span>
+          {plugin?.config_exists
+            ? <span>config ✓</span>
+            : <span style={{ color:"#94a3b8" }}>no config</span>}
+          {plugin?.skipped ? <span style={{ color:"#b91c1c" }}>skipped</span> : null}
+        </div>
+
+        {/* meta grid */}
+        <div className="ds-meta-grid">
+          <span>
+            <small>Status</small>
+            <b className={`ds-status ${statusCls}`}>{statusLabel}</b>
+          </span>
+          <span>
+            <small>Config path</small>
+            <b dir="ltr" style={{ whiteSpace:"normal", wordBreak:"break-all", fontSize:10 }}>
+              {plugin?.config_path || "—"}
+            </b>
+          </span>
+          {modules.length ? (
+            <span style={{ gridColumn:"1/-1" }}>
+              <small>Modules</small>
+              <b dir="ltr" style={{ whiteSpace:"normal", wordBreak:"break-all" }}>
+                {modules.join(", ")}
+              </b>
+            </span>
+          ) : null}
+          {plugin?.skipped && plugin?.skipped_error ? (
+            <span style={{ gridColumn:"1/-1" }}>
+              <small>Skipped reason</small>
+              <b dir="ltr" style={{ color:"#b91c1c", whiteSpace:"normal", wordBreak:"break-all" }}>
+                {plugin.skipped_error}
+              </b>
+            </span>
+          ) : null}
+        </div>
+
+        {/* capabilities */}
+        {caps.length ? (
+          <div className="pm-caps-section">
+            <div className="pm-caps-label">Capabilities</div>
+            <div className="pm-caps-list">
+              {caps.map((cap, i) => (
+                <CapabilityRow key={cap?.name || i} cap={cap} />
               ))}
             </div>
-          )}
-        </div>
-      ))}
-    </div>
+          </div>
+        ) : (
+          <div className="ds-extra-line">
+            <span style={{ color:"#94a3b8" }}>No capabilities registered.</span>
+          </div>
+        )}
+
+      </div>
+
+      {/* actions */}
+      <div className="ds-card-actions">
+        <button type="button" className="configure" onClick={onConfigure}>
+          Configure
+        </button>
+        <button
+          type="button"
+          onClick={onToggleState}
+          disabled={isBusy || plugin?.skipped}
+        >
+          {isBusy ? "..." : status === "disabled" ? "Enable" : "Disable"}
+        </button>
+      </div>
+
+    </article>
   );
 }
 
 export default function PluginManagerPanel() {
-  const [plugins, setPlugins] = useState([]);
-  const [runtime, setRuntime] = useState(null);
-  const [expandedId, setExpandedId] = useState(null);
-  const [busyId, setBusyId] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState("");
+  const [plugins, setPlugins]             = useState([]);
+  const [runtime, setRuntime]             = useState(null);
+  const [busyId, setBusyId]               = useState("");
+  const [loading, setLoading]             = useState(true);
+  const [refreshing, setRefreshing]       = useState(false);
+  const [error, setError]                 = useState("");
+  const [query, setQuery]                 = useState("");
+  const [filter, setFilter]               = useState("all");
+  const [configModalId, setConfigModalId] = useState(null);
 
   async function loadAll({ silent = false } = {}) {
-    if (!silent) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
-    }
-
+    if (!silent) setLoading(true); else setRefreshing(true);
     setError("");
-
     try {
-      const [pluginsRes, runtimeRes] = await Promise.all([
-        listPlugins(),
-        getRuntimeSettings(),
-      ]);
-
-      setPlugins(normalizePlugins(pluginsRes));
-      setRuntime(runtimeRes || null);
-    } catch (err) {
-      setError(err?.message || "Failed to load plugin manager.");
+      const [pr, rr] = await Promise.all([listPlugins(), getRuntimeSettings()]);
+      setPlugins(normalizePlugins(pr));
+      setRuntime(rr || null);
+    } catch (e) {
+      setError(e?.message || "Failed to load plugins.");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }
 
-  useEffect(() => {
-    loadAll();
-  }, []);
+  useEffect(() => { loadAll(); }, []);
 
-  async function handleToggle(plugin) {
-    const pluginId = String(plugin?.plugin_id || "").trim();
-    if (!pluginId || plugin?.skipped) return;
-
-    const nextEnabled = !(plugin?.enabled !== false);
-
-    setBusyId(pluginId);
-    setError("");
-
+  async function handleToggleState(plugin) {
+    const id = String(plugin?.plugin_id || "").trim();
+    if (!id || plugin?.skipped) return;
+    setBusyId(id);
     try {
-      await updatePluginState(pluginId, nextEnabled);
+      await updatePluginState(id, !(plugin?.enabled !== false));
       await loadAll({ silent: true });
-    } catch (err) {
-      setError(err?.message || "Plugin state update failed.");
+    } catch (e) {
+      setError(e?.message || "Update failed.");
     } finally {
       setBusyId("");
     }
   }
 
   const summary = useMemo(() => {
-    const items = safeList(plugins);
-    const total = items.length;
-    const enabled = items.filter((item) => pluginStatus(item) === "enabled").length;
-    const disabled = items.filter((item) => pluginStatus(item) === "disabled").length;
-    const skipped = items.filter((item) => pluginStatus(item) === "skipped").length;
-    return { total, enabled, disabled, skipped };
+    const all = safeList(plugins);
+    return {
+      total:    all.length,
+      enabled:  all.filter(p => pluginStatus(p) === "enabled").length,
+      disabled: all.filter(p => pluginStatus(p) === "disabled").length,
+      skipped:  all.filter(p => pluginStatus(p) === "skipped").length,
+    };
   }, [plugins]);
 
-  const disabledPluginIds = safeList(runtime?.plugins?.disabled_plugin_ids);
-  const enabledCapabilities = safeList(runtime?.plugins?.enabled_capabilities);
+  const filtered = useMemo(() => {
+    const txt = query.trim().toLowerCase();
+    return safeList(plugins)
+      .filter(p => {
+        if (filter !== "all" && pluginStatus(p) !== filter) return false;
+        if (!txt) return true;
+        return [
+          p?.plugin_id,
+          ...safeList(p?.module_names),
+          ...safeList(p?.capabilities).map(c => c?.name),
+        ].filter(Boolean).join(" ").toLowerCase().includes(txt);
+      })
+      .sort((a, b) => String(a?.plugin_id||"").localeCompare(String(b?.plugin_id||"")));
+  }, [plugins, query, filter]);
+
+  const enabledCaps = safeList(runtime?.plugins?.enabled_capabilities);
 
   return (
-    <div className="settings-card settings-card-pro pm-panel">
-      <div className="pm-header">
-        <div>
-          <div className="pm-title">Plugin Manager</div>
-          <p className="pm-subtitle">مدیریت وضعیت پلاگین‌ها و قابلیت‌های سیستم</p>
-        </div>
+    <>
+    <div className="ds-list-pro">
 
-        <button
-          type="button"
-          className="pm-refresh-btn"
-          onClick={() => loadAll({ silent: true })}
-          disabled={loading || refreshing}
-        >
-          {refreshing ? "Refreshing..." : "Refresh"}
-        </button>
+      {/* Summary */}
+      <article className="ds-card">
+        <div className="ds-card-info" style={{ padding:"2px 0" }}>
+          <div className="ds-card-title-row">
+            <strong>Plugin Manager</strong>
+            <span className="ds-active-badge">{summary.total} plugins</span>
+          </div>
+          <div className="ds-card-subtitle">
+            <span>System plugins</span>
+            <span>{enabledCaps.length} capabilities active</span>
+          </div>
+          <div className="ds-meta-grid">
+            <span><small>Enabled</small> <b className="ds-status success">{summary.enabled}</b></span>
+            <span><small>Disabled</small><b className="ds-status running">{summary.disabled}</b></span>
+            <span><small>Skipped</small> <b className="ds-status danger">{summary.skipped}</b></span>
+            <span><small>Capabilities</small><b>{enabledCaps.length}</b></span>
+          </div>
+        </div>
+        <div className="ds-card-actions">
+          <button type="button" onClick={() => loadAll({ silent:true })} disabled={loading||refreshing}>
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
+      </article>
+
+      {error ? (
+        <article className="ds-card">
+          <div className="ds-card-info" style={{ padding:"2px 0" }}>
+            <div className="ds-card-title-row"><strong>Error</strong></div>
+            <div className="ds-extra-line"><span style={{ color:"#b91c1c" }}>{error}</span></div>
+          </div>
+        </article>
+      ) : null}
+
+      {/* Toolbar */}
+      <div className="pm-toolbar">
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search plugins..."
+          dir="ltr"
+        />
+        <div className="pm-filter-chips">
+          {[["all","All"],["enabled","Enabled"],["disabled","Disabled"],["skipped","Skipped"]].map(([v,l]) => (
+            <button key={v} type="button"
+              className={filter===v ? "active" : ""}
+              onClick={() => setFilter(v)}
+            >{l}</button>
+          ))}
+        </div>
       </div>
 
-      {error ? <div className="pm-error">{error}</div> : null}
-
-      <div className="pm-stats">
-        <SummaryStat label="Total" value={summary.total} />
-        <SummaryStat label="Enabled" value={summary.enabled} tone="success" />
-        <SummaryStat label="Disabled" value={summary.disabled} tone="warning" />
-        <SummaryStat label="Skipped" value={summary.skipped} tone="danger" />
-      </div>
-
-      <div className="pm-runtime">
-        <div className="pm-runtime-item">
-          <span>Disabled plugins</span>
-          <strong dir="ltr">
-            {disabledPluginIds.length ? disabledPluginIds.join(", ") : "—"}
-          </strong>
-        </div>
-        <div className="pm-runtime-item">
-          <span>Enabled capabilities</span>
-          <strong>{enabledCapabilities.length}</strong>
-        </div>
-      </div>
-
+      {/* List */}
       {loading ? (
-        <div className="pm-empty">Loading plugin inventory...</div>
-      ) : !plugins.length ? (
-        <div className="pm-empty">No plugins found.</div>
-      ) : (
-        <div className="pm-list">
-          {plugins.map((plugin, index) => {
-            const id = plugin?.plugin_id || `unknown_plugin_${index}`;
-            const status = pluginStatus(plugin);
-            const expanded = expandedId === id;
-            const isBusy = busyId === id;
-            const moduleNames = safeList(plugin?.module_names);
+        <article className="ds-card">
+          <div className="ds-card-info" style={{ padding:"2px 0" }}>
+            <div className="ds-extra-line"><span>Loading plugin inventory...</span></div>
+          </div>
+        </article>
+      ) : !filtered.length ? (
+        <article className="ds-card">
+          <div className="ds-card-info" style={{ padding:"2px 0" }}>
+            <div className="ds-extra-line"><span>No plugins matched.</span></div>
+          </div>
+        </article>
+      ) : filtered.map((plugin, idx) => {
+        const id = plugin?.plugin_id || `unknown_${idx}`;
+        return (
+          <PluginCard
+            key={id}
+            plugin={plugin}
+            isBusy={busyId === id}
+            onToggleState={() => handleToggleState(plugin)}
+            onConfigure={() => setConfigModalId(id)}
+          />
+        );
+      })}
 
-            return (
-              <div key={id} className={`pm-row pm-row-${status}`}>
-                <div className="pm-row-main">
-                  <div className="pm-row-title-wrap">
-                    <strong className="pm-row-title" dir="ltr">
-                      {id}
-                    </strong>
-
-                    <div className="pm-row-meta">
-                      <span>State source: {plugin?.state_source || "—"}</span>
-                      <span dir="ltr">Config: {plugin?.config_path || "—"}</span>
-                      <span>{Number(plugin?.capability_count || 0)} capabilities</span>
-                    </div>
-
-                    {!!moduleNames.length && (
-                      <div className="pm-row-modules" dir="ltr">
-                        {moduleNames.join(", ")}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pm-row-side">
-                    <div className="pm-row-badges">
-                      {status === "enabled" ? (
-                        <PluginBadge tone="success">Enabled</PluginBadge>
-                      ) : null}
-
-                      {status === "disabled" ? (
-                        <PluginBadge tone="warning">Disabled</PluginBadge>
-                      ) : null}
-
-                      {status === "skipped" ? (
-                        <PluginBadge tone="danger">Skipped</PluginBadge>
-                      ) : null}
-
-                      <PluginBadge tone={plugin?.config_exists ? "info" : "neutral"}>
-                        {plugin?.config_exists ? "Config ready" : "No config"}
-                      </PluginBadge>
-                    </div>
-
-                    <div className="pm-row-actions">
-                      <button
-                        type="button"
-                        className="pm-btn"
-                        onClick={() => setExpandedId(expanded ? null : id)}
-                      >
-                        {expanded ? "Hide details" : "Details"}
-                      </button>
-
-                      <button
-                        type="button"
-                        className={`pm-btn pm-btn-primary ${
-                          plugin?.enabled === false ? "is-off" : "is-on"
-                        }`}
-                        onClick={() => handleToggle(plugin)}
-                        disabled={isBusy || plugin?.skipped}
-                      >
-                        {isBusy
-                          ? "Saving..."
-                          : plugin?.enabled === false
-                            ? "Enable"
-                            : "Disable"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {plugin?.skipped && plugin?.skipped_error ? (
-                  <div className="pm-skipped">
-                    <span>Skipped reason</span>
-                    <code dir="ltr">{plugin.skipped_error}</code>
-                  </div>
-                ) : null}
-
-                {expanded ? (
-                  <div className="pm-details">
-                    <CapabilityDetails capabilities={plugin?.capabilities} />
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
+
+    {configModalId ? (
+      <PluginConfigModal
+        pluginId={configModalId}
+        onClose={() => setConfigModalId(null)}
+      />
+    ) : null}
+    </>
   );
 }

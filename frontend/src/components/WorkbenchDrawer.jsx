@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import PluginManagerPanel from "./PluginManagerPanel";
+import SettingsPanel from "./SettingsPanel";
 import {
   getDataSourceCrsLabel,
   getDataSourceFeatureCount,
@@ -196,6 +197,7 @@ function drawerTitle(activeTool) {
   if (activeTool === "projects") return "Projects";
   if (activeTool === "uploads") return "Data Sources";
   if (activeTool === "history") return "History";
+  if (activeTool === "plugins") return "Plugins";
   if (activeTool === "settings") return "Settings";
   return "Workspace";
 }
@@ -204,7 +206,8 @@ function drawerSubtitle(activeTool) {
   if (activeTool === "projects") return "مدیریت پروژه‌های کاری";
   if (activeTool === "uploads") return "مدیریت داده‌های ورودی پروژه";
   if (activeTool === "history") return "درخواست‌های اجراشده و نتایج قبلی";
-  if (activeTool === "settings") return "وضعیت سیستم و تنظیمات";
+  if (activeTool === "plugins") return "مدیریت پلاگین‌ها، قابلیت‌ها و وضعیت افزونه‌ها";
+  if (activeTool === "settings") return "تنظیمات عمومی، وضعیت سیستم و پیکربندی runtime";
   return "";
 }
 
@@ -893,32 +896,19 @@ export default function WorkbenchDrawer({
           </div>
         </div>
       )}
-
       {activeTool === "settings" && (
         <div className="drawer-content">
-          <div className="settings-card settings-card-pro">
-            <div className="settings-status-line">
-              <SystemStatusDot status={health?.status} />
-              <span>API Status</span>
-            </div>
-            <strong>{health?.status || "unknown"}</strong>
-          </div>
+          <SettingsPanel
+            health={health}
+            activeProject={activeProject}
+            selectedUpload={selectedUpload}
+            requestsCount={safeRequests.length}
+          />
+        </div>
+      )}
 
-          <div className="settings-card settings-card-pro">
-            <span>Active Project</span>
-            <strong>{activeProject?.name || "None"}</strong>
-          </div>
-
-          <div className="settings-card settings-card-pro">
-            <span>Selected Data</span>
-            <strong>{selectedUpload?.filename || selectedUpload?.upload_id || "None"}</strong>
-          </div>
-
-          <div className="settings-card settings-card-pro">
-            <span>Requests in memory</span>
-            <strong>{safeRequests.length}</strong>
-          </div>
-
+      {activeTool === "plugins" && (
+        <div className="drawer-content">
           <PluginManagerPanel />
         </div>
       )}

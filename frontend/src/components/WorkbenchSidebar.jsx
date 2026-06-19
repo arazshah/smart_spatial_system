@@ -2,6 +2,7 @@ const TOOLS = [
   { id: "projects", label: "Projects", icon: "▣" },
   { id: "uploads", label: "Data Sources", icon: "◈" },
   { id: "history", label: "History", icon: "◷" },
+  { id: "plugins", label: "Plugins", icon: "⬡" },
   { id: "settings", label: "Settings", icon: "⚙" },
 ];
 

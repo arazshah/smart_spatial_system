@@ -145,6 +145,7 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.feature_enrichment",
     "plugins.risk_enrichment",
     "plugins.report_builder",
+    "plugins.pdf_renderer",
     "plugins.ndvi_calculator",
     "plugins.ndvi_analysis",
     "plugins.raster_statistics",

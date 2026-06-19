@@ -310,12 +310,31 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         notes="Build structured report from ranked features and ReportSpec.",
     ),
 
+
+    "render_pdf": OpDescriptor(
+        op_name="render_pdf",
+        capability_name="render_pdf",
+        input_map={
+            "report": "report",
+        },
+        input_types={
+            "report": "report",
+        },
+        param_map={
+            "template_name": "template_name",
+            "output_path": "output_path",
+            "save_to_disk": "save_to_disk",
+            "metadata": "metadata",
+        },
+        output_type="pdf",
+        notes="Render ReportOut to PDF using Jinja2 + WeasyPrint.",
+    ),
+
 }
 
 
 PENDING_OPS: set[str] = {
     "enrich_weather",
-    "render_pdf",
     "filter_points_on_raster",
 }
 

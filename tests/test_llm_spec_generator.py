@@ -180,7 +180,17 @@ def test_llm_query_spec_generator_with_static_client_and_planner():
     spec = generator.generate("املاک نزدیک مترو را امتیاز بده و رتبه‌بندی کن")
 
     assert spec.goal == "rank_real_estate"
-    assert len(spec.operations) == 4
+
+    # Phase 10D: build_report + render_pdf are auto-injected
+    # because output kind="report" format="pdf"
+    op_names = [op.op for op in spec.operations]
+    assert "filter_by_distance" in op_names
+    assert "filter_points_in_polygon" in op_names
+    assert "score_features" in op_names
+    assert "rank_features" in op_names
+    assert "build_report" in op_names
+    assert "render_pdf" in op_names
+    assert len(spec.operations) == 6
     assert spec.operations[0].op == "filter_by_distance"
     assert spec.operations[2].params["scoring_spec"]["output_field"] == "investment_score"
     assert spec.outputs[0].kind == "report"
@@ -188,12 +198,16 @@ def test_llm_query_spec_generator_with_static_client_and_planner():
 
     plan = DeterministicPlanner().build(spec)
 
-    assert [node.capability_name for node in plan.nodes] == [
+    # Phase 10D: build_report + render_pdf auto-injected
+    cap_names = [node.capability_name for node in plan.nodes]
+    assert cap_names[:4] == [
         "find_nearest_neighbors",
         "filter_points_in_polygon",
         "score_features",
         "rank_features",
     ]
+    assert "build_report" in cap_names
+    assert "render_pdf" in cap_names
 
 
 def test_build_llm_messages_contains_supported_ops_and_query():
@@ -278,10 +292,13 @@ def test_llm_generator_normalizes_unsupported_score_features_input_role():
     )
 
     plan = DeterministicPlanner().build(spec)
-    assert [node.capability_name for node in plan.nodes] == [
-        "score_features",
-        "rank_features",
-    ]
+
+    # Phase 10D: build_report + render_pdf auto-injected for pdf output
+    capability_names = [node.capability_name for node in plan.nodes]
+    assert capability_names[0] == "score_features"
+    assert capability_names[1] == "rank_features"
+    assert "build_report" in capability_names
+    assert "render_pdf" in capability_names
 
 
 def test_llm_generator_adds_default_scoring_spec_when_missing():
@@ -382,7 +399,8 @@ def test_llm_normalizer_injects_enrichment_nodes_for_default_real_estate_scoring
     ops = spec.operations
     op_names = [op.op for op in ops]
 
-    assert op_names == [
+    # Phase 10D: build_report + render_pdf auto-injected for pdf output
+    core_ops = [
         "filter_by_distance",
         "enrich_feature_properties",
         "filter_points_in_polygon",
@@ -392,6 +410,9 @@ def test_llm_normalizer_injects_enrichment_nodes_for_default_real_estate_scoring
         "score_features",
         "rank_features",
     ]
+    assert op_names[:8] == core_ops
+    assert "build_report" in op_names
+    assert "render_pdf" in op_names
 
     assert ops[1].params["rules"][0]["target"] == "distance_to_poi"
     assert ops[2].inputs["vector"] == "near_properties_enriched"
@@ -412,7 +433,10 @@ def test_llm_normalizer_injects_enrichment_nodes_for_default_real_estate_scoring
     assert ops[7].params["score_field"] == "investment_score"
 
     plan = DeterministicPlanner().build(spec)
-    assert [node.capability_name for node in plan.nodes] == [
+
+    # Phase 10D: build_report + render_pdf auto-injected
+    cap_names = [node.capability_name for node in plan.nodes]
+    assert cap_names[:8] == [
         "find_nearest_neighbors",
         "enrich_feature_properties",
         "filter_points_in_polygon",
@@ -422,6 +446,8 @@ def test_llm_normalizer_injects_enrichment_nodes_for_default_real_estate_scoring
         "score_features",
         "rank_features",
     ]
+    assert "build_report" in cap_names
+    assert "render_pdf" in cap_names
 
 
 def test_llm_normalizer_does_not_inject_enrichment_when_scoring_spec_is_explicit():
@@ -563,3 +589,163 @@ def test_llm_normalizer_removes_invalid_empty_enrichment_node_and_rewrites_refs(
         "removed invalid enrich_feature_properties without rules" in item
         for item in spec.metadata["normalization"]["repairs"]
     )
+
+
+def test_normalizer_auto_injects_enrich_risk_when_scoring_uses_risk_fields():
+    """
+    When LLM explicitly provides scoring_spec with risk fields (flood_risk,
+    earthquake_risk, fire_risk) but no enrich_risk node exists,
+    normalizer must inject enrich_risk before score_features.
+
+    Note: This test must NOT trigger default scoring_spec addition.
+    The LLM provides scoring_spec explicitly.
+    """
+    llm_json = {
+        "raw_query": "ملک‌ها را با ریسک امتیاز بده",
+        "goal": "score_with_risk",
+        "entities": [
+            {"ref": "properties", "kind": "vector"},
+        ],
+        "operations": [
+            {
+                "op": "score_features",
+                "inputs": {"vector": "properties"},
+                "params": {
+                    # LLM explicitly provides scoring_spec with risk fields.
+                    "scoring_spec": {
+                        "output_field": "investment_score",
+                        "scale": 100,
+                        "factors": [
+                            {
+                                "name": "near_poi",
+                                "field": "distance_to_poi",
+                                "type": "inverse_distance",
+                                "max_distance": 500,
+                                "weight": 0.5,
+                            },
+                            {
+                                "name": "flood",
+                                "field": "flood_risk",
+                                "type": "risk_level",
+                                "weight": 0.3,
+                            },
+                            {
+                                "name": "quake",
+                                "field": "earthquake_risk",
+                                "type": "risk_level",
+                                "weight": 0.2,
+                            },
+                        ],
+                    }
+                },
+                "output": "scored",
+            },
+            {
+                "op": "rank_features",
+                "inputs": {"vector": "scored"},
+                "params": {
+                    "score_field": "investment_score",
+                    "rank_field": "rank",
+                },
+                "output": "ranked",
+            },
+        ],
+        "outputs": [{"kind": "vector", "source": "ranked"}],
+    }
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    spec = LLMQuerySpecGenerator(client).generate("ملک‌ها را با ریسک امتیاز بده")
+
+    op_names = [op.op for op in spec.operations]
+
+    # enrich_risk must be injected.
+    assert "enrich_risk" in op_names
+
+    enrich_idx = op_names.index("enrich_risk")
+    score_idx = op_names.index("score_features")
+
+    # enrich_risk must come before score_features.
+    assert enrich_idx < score_idx
+
+    enrich_op = spec.operations[enrich_idx]
+    assert enrich_op.params.get("default_risks") is not None
+
+    # score_features must read from risk-enriched output.
+    score_op = spec.operations[score_idx]
+    assert score_op.inputs["vector"] != "properties"
+
+    repairs = spec.metadata.get("normalization", {}).get("repairs", [])
+    assert any("auto-injected enrich_risk" in r for r in repairs)
+
+    plan = DeterministicPlanner().build(spec)
+    cap_names = [n.capability_name for n in plan.nodes]
+    assert "enrich_risk" in cap_names
+    assert cap_names.index("enrich_risk") < cap_names.index("score_features")
+
+
+def test_normalizer_auto_injects_build_report_and_render_pdf():
+    """
+    When output kind is 'report' with format 'pdf' but no build_report exists,
+    normalizer must inject build_report + render_pdf.
+    """
+    llm_json = {
+        "raw_query": "گزارش PDF ملک‌ها بده",
+        "goal": "pdf_report",
+        "entities": [{"ref": "properties", "kind": "vector"}],
+        "operations": [
+            {
+                "op": "score_features",
+                "inputs": {"vector": "properties"},
+                "params": {
+                    "scoring_spec": {
+                        "output_field": "investment_score",
+                        "scale": 100,
+                        "factors": [
+                            {
+                                "name": "score",
+                                "field": "distance_to_poi",
+                                "type": "inverse_distance",
+                                "max_distance": 500,
+                                "weight": 1.0,
+                            }
+                        ],
+                    }
+                },
+                "output": "scored",
+            },
+            {
+                "op": "rank_features",
+                "inputs": {"vector": "scored"},
+                "params": {},
+                "output": "ranked",
+            },
+        ],
+        "outputs": [
+            {"kind": "report", "source": "ranked", "format": "pdf"}
+        ],
+    }
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    spec = LLMQuerySpecGenerator(client).generate("گزارش PDF ملک‌ها بده")
+
+    op_names = [op.op for op in spec.operations]
+    assert "build_report" in op_names
+    assert "render_pdf" in op_names
+
+    rank_idx = op_names.index("rank_features")
+    report_idx = op_names.index("build_report")
+    pdf_idx = op_names.index("render_pdf")
+
+    assert rank_idx < report_idx < pdf_idx
+
+    output = spec.outputs[0]
+    assert output.source == "pdf_report"
+
+    repairs = spec.metadata.get("normalization", {}).get("repairs", [])
+    assert any("build_report" in r for r in repairs)
+    assert any("render_pdf" in r for r in repairs)
+
+    plan = DeterministicPlanner().build(spec)
+    capability_names = [n.capability_name for n in plan.nodes]
+    assert "build_report" in capability_names
+    assert "render_pdf" in capability_names

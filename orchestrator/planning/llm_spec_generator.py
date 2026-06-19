@@ -784,6 +784,192 @@ def normalize_llm_query_spec_for_planning(spec: QuerySpec) -> QuerySpec:
     )
 
 
+def _should_inject_risk_enrichment(spec: QuerySpec) -> bool:
+    """
+    Returns True if:
+    - scoring_spec references risk fields (flood_risk, earthquake_risk, fire_risk)
+    - but no enrich_risk operation exists in the spec
+    """
+    has_risk_fields = False
+    has_enrich_risk = False
+
+    for op in spec.operations:
+        if op.op == "enrich_risk":
+            has_enrich_risk = True
+            break
+        if op.op == "score_features":
+            scoring = op.params.get("scoring_spec", {})
+            factors = scoring.get("factors", [])
+            for factor in factors:
+                if factor.get("field") in {"flood_risk", "earthquake_risk", "fire_risk"}:
+                    has_risk_fields = True
+
+    return has_risk_fields and not has_enrich_risk
+
+
+def _inject_risk_before_scoring(spec: QuerySpec) -> tuple[QuerySpec, list[str]]:
+    """
+    Inject enrich_risk node before the first score_features node.
+    """
+    repairs: list[str] = []
+    new_ops: list[OperationSpec] = []
+    injected = False
+
+    for op in spec.operations:
+        if op.op == "score_features" and not injected:
+            # Find the input vector ref of score_features.
+            vector_ref = str(op.inputs.get("vector") or "")
+
+            risk_output = f"{vector_ref}_risk" if vector_ref else "risk_enriched"
+
+            new_ops.append(OperationSpec(
+                op="enrich_risk",
+                inputs={"vector": vector_ref},
+                params={
+                    "default_risks": {
+                        "flood_risk": "low",
+                        "earthquake_risk": "low",
+                        "fire_risk": "low",
+                    }
+                },
+                output=risk_output,
+            ))
+
+            # Rewrite score_features input to risk_output.
+            new_ops.append(OperationSpec(
+                op=op.op,
+                inputs={"vector": risk_output},
+                params=op.params,
+                output=op.output,
+            ))
+
+            repairs.append(
+                f"auto-injected enrich_risk before score_features "
+                f"({vector_ref!r} -> {risk_output!r})"
+            )
+            injected = True
+        else:
+            new_ops.append(op)
+
+    return (
+        QuerySpec(
+            raw_query=spec.raw_query,
+            goal=spec.goal,
+            entities=spec.entities,
+            operations=new_ops,
+            outputs=spec.outputs,
+            source=spec.source,
+            metadata=spec.metadata,
+        ),
+        repairs,
+    )
+
+
+
+def _should_inject_report(spec: QuerySpec) -> bool:
+    """
+    Returns True if:
+    - output kind is 'report' or format is 'pdf'
+    - but no build_report operation exists
+    """
+    has_report_output = any(
+        o.kind in {"report", "pdf"} or o.format in {"pdf", "html"}
+        for o in spec.outputs
+    )
+    has_build_report = any(op.op == "build_report" for op in spec.operations)
+
+    return has_report_output and not has_build_report
+
+
+def _inject_report_pipeline(spec: QuerySpec) -> tuple[QuerySpec, list[str]]:
+    """
+    After rank_features, inject:
+        build_report
+        render_pdf  (only if format is pdf)
+    And update outputs to point to the final report node.
+    """
+    repairs: list[str] = []
+
+    # Find the last rank_features output.
+    last_rank_output: str | None = None
+    for op in spec.operations:
+        if op.op == "rank_features" and op.output:
+            last_rank_output = op.output
+
+    if not last_rank_output:
+        # Fallback: use the last operation output.
+        for op in reversed(spec.operations):
+            if op.output:
+                last_rank_output = op.output
+                break
+
+    if not last_rank_output:
+        return spec, []
+
+    new_ops = list(spec.operations)
+
+    # build_report node
+    report_output = "report"
+    new_ops.append(OperationSpec(
+        op="build_report",
+        inputs={"vector": last_rank_output},
+        params={
+            "score_field": "investment_score",
+            "rank_field": "rank",
+        },
+        output=report_output,
+    ))
+    repairs.append(
+        f"auto-injected build_report after {last_rank_output!r}"
+    )
+
+    # render_pdf node if format is pdf
+    want_pdf = any(
+        o.format == "pdf" or o.kind == "pdf"
+        for o in spec.outputs
+    )
+
+    final_output = report_output
+
+    if want_pdf:
+        pdf_output = "pdf_report"
+        new_ops.append(OperationSpec(
+            op="render_pdf",
+            inputs={"report": report_output},
+            params={"save_to_disk": True},
+            output=pdf_output,
+        ))
+        repairs.append("auto-injected render_pdf for PDF output")
+        final_output = pdf_output
+
+    # Update output sources.
+    new_outputs: list[OutputSpec] = []
+    for out in spec.outputs:
+        if out.kind in {"report", "pdf"} or out.format in {"pdf", "html"}:
+            new_outputs.append(OutputSpec(
+                kind=out.kind,
+                source=final_output,
+                format=out.format,
+                config=out.config,
+            ))
+        else:
+            new_outputs.append(out)
+
+    return (
+        QuerySpec(
+            raw_query=spec.raw_query,
+            goal=spec.goal,
+            entities=spec.entities,
+            operations=new_ops,
+            outputs=new_outputs,
+            source=spec.source,
+            metadata=spec.metadata,
+        ),
+        repairs,
+    )
+
+
+
 class LLMQuerySpecGenerator:
     def __init__(
         self,
@@ -932,7 +1118,7 @@ def normalize_llm_query_spec_for_planning(spec: QuerySpec) -> QuerySpec:
         normalization["repairs"] = old_repairs + repairs
         metadata["normalization"] = normalization
 
-    return QuerySpec(
+    current = QuerySpec(
         raw_query=normalized.raw_query,
         goal=normalized.goal,
         entities=normalized.entities,
@@ -941,3 +1127,61 @@ def normalize_llm_query_spec_for_planning(spec: QuerySpec) -> QuerySpec:
         source=normalized.source,
         metadata=metadata,
     )
+
+    # Phase 9.1: auto-inject enrich_risk
+    # Only after base normalization has added/validated scoring_spec.
+    # Check: scoring_spec must exist AND reference risk fields.
+    # Do NOT inject if default scoring spec was just added in this pass
+    # (default scoring already expects risk fields to be pre-enriched).
+    # Safe check: scoring_spec must have been provided by LLM explicitly.
+    _llm_provided_scoring = any(
+        op.op == "score_features"
+        and "scoring_spec" in op.params
+        and isinstance(op.params["scoring_spec"], dict)
+        and any(
+            f.get("field") in {"flood_risk", "earthquake_risk", "fire_risk"}
+            for f in op.params["scoring_spec"].get("factors", [])
+        )
+        for op in current.operations
+    )
+
+    _has_enrich_risk = any(op.op == "enrich_risk" for op in current.operations)
+    _was_default_scoring_added = any(
+        "added default scoring_spec" in r
+        for r in (current.metadata.get("normalization") or {}).get("repairs", [])
+    )
+
+    if _llm_provided_scoring and not _has_enrich_risk and not _was_default_scoring_added:
+        current, risk_repairs = _inject_risk_before_scoring(current)
+        if risk_repairs:
+            nm = dict(current.metadata.get("normalization") or {})
+            nm["applied"] = True
+            nm["repairs"] = nm.get("repairs", []) + risk_repairs
+            current = QuerySpec(
+                raw_query=current.raw_query,
+                goal=current.goal,
+                entities=current.entities,
+                operations=current.operations,
+                outputs=current.outputs,
+                source=current.source,
+                metadata={**current.metadata, "normalization": nm},
+            )
+
+    # Phase 10D: auto-inject build_report + render_pdf if needed
+    if _should_inject_report(current):
+        current, report_repairs = _inject_report_pipeline(current)
+        if report_repairs:
+            nm = dict(current.metadata.get("normalization") or {})
+            nm["applied"] = True
+            nm["repairs"] = nm.get("repairs", []) + report_repairs
+            current = QuerySpec(
+                raw_query=current.raw_query,
+                goal=current.goal,
+                entities=current.entities,
+                operations=current.operations,
+                outputs=current.outputs,
+                source=current.source,
+                metadata={**current.metadata, "normalization": nm},
+            )
+
+    return current

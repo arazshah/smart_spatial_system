@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+<meta charset="UTF-8">
+<title>{{ meta.title }}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Vazirmatn', 'Tahoma', sans-serif;
+    font-size: 11pt;
+    color: #1a1a2e;
+    background: #ffffff;
+    direction: rtl;
+  }
+
+  /* ── Cover ── */
+  .cover {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60mm;
+    padding: 12mm 16mm 8mm;
+    background: linear-gradient(135deg, #0f3460 0%, #16213e 100%);
+    color: white;
+    border-radius: 0 0 8mm 8mm;
+    margin-bottom: 8mm;
+  }
+
+  .cover-title {
+    font-size: 20pt;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-align: center;
+    margin-bottom: 3mm;
+  }
+
+  .cover-meta {
+    font-size: 9pt;
+    opacity: 0.75;
+    text-align: center;
+    line-height: 1.8;
+  }
+
+  /* ── Section ── */
+  .section {
+    padding: 0 12mm 6mm;
+  }
+
+  .section-title {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #0f3460;
+    border-right: 4px solid #e94560;
+    padding-right: 4mm;
+    margin-bottom: 4mm;
+  }
+
+  /* ── Summary Cards ── */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 3mm;
+    margin-bottom: 2mm;
+  }
+
+  .summary-card {
+    background: #f8f9ff;
+    border: 1px solid #e0e4f0;
+    border-radius: 3mm;
+    padding: 3mm 4mm;
+    text-align: center;
+  }
+
+  .summary-card .card-value {
+    font-size: 16pt;
+    font-weight: 700;
+    color: #0f3460;
+    display: block;
+  }
+
+  .summary-card .card-label {
+    font-size: 8pt;
+    color: #6b7280;
+    margin-top: 1mm;
+    display: block;
+  }
+
+  /* ── Table ── */
+  .ranking-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+  }
+
+  .ranking-table thead tr {
+    background: #0f3460;
+    color: white;
+  }
+
+  .ranking-table thead th {
+    padding: 3mm 2.5mm;
+    font-weight: 600;
+    text-align: center;
+    border: 1px solid #0a2540;
+  }
+
+  .ranking-table tbody tr:nth-child(even) {
+    background: #f8f9ff;
+  }
+
+  .ranking-table tbody tr:hover {
+    background: #eef1ff;
+  }
+
+  .ranking-table tbody td {
+    padding: 2.5mm 2.5mm;
+    text-align: center;
+    border: 1px solid #e0e4f0;
+    vertical-align: middle;
+  }
+
+  .rank-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 7mm;
+    height: 7mm;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 9pt;
+  }
+
+  .rank-1 { background: #ffd700; color: #1a1a2e; }
+  .rank-2 { background: #c0c0c0; color: #1a1a2e; }
+  .rank-3 { background: #cd7f32; color: white; }
+  .rank-other { background: #e0e4f0; color: #1a1a2e; }
+
+  .score-bar-cell { min-width: 28mm; }
+
+  .score-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 2mm;
+    justify-content: center;
+  }
+
+  .score-bar {
+    height: 3.5mm;
+    border-radius: 2mm;
+    background: linear-gradient(90deg, #e94560, #0f3460);
+    min-width: 1mm;
+  }
+
+  .score-val {
+    font-weight: 700;
+    font-size: 9.5pt;
+    color: #0f3460;
+    min-width: 10mm;
+    text-align: left;
+  }
+
+  /* ── Risk Badges ── */
+  .risk-badge {
+    display: inline-block;
+    padding: 0.8mm 2.5mm;
+    border-radius: 2mm;
+    font-size: 8pt;
+    font-weight: 600;
+  }
+
+  .risk-very_low, .risk-low { background: #d1fae5; color: #065f46; }
+  .risk-medium { background: #fef3c7; color: #92400e; }
+  .risk-high { background: #fee2e2; color: #991b1b; }
+  .risk-very_high, .risk-critical { background: #fecaca; color: #7f1d1d; }
+
+  /* ── Map Layers Info ── */
+  .layer-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2.5mm;
+  }
+
+  .layer-item {
+    display: flex;
+    align-items: center;
+    gap: 2.5mm;
+    background: #f8f9ff;
+    border: 1px solid #e0e4f0;
+    border-radius: 2.5mm;
+    padding: 2.5mm 3mm;
+  }
+
+  .layer-dot {
+    width: 4mm;
+    height: 4mm;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .layer-info { flex: 1; }
+
+  .layer-label {
+    font-size: 9pt;
+    font-weight: 600;
+    color: #1a1a2e;
+  }
+
+  .layer-count {
+    font-size: 8pt;
+    color: #6b7280;
+  }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 8mm;
+    padding: 4mm 12mm;
+    border-top: 0.5mm solid #e0e4f0;
+    display: flex;
+    justify-content: space-between;
+    font-size: 8pt;
+    color: #9ca3af;
+  }
+
+  /* ── Boolean ── */
+  .bool-true { color: #065f46; font-weight: 700; }
+  .bool-false { color: #991b1b; }
+</style>
+</head>
+<body>
+
+<!-- Cover -->
+<div class="cover">
+  <div class="cover-title">{{ meta.title }}</div>
+  <div class="cover-meta">
+    تاریخ تولید: {{ generated_at_fa }}<br>
+    تعداد ملک‌های تحلیل‌شده: {{ summary.total_count }}
+  </div>
+</div>
+
+<!-- Summary -->
+<div class="section">
+  <div class="section-title">خلاصه تحلیل</div>
+  <div class="summary-grid">
+    <div class="summary-card">
+      <span class="card-value">{{ summary.total_count }}</span>
+      <span class="card-label">تعداد ملک‌های واجد شرایط</span>
+    </div>
+    <div class="summary-card">
+      <span class="card-value">{{ summary.top_score | round(1) }}</span>
+      <span class="card-label">بالاترین امتیاز</span>
+    </div>
+    <div class="summary-card">
+      <span class="card-value">{{ summary.avg_score | round(1) }}</span>
+      <span class="card-label">میانگین امتیاز</span>
+    </div>
+    <div class="summary-card">
+      <span class="card-value">{{ summary.top_name or '—' }}</span>
+      <span class="card-label">برترین ملک</span>
+    </div>
+  </div>
+</div>
+
+<!-- Ranking Table -->
+<div class="section">
+  <div class="section-title">{{ table.title }}</div>
+  <table class="ranking-table">
+    <thead>
+      <tr>
+        {% for col in table.columns %}
+        <th>{{ col.label }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in table.rows %}
+      <tr>
+        {% for col in table.columns %}
+        <td>
+          {% set val = row[col.field] if col.field in row else '' %}
+
+          {% if col.field == 'rank' %}
+            {% set rank_cls = 'rank-' + val|string if val in [1,2,3] else 'rank-other' %}
+            <span class="rank-badge {{ rank_cls }}">{{ val }}</span>
+
+          {% elif col.field == meta.score_field %}
+            <div class="score-bar-wrap score-bar-cell">
+              {% set pct = (val / 100 * 30)|int %}
+              <div class="score-bar" style="width:{{ pct }}mm"></div>
+              <span class="score-val">{{ val }}</span>
+            </div>
+
+          {% elif col.field in ['flood_risk','earthquake_risk','fire_risk'] %}
+            <span class="risk-badge risk-{{ val }}">{{ risk_labels.get(val, val) }}</span>
+
+          {% elif col.field == 'inside_buildable_zone' %}
+            {% if val == '✓' or val == True %}
+              <span class="bool-true">✓</span>
+            {% else %}
+              <span class="bool-false">✗</span>
+            {% endif %}
+
+          {% else %}
+            {{ val }}
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Map Layers -->
+{% if map_layers %}
+<div class="section">
+  <div class="section-title">لایه‌های نقشه</div>
+  <div class="layer-list">
+    {% for layer in map_layers %}
+    <div class="layer-item">
+      <div class="layer-dot" style="background: {{ layer_colors[loop.index0 % layer_colors|length] }}"></div>
+      <div class="layer-info">
+        <div class="layer-label">{{ layer.label }}</div>
+        <div class="layer-count">{{ layer.feature_count }} عارضه</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Footer -->
+<div class="footer">
+  <span>{{ meta.title }}</span>
+  <span>تولید شده توسط Smart Spatial System</span>
+  <span>{{ generated_at_fa }}</span>
+</div>
+
+</body>
+</html>

@@ -41,6 +41,7 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.spatial_predicate",
     "plugins.feature_scoring",
     "plugins.feature_enrichment",
+    "plugins.risk_enrichment",
 ]
 
 

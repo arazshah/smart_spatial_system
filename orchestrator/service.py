@@ -143,6 +143,7 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.spatial_predicate",
     "plugins.feature_scoring",
     "plugins.feature_enrichment",
+    "plugins.risk_enrichment",
     "plugins.ndvi_calculator",
     "plugins.ndvi_analysis",
     "plugins.raster_statistics",

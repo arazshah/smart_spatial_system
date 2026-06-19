@@ -265,11 +265,33 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         notes="Join feature properties by matching keys.",
     ),
 
+
+    "enrich_risk": OpDescriptor(
+        op_name="enrich_risk",
+        capability_name="enrich_risk",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "risk_spec": "risk_spec",
+            "default_risks": "default_risks",
+            "overrides": "overrides",
+            "rules": "rules",
+            "id_field": "id_field",
+            "overwrite": "overwrite",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes="Add flood, earthquake and fire risk fields to features.",
+    ),
+
 }
 
 
 PENDING_OPS: set[str] = {
-    "enrich_risk",
     "enrich_weather",
     "build_report",
     "render_pdf",

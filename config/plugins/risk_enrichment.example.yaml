@@ -1,0 +1,6 @@
+default_risks:
+  flood_risk: low
+  earthquake_risk: low
+  fire_risk: low
+default_id_field: id
+default_overwrite: false

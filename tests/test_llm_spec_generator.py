@@ -319,3 +319,167 @@ def test_llm_generator_adds_default_scoring_spec_when_missing():
 
     plan = DeterministicPlanner().build(spec)
     assert plan.nodes[0].capability_name == "score_features"
+
+
+def test_llm_normalizer_injects_enrichment_nodes_for_default_real_estate_scoring():
+    """
+    When LLM omits scoring_spec, normalizer should:
+      - add default scoring spec
+      - insert enrichment nodes after distance/polygon operations
+      - rewrite downstream refs to enriched outputs
+    """
+    llm_json = {
+        "raw_query": "املاک نزدیک مترو و خیابان اصلی را امتیاز بده",
+        "goal": "rank_real_estate",
+        "entities": [
+            {"ref": "properties", "kind": "vector"},
+            {"ref": "poi", "kind": "vector"},
+            {"ref": "buildable_zone", "kind": "vector"},
+            {"ref": "roads", "kind": "vector"},
+        ],
+        "operations": [
+            {
+                "op": "filter_by_distance",
+                "inputs": {"vector": "properties", "reference": "poi"},
+                "params": {"max_distance_m": 500, "k": 1, "drop_unmatched": True},
+                "output": "near_properties",
+            },
+            {
+                "op": "filter_points_in_polygon",
+                "inputs": {"vector": "near_properties", "polygon": "buildable_zone"},
+                "params": {"predicate": "within", "drop_outside": True},
+                "output": "buildable_properties",
+            },
+            {
+                "op": "filter_by_distance",
+                "inputs": {"vector": "buildable_properties", "reference": "roads"},
+                "params": {"max_distance_m": 500, "k": 1, "drop_unmatched": True},
+                "output": "final_properties",
+            },
+            {
+                "op": "score_features",
+                "inputs": {"vector": "final_properties"},
+                "params": {},
+                "output": "scored_properties",
+            },
+            {
+                "op": "rank_features",
+                "inputs": {"vector": "scored_properties"},
+                "params": {},
+                "output": "ranked_properties",
+            },
+        ],
+        "outputs": [
+            {"kind": "report", "source": "ranked_properties", "format": "pdf"}
+        ],
+    }
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    generator = LLMQuerySpecGenerator(client)
+
+    spec = generator.generate("املاک نزدیک مترو و خیابان اصلی را امتیاز بده")
+
+    ops = spec.operations
+    op_names = [op.op for op in ops]
+
+    assert op_names == [
+        "filter_by_distance",
+        "enrich_feature_properties",
+        "filter_points_in_polygon",
+        "enrich_feature_properties",
+        "filter_by_distance",
+        "enrich_feature_properties",
+        "score_features",
+        "rank_features",
+    ]
+
+    assert ops[1].params["rules"][0]["target"] == "distance_to_poi"
+    assert ops[2].inputs["vector"] == "near_properties_enriched"
+
+    assert ops[3].params["rules"][0]["target"] == "inside_buildable_zone"
+    assert ops[4].inputs["vector"] == "buildable_properties_enriched"
+
+    assert ops[5].params["rules"][0]["target"] == "distance_to_road"
+    assert ops[6].inputs["vector"] == "final_properties_enriched"
+
+    scoring_spec = ops[6].params["scoring_spec"]
+    fields = [factor["field"] for factor in scoring_spec["factors"]]
+
+    assert "distance_to_poi" in fields
+    assert "distance_to_road" in fields
+    assert "inside_buildable_zone" in fields
+
+    assert ops[7].params["score_field"] == "investment_score"
+
+    plan = DeterministicPlanner().build(spec)
+    assert [node.capability_name for node in plan.nodes] == [
+        "find_nearest_neighbors",
+        "enrich_feature_properties",
+        "filter_points_in_polygon",
+        "enrich_feature_properties",
+        "find_nearest_neighbors",
+        "enrich_feature_properties",
+        "score_features",
+        "rank_features",
+    ]
+
+
+def test_llm_normalizer_does_not_inject_enrichment_when_scoring_spec_is_explicit():
+    """
+    If LLM provides explicit scoring_spec, keep its operation chain stable.
+    """
+    llm_json = {
+        "raw_query": "املاک را با scoring مشخص امتیاز بده",
+        "goal": "score_properties",
+        "entities": [
+            {"ref": "properties", "kind": "vector"},
+            {"ref": "poi", "kind": "vector"},
+        ],
+        "operations": [
+            {
+                "op": "filter_by_distance",
+                "inputs": {"vector": "properties", "reference": "poi"},
+                "params": {"max_distance_m": 500, "k": 1},
+                "output": "near_properties",
+            },
+            {
+                "op": "score_features",
+                "inputs": {"vector": "near_properties"},
+                "params": {
+                    "scoring_spec": {
+                        "output_field": "custom_score",
+                        "scale": 100,
+                        "factors": [
+                            {
+                                "name": "near",
+                                "field": "distance",
+                                "type": "inverse_distance",
+                                "max_distance": 500,
+                                "weight": 1,
+                            }
+                        ],
+                    }
+                },
+                "output": "scored",
+            },
+        ],
+        "outputs": [
+            {"kind": "vector", "source": "scored"}
+        ],
+    }
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    generator = LLMQuerySpecGenerator(client)
+
+    spec = generator.generate("املاک را با scoring مشخص امتیاز بده")
+
+    assert [op.op for op in spec.operations] == [
+        "filter_by_distance",
+        "score_features",
+    ]
+
+    plan = DeterministicPlanner().build(spec)
+    assert [node.capability_name for node in plan.nodes] == [
+        "find_nearest_neighbors",
+        "score_features",
+    ]

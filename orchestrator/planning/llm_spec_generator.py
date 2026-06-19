@@ -407,14 +407,14 @@ def _default_real_estate_scoring_spec() -> dict[str, Any]:
         "factors": [
             {
                 "name": "near_poi",
-                "field": "distance",
+                "field": "distance_to_poi",
                 "type": "inverse_distance",
                 "max_distance": 500,
                 "weight": 0.30,
             },
             {
                 "name": "inside_buildable_zone",
-                "field": "__in_polygon__",
+                "field": "inside_buildable_zone",
                 "type": "boolean",
                 "weight": 0.25,
             },
@@ -544,6 +544,229 @@ def normalize_llm_query_spec_for_planning(spec: QuerySpec) -> QuerySpec:
         entities=spec.entities,
         operations=normalized_ops,
         outputs=spec.outputs,
+        source=spec.source,
+        metadata=metadata,
+    )
+
+
+
+def _semantic_distance_field(reference_ref: str) -> str:
+    """
+    Pick a semantic distance field based on the reference entity/output name.
+    """
+    ref = str(reference_ref or "").lower()
+
+    if any(token in ref for token in ("road", "roads", "street", "highway", "خیابان", "جاده")):
+        return "distance_to_road"
+
+    if any(token in ref for token in ("poi", "metro", "mall", "shopping", "station", "مترو", "مرکز", "خرید")):
+        return "distance_to_poi"
+
+    return "distance_to_reference"
+
+
+def _unique_ref(base: str, used: set[str]) -> str:
+    candidate = base
+    index = 2
+    while candidate in used:
+        candidate = f"{base}_{index}"
+        index += 1
+    used.add(candidate)
+    return candidate
+
+
+def normalize_llm_query_spec_for_planning(spec: QuerySpec) -> QuerySpec:
+    """
+    Harden and improve LLM-produced QuerySpec before deterministic planning.
+
+    Repairs:
+        - Remove unsupported input roles.
+        - Add default scoring_spec when score_features misses it.
+        - Add score_field/rank_field to rank_features when missing.
+        - If default scoring is used, inject enrichment nodes after spatial
+          operations to create stable semantic scoring fields:
+              distance_to_poi
+              distance_to_road
+              inside_buildable_zone
+    """
+    repairs: list[str] = []
+    normalized_ops: list[OperationSpec] = []
+
+    used_refs: set[str] = set()
+    for op in spec.operations:
+        if op.output:
+            used_refs.add(op.output)
+
+    # Inject enrichment only when LLM did not provide its own scoring spec.
+    # This keeps old explicit LLM specs stable, but improves weak/missing specs.
+    should_inject_enrichment = any(
+        op.op == "score_features"
+        and "scoring_spec" not in op.params
+        and "factors" not in op.params
+        for op in spec.operations
+    )
+
+    last_score_field: str | None = None
+    ref_rewrites: dict[str, str] = {}
+
+    for op in spec.operations:
+        # Unknown operations stay unchanged so Planner can raise clear errors.
+        if not is_supported(op.op):
+            normalized_ops.append(op)
+            continue
+
+        descriptor = get_op(op.op)
+
+        allowed_roles = set(descriptor.input_map)
+        clean_inputs: dict[str, str] = {}
+
+        for role, ref in op.inputs.items():
+            if role in allowed_roles:
+                ref_str = str(ref)
+                clean_inputs[role] = ref_rewrites.get(ref_str, ref_str)
+            else:
+                repairs.append(
+                    f"removed unsupported input role {role!r} from operation {op.op!r}"
+                )
+
+        clean_params = dict(op.params)
+
+        if op.op == "score_features":
+            if "scoring_spec" not in clean_params and "factors" not in clean_params:
+                clean_params["scoring_spec"] = _default_real_estate_scoring_spec()
+                repairs.append("added default scoring_spec to score_features")
+
+            scoring_spec = clean_params.get("scoring_spec")
+            if isinstance(scoring_spec, dict):
+                scoring_inner = scoring_spec.get("scoring")
+                if isinstance(scoring_inner, dict):
+                    last_score_field = str(scoring_inner.get("output_field") or "score")
+                else:
+                    last_score_field = str(scoring_spec.get("output_field") or "score")
+            else:
+                last_score_field = str(clean_params.get("output_field") or "score")
+
+        if op.op == "rank_features":
+            if "score_field" not in clean_params:
+                clean_params["score_field"] = last_score_field or "score"
+                repairs.append(
+                    f"added score_field={clean_params['score_field']!r} to rank_features"
+                )
+            if "rank_field" not in clean_params:
+                clean_params["rank_field"] = "rank"
+                repairs.append("added rank_field='rank' to rank_features")
+
+        normalized_op = OperationSpec(
+            op=op.op,
+            inputs=clean_inputs,
+            params=clean_params,
+            output=op.output,
+        )
+        normalized_ops.append(normalized_op)
+
+        if not should_inject_enrichment:
+            continue
+
+        # Inject semantic distance enrichment after distance operations.
+        if op.op == "filter_by_distance" and op.output:
+            reference_ref = str(op.inputs.get("reference") or "")
+            target_field = _semantic_distance_field(reference_ref)
+
+            enriched_output = _unique_ref(f"{op.output}_enriched", used_refs)
+
+            normalized_ops.append(
+                OperationSpec(
+                    op="enrich_feature_properties",
+                    inputs={"vector": op.output},
+                    params={
+                        "rules": [
+                            {
+                                "target": target_field,
+                                "first_existing": [
+                                    "distance_m",
+                                    "distance",
+                                    "nearest_distance_m",
+                                    "nearest_distance",
+                                    "min_distance_m",
+                                    "min_distance",
+                                ],
+                                "transform": "float",
+                            }
+                        ],
+                        "skip_missing": True,
+                    },
+                    output=enriched_output,
+                )
+            )
+
+            ref_rewrites[op.output] = enriched_output
+            repairs.append(
+                f"inserted enrich_feature_properties after {op.op!r} "
+                f"to create {target_field!r}"
+            )
+
+        # Inject inside_buildable_zone after polygon filtering.
+        if op.op == "filter_points_in_polygon" and op.output:
+            enriched_output = _unique_ref(f"{op.output}_enriched", used_refs)
+
+            normalized_ops.append(
+                OperationSpec(
+                    op="enrich_feature_properties",
+                    inputs={"vector": op.output},
+                    params={
+                        "rules": [
+                            {
+                                "target": "inside_buildable_zone",
+                                "value": True,
+                            }
+                        ],
+                        "skip_missing": True,
+                    },
+                    output=enriched_output,
+                )
+            )
+
+            ref_rewrites[op.output] = enriched_output
+            repairs.append(
+                "inserted enrich_feature_properties after "
+                "'filter_points_in_polygon' to create 'inside_buildable_zone'"
+            )
+
+    # Rewrite OutputSpec source if it points to an operation output that was enriched.
+    normalized_outputs: list[OutputSpec] = []
+    for output in spec.outputs:
+        source = output.source
+        if source in ref_rewrites:
+            source = ref_rewrites[source]
+            repairs.append(f"rewrote output source to enriched ref {source!r}")
+
+        normalized_outputs.append(
+            OutputSpec(
+                kind=output.kind,
+                source=source,
+                format=output.format,
+                config=output.config,
+            )
+        )
+
+    metadata = dict(spec.metadata or {})
+    if repairs:
+        normalization = metadata.get("normalization")
+        if not isinstance(normalization, dict):
+            normalization = {}
+        existing_repairs = normalization.get("repairs")
+        if not isinstance(existing_repairs, list):
+            existing_repairs = []
+        normalization["applied"] = True
+        normalization["repairs"] = existing_repairs + repairs
+        metadata["normalization"] = normalization
+
+    return QuerySpec(
+        raw_query=spec.raw_query,
+        goal=spec.goal,
+        entities=spec.entities,
+        operations=normalized_ops,
+        outputs=normalized_outputs,
         source=spec.source,
         metadata=metadata,
     )

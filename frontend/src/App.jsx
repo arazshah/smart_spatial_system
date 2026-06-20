@@ -293,8 +293,12 @@ export default function App() {
     hiddenLayerKeys: new Set(),
     removedLayerKeys: new Set(),
     layerStyles: {},
-    fitRequest: { key: null, trigger: 0 },
+    fitRequest: { key: null, featureId: null, trigger: 0 },
     styleLayerKey: null,
+    selectedLayerKey: null,
+    selectedFeatureId: null,
+    selectedFeatureProperties: null,
+    selectedTableId: null,
   });
 
   const [activeTool, setActiveTool] = useState(null);

@@ -9581,3 +9581,57 @@ details.modal-section[open] summary::before {
   font-size: 0.78rem;
   line-height: 1.7;
 }
+
+/* Phase 16: map-linked table selection */
+
+.inspector-data-table tr.clickable {
+  cursor: pointer;
+  transition: background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.inspector-data-table tr.clickable:hover td {
+  background: rgba(53, 104, 212, 0.07);
+}
+
+.inspector-data-table tr.selected td {
+  background: rgba(245, 158, 11, 0.13);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.selected-property-panel {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(255, 248, 235, 0.76);
+}
+
+.selected-property-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.selected-property-grid span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid rgba(83, 71, 54, 0.1);
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 13px;
+  padding: 8px 10px;
+}
+
+.selected-property-grid small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+.selected-property-grid strong {
+  color: var(--text);
+  font-size: 0.8rem;
+  text-align: left;
+  direction: ltr;
+  max-width: 58%;
+  word-break: break-word;
+}

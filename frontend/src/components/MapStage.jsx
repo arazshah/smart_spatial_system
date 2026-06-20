@@ -310,6 +310,65 @@ function mapLayerGeoJsonSignature(collection) {
 }
 
 
+
+function normalizeFeatureId(value) {
+  if (value === null || value === undefined || value === "") return "";
+  return String(value);
+}
+
+function getFeatureIdentity(feature) {
+  const props = feature?.properties || {};
+
+  return normalizeFeatureId(
+    feature?.id ??
+      props.id ??
+      props.property_id ??
+      props.feature_id ??
+      props.uid ??
+      props.name ??
+      props.title
+  );
+}
+
+function featureMatchesSelection(feature, selectedFeatureId) {
+  const wanted = normalizeFeatureId(selectedFeatureId);
+  if (!wanted) return false;
+
+  const current = getFeatureIdentity(feature);
+  if (current && current === wanted) return true;
+
+  const props = feature?.properties || {};
+  return Object.values(props).some((value) => normalizeFeatureId(value) === wanted);
+}
+
+function selectedFeatureStyle(baseStyle) {
+  return {
+    color: "#f59e0b",
+    weight: Math.max(Number(baseStyle?.weight || 2) + 2, 4),
+    opacity: 1,
+    fillColor: "#fbbf24",
+    fillOpacity: Math.max(Number(baseStyle?.fillOpacity || 0.22), 0.58),
+  };
+}
+
+function selectedPointStyle(baseStyle) {
+  return {
+    radius: Math.max(Number(baseStyle?.radius || 7) + 3, 10),
+    color: "#ffffff",
+    weight: 3,
+    fillColor: "#f59e0b",
+    fillOpacity: 0.92,
+    opacity: 1,
+  };
+}
+
+function featureCollectionForFeature(feature) {
+  return {
+    type: "FeatureCollection",
+    features: [feature],
+  };
+}
+
 function MapStatusChip({ icon, label, value, tone = "default" }) {
   return (
     <div className={`map-status-chip ${tone}`}>
@@ -332,6 +391,7 @@ export default function MapStage({
 }) {
   const [internalFitRequest, setInternalFitRequest] = useState({
     key: null,
+    featureId: null,
     trigger: 0,
   });
   const [internalHiddenLayerKeys, setInternalHiddenLayerKeys] = useState(() => new Set());
@@ -347,6 +407,9 @@ export default function MapStage({
     layerWorkspace && Object.prototype.hasOwnProperty.call(layerWorkspace, "styleLayerKey")
       ? layerWorkspace.styleLayerKey
       : internalStyleLayerKey;
+
+  const selectedFeatureId =
+    layerWorkspace?.selectedFeatureId || fitRequest?.featureId || null;
 
   const setFitRequest = (value) => {
     if (onLayerWorkspaceChange) {
@@ -427,6 +490,7 @@ export default function MapStage({
     setStyleLayerKey(null);
     setFitRequest({
       key: null,
+      featureId: null,
       trigger: Date.now(),
     });
   }, [rawLayersSignature]);
@@ -507,15 +571,39 @@ export default function MapStage({
   }, [visibleRenderableLayers]);
 
   const fitCollections = useMemo(() => {
+    const requestedFeatureId = fitRequest?.featureId || selectedFeatureId;
+
+    if (requestedFeatureId) {
+      const candidateLayers = fitRequest?.key
+        ? allRenderableLayers.filter((layer) => layer.key === fitRequest.key)
+        : allRenderableLayers;
+
+      for (const layer of candidateLayers) {
+        const feature = (layer.geojson?.features || []).find((item) =>
+          featureMatchesSelection(item, requestedFeatureId)
+        );
+
+        if (feature) {
+          return [featureCollectionForFeature(feature)];
+        }
+      }
+    }
+
     if (!fitRequest.key) return collections;
 
     const target = allRenderableLayers.find((layer) => layer.key === fitRequest.key);
 
     return target?.geojson ? [target.geojson] : collections;
-  }, [fitRequest.key, allRenderableLayers, collections]);
+  }, [
+    fitRequest?.key,
+    fitRequest?.featureId,
+    selectedFeatureId,
+    allRenderableLayers,
+    collections,
+  ]);
 
   const fitSignature = useMemo(() => {
-    return `${visibleSignature}|fit:${fitRequest.key || "all"}:${fitRequest.trigger}`;
+    return `${visibleSignature}|fit:${fitRequest.key || "all"}:${fitRequest.featureId || "none"}:${fitRequest.trigger}`;
   }, [visibleSignature, fitRequest]);
 
   const totalFeatures = useMemo(() => countFeatures(collections), [collections]);
@@ -585,6 +673,7 @@ export default function MapStage({
   const zoomToAllVisibleLayers = () => {
     setFitRequest({
       key: null,
+      featureId: null,
       trigger: Date.now(),
     });
   };
@@ -592,6 +681,7 @@ export default function MapStage({
   const zoomToLayer = (layerKey) => {
     setFitRequest({
       key: layerKey,
+      featureId: null,
       trigger: Date.now(),
     });
   };
@@ -674,29 +764,61 @@ export default function MapStage({
                 name={item.name}
               >
                 <GeoJSON
-                  key={`${item.key}-${index}-${JSON.stringify(item.style)}`}
+                  key={`${item.key}-${index}-${selectedFeatureId || "none"}-${JSON.stringify(item.style)}`}
                   data={item.geojson}
-                  style={() => ({
-                    color: item.style.color,
-                    weight: item.style.weight,
-                    opacity: item.style.opacity,
-                    fillColor: item.style.fillColor,
-                    fillOpacity: item.style.fillOpacity,
-                  })}
-                  pointToLayer={(feature, latlng) =>
-                    L.circleMarker(latlng, {
+                  style={(feature) => {
+                    const baseStyle = {
+                      color: item.style.color,
+                      weight: item.style.weight,
+                      opacity: item.style.opacity,
+                      fillColor: item.style.fillColor,
+                      fillOpacity: item.style.fillOpacity,
+                    };
+
+                    return featureMatchesSelection(feature, selectedFeatureId)
+                      ? selectedFeatureStyle(baseStyle)
+                      : baseStyle;
+                  }}
+                  pointToLayer={(feature, latlng) => {
+                    const basePointStyle = {
                       radius: item.style.radius,
                       color: "#ffffff",
                       weight: 2,
                       fillColor: item.style.fillColor || item.style.color,
                       fillOpacity: Math.max(item.style.fillOpacity, 0.35),
                       opacity: 1,
-                    })
-                  }
+                    };
+
+                    return L.circleMarker(
+                      latlng,
+                      featureMatchesSelection(feature, selectedFeatureId)
+                        ? selectedPointStyle(basePointStyle)
+                        : basePointStyle
+                    );
+                  }}
                   onEachFeature={(feature, layer) => {
                     layer.bindPopup(featurePopupHtml(feature), {
                       maxWidth: 360,
                       className: "map-popup-wrapper-pro",
+                    });
+
+                    layer.on("click", () => {
+                      const featureId = getFeatureIdentity(feature);
+
+                      if (!featureId || !onLayerWorkspaceChange) return;
+
+                      onLayerWorkspaceChange((previous) => ({
+                        ...previous,
+                        selectedLayerKey: item.key,
+                        selectedFeatureId: featureId,
+                        selectedFeatureProperties: feature?.properties || {},
+                        selectedTableId: previous?.selectedTableId || null,
+                        fitRequest: {
+                          key: item.key,
+                          featureId,
+                          trigger: Date.now(),
+                        },
+                      }));
                     });
                   }}
                 />

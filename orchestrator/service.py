@@ -25,6 +25,7 @@ Main responsibilities:
 """
 
 from __future__ import annotations
+import os
 
 import uuid
 from dataclasses import asdict, dataclass, field, is_dataclass
@@ -1128,7 +1129,9 @@ class OrchestratorService:
         llm = runtime.get("llm", {}) if isinstance(runtime, dict) else {}
 
         enabled_count = plugins.get("enabled_capability_count")
-        plugin_count = len(plugins.get("plugin_ids") or [])
+        plugin_ids = plugins.get("plugin_ids") or []
+        module_names = plugins.get("module_names") or []
+        plugin_count = len(plugin_ids) if plugin_ids else len(module_names)
 
         answer = (
             "سیستم فعال است و سرویس ارکستریتور آماده پاسخ‌گویی است. "

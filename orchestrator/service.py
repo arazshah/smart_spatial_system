@@ -1696,18 +1696,18 @@ class OrchestratorService:
         }
 
         columns = [
-            {"key": "rank", "label": "رتبه"},
-            {"key": "name", "label": "نام ملک"},
-            {"key": "kind", "label": "نوع"},
-            {"key": "price", "label": "قیمت"},
-            {"key": "score", "label": "امتیاز"},
-            {"key": "investment_score", "label": "امتیاز سرمایه‌گذاری"},
-            {"key": "best_poi_distance_m", "label": "نزدیک‌ترین فاصله به مترو/مرکز خرید"},
-            {"key": "distance_to_main_road_m", "label": "فاصله تا خیابان اصلی"},
-            {"key": "flood_risk", "label": "ریسک سیل"},
-            {"key": "earthquake_risk", "label": "ریسک زلزله"},
-            {"key": "fire_risk", "label": "ریسک آتش‌سوزی"},
-            {"key": "in_allowed_zone", "label": "محدوده مجاز ساخت"},
+            {"key": "rank", "field": "rank", "label": "رتبه"},
+            {"key": "name", "field": "name", "label": "نام ملک"},
+            {"key": "kind", "field": "kind", "label": "نوع"},
+            {"key": "price", "field": "price", "label": "قیمت"},
+            {"key": "score", "field": "score", "label": "امتیاز"},
+            {"key": "investment_score", "field": "investment_score", "label": "امتیاز سرمایه‌گذاری"},
+            {"key": "best_poi_distance_m", "field": "best_poi_distance_m", "label": "نزدیک‌ترین فاصله به مترو/مرکز خرید"},
+            {"key": "distance_to_main_road_m", "field": "distance_to_main_road_m", "label": "فاصله تا خیابان اصلی"},
+            {"key": "flood_risk", "field": "flood_risk", "label": "ریسک سیل"},
+            {"key": "earthquake_risk", "field": "earthquake_risk", "label": "ریسک زلزله"},
+            {"key": "fire_risk", "field": "fire_risk", "label": "ریسک آتش‌سوزی"},
+            {"key": "in_allowed_zone", "field": "in_allowed_zone", "label": "محدوده مجاز ساخت"},
         ]
 
         return {
@@ -1716,6 +1716,9 @@ class OrchestratorService:
                 "language": "fa",
                 "format": "pdf",
                 "domain": "real_estate_spatial_ranking",
+                "score_field": "score",
+                "rank_field": "rank",
+                "name_field": "name",
             },
             "summary": pdf_summary,
             "table": {
@@ -1728,6 +1731,7 @@ class OrchestratorService:
                 {
                     "id": "ranked_properties",
                     "name": "املاک رتبه‌بندی‌شده",
+                    "label": "املاک رتبه‌بندی‌شده",
                     "type": "vector",
                     "format": "geojson",
                     "feature_count": len(ranked_geojson.get("features") or []),

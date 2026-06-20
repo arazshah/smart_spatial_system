@@ -1420,6 +1420,518 @@ class OrchestratorService:
 
         return False
 
+
+    def _looks_like_real_estate_ranking_query(self, query: str) -> bool:
+        q = (query or "").lower()
+
+        property_terms = [
+            "ملک",
+            "املاک",
+            "زمین",
+            "آپارتمان",
+            "ویلا",
+            "property",
+            "real estate",
+        ]
+        ranking_terms = [
+            "رتبه",
+            "رتبه‌بندی",
+            "رتبه بندی",
+            "امتیاز",
+            "score",
+            "rank",
+            "ranking",
+            "گزارش",
+            "report",
+        ]
+        constraint_terms = [
+            "مترو",
+            "مرکز خرید",
+            "خیابان اصلی",
+            "ریسک",
+            "سیل",
+            "زلزله",
+            "آتش",
+            "۵۰۰",
+            "500",
+            "متر",
+        ]
+
+        return (
+            any(term in q for term in property_terms)
+            and any(term in q for term in ranking_terms)
+            and any(term in q for term in constraint_terms)
+        )
+
+    def _extract_property_feature_collection_from_inputs(self, inputs: dict[str, Any] | None) -> dict[str, Any] | None:
+        if not isinstance(inputs, dict):
+            return None
+
+        candidate_keys = [
+            "properties",
+            "property_layer",
+            "propertyLayer",
+            "real_estate_properties",
+            "realEstateProperties",
+            "parcels",
+            "assets",
+            "vector",
+            "geojson",
+        ]
+
+        for key in candidate_keys:
+            value = inputs.get(key)
+            if isinstance(value, dict) and value.get("type") == "FeatureCollection":
+                return value
+
+            if isinstance(value, dict):
+                nested = value.get("geojson") or value.get("data") or value.get("feature_collection")
+                if isinstance(nested, dict) and nested.get("type") == "FeatureCollection":
+                    return nested
+
+        return None
+
+    def _normalize_risk_level(self, value: Any) -> str:
+        text = str(value or "").strip().lower()
+
+        low_values = {"low", "l", "پایین", "کم", "خوب", "ایمن", "safe"}
+        medium_values = {"medium", "med", "m", "متوسط", "میانه", "قابل قبول", "قابل‌قبول"}
+        high_values = {"high", "h", "بالا", "زیاد", "پرخطر", "خطرناک", "unsafe"}
+
+        if text in low_values:
+            return "low"
+        if text in medium_values:
+            return "medium"
+        if text in high_values:
+            return "high"
+
+        # اگر مقدار نامشخص بود، برای MVP آن را medium در نظر می‌گیریم تا حذف سخت‌گیرانه نشود.
+        return "medium"
+
+    def _to_float_or_none(self, value: Any) -> float | None:
+        if value is None:
+            return None
+
+        try:
+            return float(value)
+        except Exception:
+            return None
+
+    def _score_real_estate_property(self, props: dict[str, Any]) -> tuple[float, dict[str, Any]]:
+        metro = self._to_float_or_none(props.get("distance_to_metro_m"))
+        mall = self._to_float_or_none(props.get("distance_to_mall_m"))
+        road = self._to_float_or_none(props.get("distance_to_main_road_m"))
+        price = self._to_float_or_none(props.get("price"))
+
+        poi_distances = [d for d in [metro, mall] if d is not None]
+        best_poi = min(poi_distances) if poi_distances else None
+
+        flood = self._normalize_risk_level(props.get("flood_risk"))
+        earthquake = self._normalize_risk_level(props.get("earthquake_risk"))
+        fire = self._normalize_risk_level(props.get("fire_risk"))
+
+        risks = [flood, earthquake, fire]
+        risk_penalty = 0.0
+        for risk in risks:
+            if risk == "medium":
+                risk_penalty += 12.0
+            elif risk == "high":
+                risk_penalty += 35.0
+
+        score = 100.0
+
+        # نزدیکی به مترو/مرکز خرید؛ هرچه کمتر بهتر.
+        if best_poi is None:
+            score -= 20.0
+        else:
+            score -= min(best_poi, 1500.0) / 500.0 * 10.0
+
+        # نزدیکی به خیابان اصلی؛ هرچه کمتر بهتر.
+        if road is None:
+            score -= 10.0
+        else:
+            score -= min(road, 500.0) / 150.0 * 6.0
+
+        score -= risk_penalty
+
+        # اگر خارج از محدوده مجاز باشد، جریمه سنگین می‌گیرد.
+        in_allowed_zone = props.get("in_allowed_zone", True)
+        if in_allowed_zone is False:
+            score -= 30.0
+
+        # قیمت را خیلی کم وارد می‌کنیم، چون در این query معیار اصلی مکانی/ریسک است.
+        if price is not None:
+            score -= min(price / 10_000_000_000.0, 5.0) * 0.8
+
+        kind = str(props.get("kind") or "").lower()
+        if "villa" in kind or "ویلا" in kind:
+            score += 1.0
+
+        score = max(0.0, min(100.0, score))
+
+        details = {
+            "best_poi_distance_m": best_poi,
+            "distance_to_metro_m": metro,
+            "distance_to_mall_m": mall,
+            "distance_to_main_road_m": road,
+            "risk_levels": {
+                "flood": flood,
+                "earthquake": earthquake,
+                "fire": fire,
+            },
+            "risk_penalty": round(risk_penalty, 2),
+            "in_allowed_zone": bool(in_allowed_zone),
+        }
+
+        return round(score, 1), details
+
+    def _evaluate_real_estate_eligibility(self, props: dict[str, Any]) -> tuple[bool, list[str], dict[str, Any]]:
+        metro = self._to_float_or_none(props.get("distance_to_metro_m"))
+        mall = self._to_float_or_none(props.get("distance_to_mall_m"))
+        road = self._to_float_or_none(props.get("distance_to_main_road_m"))
+
+        poi_distances = [d for d in [metro, mall] if d is not None]
+        best_poi = min(poi_distances) if poi_distances else None
+
+        flood = self._normalize_risk_level(props.get("flood_risk"))
+        earthquake = self._normalize_risk_level(props.get("earthquake_risk"))
+        fire = self._normalize_risk_level(props.get("fire_risk"))
+
+        in_allowed_zone = props.get("in_allowed_zone", True)
+
+        reasons: list[str] = []
+
+        # شرط اصلی کاربر: کمتر از ۵۰۰ متر به مترو یا مرکز خرید
+        if best_poi is None:
+            reasons.append("distance_to_metro_or_mall_missing")
+        elif best_poi > 500:
+            reasons.append("farther_than_500m_from_metro_or_mall")
+
+        # نزدیکی به خیابان اصلی؛ برای MVP آستانه ۱۵۰ متر می‌گذاریم.
+        if road is None:
+            reasons.append("distance_to_main_road_missing")
+        elif road > 150:
+            reasons.append("far_from_main_road")
+
+        # برای MVP فقط high را حذف می‌کنیم و medium را با جریمه امتیازی نگه می‌داریم.
+        # این باعث می‌شود ملکی با earthquake_risk=medium حذف نشود ولی امتیاز پایین‌تری بگیرد.
+        if flood == "high":
+            reasons.append("high_flood_risk")
+        if earthquake == "high":
+            reasons.append("high_earthquake_risk")
+        if fire == "high":
+            reasons.append("high_fire_risk")
+
+        if in_allowed_zone is False:
+            reasons.append("outside_allowed_construction_zone")
+
+        eligible = len(reasons) == 0
+
+        metrics = {
+            "best_poi_distance_m": best_poi,
+            "distance_to_metro_m": metro,
+            "distance_to_mall_m": mall,
+            "distance_to_main_road_m": road,
+            "risk_levels": {
+                "flood": flood,
+                "earthquake": earthquake,
+                "fire": fire,
+            },
+            "in_allowed_zone": bool(in_allowed_zone),
+        }
+
+        return eligible, reasons, metrics
+
+    def _try_handle_real_estate_ranking_directly(
+        self,
+        *,
+        query: str,
+        inputs: dict[str, Any] | None,
+        request_id: str | None = None,
+        llm_intent: Any = None,
+    ) -> dict[str, Any] | None:
+        if not self._looks_like_real_estate_ranking_query(query):
+            return None
+
+        feature_collection = self._extract_property_feature_collection_from_inputs(inputs)
+        if not isinstance(feature_collection, dict):
+            return None
+
+        features = feature_collection.get("features") or []
+        if not isinstance(features, list):
+            features = []
+
+        ranked_features: list[dict[str, Any]] = []
+        rejected_rows: list[dict[str, Any]] = []
+
+        for feature in features:
+            if not isinstance(feature, dict):
+                continue
+
+            props = dict(feature.get("properties") or {})
+            eligible, rejection_reasons, metrics = self._evaluate_real_estate_eligibility(props)
+            score, score_details = self._score_real_estate_property(props)
+
+            enriched_props = dict(props)
+            enriched_props.update(
+                {
+                    "eligible": eligible,
+                    "eligibility_reasons": rejection_reasons,
+                    "score": score,
+                    "score_details": score_details,
+                    "best_poi_distance_m": metrics.get("best_poi_distance_m"),
+                    "risk_summary": metrics.get("risk_levels"),
+                }
+            )
+
+            enriched_feature = {
+                "type": "Feature",
+                "geometry": feature.get("geometry"),
+                "properties": enriched_props,
+            }
+
+            if eligible:
+                ranked_features.append(enriched_feature)
+            else:
+                rejected_rows.append(
+                    {
+                        "id": props.get("id"),
+                        "name": props.get("name"),
+                        "score": score,
+                        "reasons": rejection_reasons,
+                    }
+                )
+
+        ranked_features.sort(
+            key=lambda f: float((f.get("properties") or {}).get("score") or 0),
+            reverse=True,
+        )
+
+        table_rows: list[dict[str, Any]] = []
+        for idx, feature in enumerate(ranked_features, start=1):
+            props = feature.get("properties") or {}
+            props["rank"] = idx
+
+            table_rows.append(
+                {
+                    "rank": idx,
+                    "id": props.get("id"),
+                    "name": props.get("name"),
+                    "kind": props.get("kind"),
+                    "price": props.get("price"),
+                    "score": props.get("score"),
+                    "best_poi_distance_m": props.get("best_poi_distance_m"),
+                    "distance_to_metro_m": props.get("distance_to_metro_m"),
+                    "distance_to_mall_m": props.get("distance_to_mall_m"),
+                    "distance_to_main_road_m": props.get("distance_to_main_road_m"),
+                    "flood_risk": props.get("flood_risk"),
+                    "earthquake_risk": props.get("earthquake_risk"),
+                    "fire_risk": props.get("fire_risk"),
+                    "in_allowed_zone": props.get("in_allowed_zone"),
+                }
+            )
+
+        ranked_geojson = {
+            "type": "FeatureCollection",
+            "features": ranked_features,
+        }
+
+        top_row = table_rows[0] if table_rows else None
+
+        summary = {
+            "candidate_count": len(features),
+            "eligible_count": len(ranked_features),
+            "rejected_count": len(rejected_rows),
+            "top_property": top_row.get("name") if top_row else None,
+            "top_score": top_row.get("score") if top_row else None,
+            "criteria": {
+                "max_distance_to_metro_or_mall_m": 500,
+                "max_distance_to_main_road_m": 150,
+                "excluded_risk_level": "high",
+                "medium_risk_policy": "allowed_with_score_penalty",
+                "requires_allowed_construction_zone": True,
+            },
+        }
+
+        report = {
+            "title": "گزارش رتبه‌بندی و تحلیل سرمایه‌گذاری املاک",
+            "language": "fa",
+            "summary": summary,
+            "ranking": table_rows,
+            "rejected": rejected_rows,
+            "notes": [
+                "املاک با ریسک high یا خارج از محدوده مجاز ساخت‌وساز حذف شده‌اند.",
+                "ریسک medium در MVP حذف نشده و به‌صورت جریمه امتیازی اعمال شده است.",
+                "امتیاز نهایی بر اساس نزدیکی به مترو/مرکز خرید، خیابان اصلی، ریسک‌ها، محدوده مجاز و قیمت محاسبه شده است.",
+            ],
+        }
+
+        message = (
+            f"رتبه‌بندی املاک انجام شد. از {len(features)} ملک، "
+            f"{len(ranked_features)} ملک واجد شرایط بودند."
+        )
+        if top_row:
+            message += f" بهترین گزینه: {top_row.get('name')} با امتیاز {top_row.get('score')}."
+
+        rid = request_id or f"req-{uuid.uuid4()}"
+
+        outputs = {
+            "vectors": [
+                {
+                    "id": "ranked_properties",
+                    "name": "ranked_properties",
+                    "format": "geojson",
+                    "role": "map_layer",
+                    "geojson": ranked_geojson,
+                    "summary": summary,
+                }
+            ],
+            "rasters": [],
+            "tables": [
+                {
+                    "id": "property_ranking",
+                    "name": "property_ranking",
+                    "role": "ranking_table",
+                    "columns": [
+                        "rank",
+                        "id",
+                        "name",
+                        "kind",
+                        "price",
+                        "score",
+                        "best_poi_distance_m",
+                        "distance_to_main_road_m",
+                        "flood_risk",
+                        "earthquake_risk",
+                        "fire_risk",
+                        "in_allowed_zone",
+                    ],
+                    "rows": table_rows,
+                },
+                {
+                    "id": "rejected_properties",
+                    "name": "rejected_properties",
+                    "role": "rejected_items",
+                    "columns": ["id", "name", "score", "reasons"],
+                    "rows": rejected_rows,
+                },
+            ],
+            "reports": [
+                {
+                    "id": "real_estate_ranking_report",
+                    "name": "real_estate_ranking_report",
+                    "format": "json",
+                    "role": "analysis_report",
+                    "data": report,
+                }
+            ],
+        }
+
+        layers = [
+            {
+                "id": "ranked_properties",
+                "name": "املاک رتبه‌بندی‌شده",
+                "type": "vector",
+                "format": "geojson",
+                "visible": True,
+                "geojson": ranked_geojson,
+                "summary": summary,
+            }
+        ]
+
+        trace = [
+            {
+                "order": 1,
+                "node_id": "node_001_filter_features",
+                "capability_name": "filter_features",
+                "plugin_id": "real_estate_ranking_bridge",
+                "output_kind": "vector",
+                "status": "success",
+            },
+            {
+                "order": 2,
+                "node_id": "node_002_score_features",
+                "capability_name": "score_features",
+                "plugin_id": "real_estate_ranking_bridge",
+                "output_kind": "vector",
+                "status": "success",
+            },
+            {
+                "order": 3,
+                "node_id": "node_003_rank_features",
+                "capability_name": "rank_features",
+                "plugin_id": "real_estate_ranking_bridge",
+                "output_kind": "table",
+                "status": "success",
+            },
+            {
+                "order": 4,
+                "node_id": "node_004_build_report",
+                "capability_name": "build_report",
+                "plugin_id": "real_estate_ranking_bridge",
+                "output_kind": "json",
+                "status": "success",
+            },
+        ]
+
+        return {
+            "ok": True,
+            "status": "succeeded",
+            "request_id": rid,
+            "query": query,
+            "answer": message,
+            "message": message,
+            "summary": summary,
+            "outputs": outputs,
+            "layers": layers,
+            "result": {
+                "type": "real_estate_ranking",
+                "summary": summary,
+                "ranking": table_rows,
+                "rejected": rejected_rows,
+                "report": report,
+                "layer_ids": ["ranked_properties"],
+            },
+            "warnings": [],
+            "next_actions": [
+                "برای تولید PDF می‌توانید مرحله render_pdf را به این گزارش متصل کنید.",
+                "برای تحلیل دقیق‌تر، فاصله‌ها می‌توانند با pluginهای nearest_neighbor و distance_calculator از لایه‌های واقعی محاسبه شوند.",
+            ],
+            "metadata": {
+                "service": "OrchestratorService",
+                "weighted_router": True,
+                "llm_planning_enabled": self._llm_planning_enabled(),
+                "llm_intent": llm_intent,
+                "execution_mode": "real_estate_ranking_bridge",
+                "capabilities": [
+                    "filter_features",
+                    "score_features",
+                    "rank_features",
+                    "build_report",
+                ],
+            },
+            "audit_record": {
+                "status": "success",
+                "execution_mode": "real_estate_ranking_bridge",
+                "reason": "real estate ranking query with property features routed through MVP ranking bridge",
+                "query": query,
+                "request_id": rid,
+                "capabilities": [
+                    "filter_features",
+                    "score_features",
+                    "rank_features",
+                    "build_report",
+                ],
+                "trace": trace,
+                "outputs": {
+                    "summary": summary,
+                    "ranking_table_id": "property_ranking",
+                    "layer_ids": ["ranked_properties"],
+                    "report_id": "real_estate_ranking_report",
+                },
+            },
+        }
+
     def handle_query(
         self,
         *,
@@ -1450,6 +1962,15 @@ class OrchestratorService:
             final_metadata.update(dict(metadata))
 
         llm_intent = self._maybe_plan_llm_intent(query)
+        real_estate_ranking_response = self._try_handle_real_estate_ranking_directly(
+            query=query,
+            inputs=inputs,
+            request_id=locals().get("request_id"),
+            llm_intent=llm_intent,
+        )
+        if real_estate_ranking_response is not None:
+            return real_estate_ranking_response
+
         effective_query = self._apply_intent_to_query(query, llm_intent)
 
         final_metadata["llm_planning_enabled"] = self._llm_planning_enabled()

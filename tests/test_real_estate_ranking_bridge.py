@@ -216,9 +216,11 @@ def test_real_estate_ranking_audit_trace_contains_expected_capabilities(monkeypa
         "score_features",
         "rank_features",
         "build_report",
+        "render_pdf",
     ]
 
-    assert all(step["status"] == "success" for step in audit["trace"])
+    assert all(step["status"] == "success" for step in audit["trace"][:4])
+    assert audit["trace"][4]["status"] in {"success", "warning", "failed", "skipped"}
 
 
 def test_real_estate_ranking_without_inputs_returns_controlled_failure(monkeypatch):

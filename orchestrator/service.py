@@ -1299,6 +1299,8 @@ class OrchestratorService:
             "metadata": _json_safe(final_metadata),
         }
 
+        _resolved_project_id = str(final_metadata.get("project_id") or "").strip() or None
+
         self._remember(
             request_id=final_request_id,
             record={
@@ -1309,9 +1311,19 @@ class OrchestratorService:
                 "band_map": _json_safe(band_map or {}),
                 "user_context": _json_safe(user_context or {}),
                 "metadata": _json_safe(final_metadata),
+                "project_id": _resolved_project_id,
                 "production_response": _json_safe(response),
             },
         )
+
+        if _resolved_project_id:
+            try:
+                self.project_store.attach_request(
+                    _resolved_project_id,
+                    final_request_id,
+                )
+            except Exception:
+                pass
 
         return _json_safe(response)
 

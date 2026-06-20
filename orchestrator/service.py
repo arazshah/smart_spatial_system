@@ -1642,6 +1642,196 @@ class OrchestratorService:
 
         return eligible, reasons, metrics
 
+
+    def _build_real_estate_pdf_report_payload(
+        self,
+        *,
+        report: dict[str, Any],
+        table_rows: list[dict[str, Any]],
+        ranked_geojson: dict[str, Any],
+        summary: dict[str, Any],
+    ) -> dict[str, Any]:
+        columns = [
+            {"key": "rank", "label": "رتبه"},
+            {"key": "name", "label": "نام ملک"},
+            {"key": "kind", "label": "نوع"},
+            {"key": "price", "label": "قیمت"},
+            {"key": "score", "label": "امتیاز"},
+            {"key": "best_poi_distance_m", "label": "نزدیک‌ترین فاصله به مترو/مرکز خرید"},
+            {"key": "distance_to_main_road_m", "label": "فاصله تا خیابان اصلی"},
+            {"key": "flood_risk", "label": "ریسک سیل"},
+            {"key": "earthquake_risk", "label": "ریسک زلزله"},
+            {"key": "fire_risk", "label": "ریسک آتش‌سوزی"},
+            {"key": "in_allowed_zone", "label": "محدوده مجاز ساخت"},
+        ]
+
+        return {
+            "meta": {
+                "title": report.get("title") or "گزارش رتبه‌بندی املاک",
+                "language": "fa",
+                "format": "pdf",
+                "domain": "real_estate_spatial_ranking",
+            },
+            "summary": {
+                **summary,
+                "title": report.get("title") or "گزارش رتبه‌بندی املاک",
+                "notes": report.get("notes") or [],
+            },
+            "table": {
+                "title": "جدول رتبه‌بندی املاک",
+                "columns": columns,
+                "rows": table_rows,
+                "total_rows": len(table_rows),
+            },
+            "map_layers": [
+                {
+                    "id": "ranked_properties",
+                    "name": "املاک رتبه‌بندی‌شده",
+                    "type": "vector",
+                    "format": "geojson",
+                    "feature_count": len(ranked_geojson.get("features") or []),
+                    "geojson": ranked_geojson,
+                }
+            ],
+            "spec": {
+                "report_type": "real_estate_ranking",
+                "score_field": "score",
+                "rank_field": "rank",
+                "criteria": summary.get("criteria") or {},
+            },
+            "success": True,
+            "errors": [],
+        }
+
+    def _try_render_real_estate_ranking_document(
+        self,
+        *,
+        report: dict[str, Any],
+        table_rows: list[dict[str, Any]],
+        ranked_geojson: dict[str, Any],
+        summary: dict[str, Any],
+        request_id: str,
+    ) -> tuple[list[dict[str, Any]], list[str], dict[str, Any]]:
+        documents: list[dict[str, Any]] = []
+        warnings: list[str] = []
+        trace_step: dict[str, Any] = {
+            "order": 5,
+            "node_id": "node_005_render_pdf",
+            "capability_name": "render_pdf",
+            "plugin_id": "pdf_renderer",
+            "output_kind": "document",
+            "status": "skipped",
+        }
+
+        try:
+            from plugins.pdf_renderer import render_pdf
+        except Exception as exc:
+            warnings.append(f"PDF renderer import failed: {exc}")
+            trace_step.update(
+                {
+                    "status": "failed",
+                    "error": str(exc),
+                }
+            )
+            return documents, warnings, trace_step
+
+        pdf_report = self._build_real_estate_pdf_report_payload(
+            report=report,
+            table_rows=table_rows,
+            ranked_geojson=ranked_geojson,
+            summary=summary,
+        )
+
+        safe_request_id = str(request_id or "request").replace("/", "_")
+        output_dir = Path("artifacts") / "reports"
+        output_path = output_dir / f"real_estate_ranking_{safe_request_id}.pdf"
+
+        try:
+            pdf_out = render_pdf(
+                pdf_report,
+                output_path=str(output_path),
+                save_to_disk=True,
+                metadata={
+                    "request_id": request_id,
+                    "domain": "real_estate_spatial_ranking",
+                    "report_id": "real_estate_ranking_report",
+                    "document_ids": [doc.get("id") for doc in documents],
+                },
+            )
+        except Exception as exc:
+            warnings.append(f"PDF render failed unexpectedly: {exc}")
+            trace_step.update(
+                {
+                    "status": "failed",
+                    "error": str(exc),
+                }
+            )
+            return documents, warnings, trace_step
+
+        pdf_dict = pdf_out.to_dict() if hasattr(pdf_out, "to_dict") else {}
+
+        if getattr(pdf_out, "success", False) and getattr(pdf_out, "file_path", None):
+            documents.append(
+                {
+                    "id": "real_estate_ranking_pdf",
+                    "name": "real_estate_ranking_report.pdf",
+                    "format": "pdf",
+                    "role": "downloadable_report",
+                    "mime_type": "application/pdf",
+                    "path": pdf_out.file_path,
+                    "file_path": pdf_out.file_path,
+                    "size_bytes": len(getattr(pdf_out, "pdf_bytes", b"") or b""),
+                    "meta": getattr(pdf_out, "meta", {}) or pdf_dict.get("meta", {}),
+                }
+            )
+            trace_step.update(
+                {
+                    "status": "success",
+                    "artifact_id": "real_estate_ranking_pdf",
+                    "path": pdf_out.file_path,
+                }
+            )
+            return documents, warnings, trace_step
+
+        html = getattr(pdf_out, "html", "") or ""
+        errors = getattr(pdf_out, "errors", []) or pdf_dict.get("errors", [])
+
+        if html:
+            documents.append(
+                {
+                    "id": "real_estate_ranking_html",
+                    "name": "real_estate_ranking_report.html",
+                    "format": "html",
+                    "role": "printable_report_fallback",
+                    "mime_type": "text/html",
+                    "content": html,
+                    "size_bytes": len(html.encode("utf-8")),
+                    "meta": getattr(pdf_out, "meta", {}) or pdf_dict.get("meta", {}),
+                    "errors": errors,
+                }
+            )
+            warnings.append(
+                "PDF rendering was not completed; HTML fallback document was returned."
+            )
+            trace_step.update(
+                {
+                    "status": "warning",
+                    "artifact_id": "real_estate_ranking_html",
+                    "errors": errors,
+                }
+            )
+            return documents, warnings, trace_step
+
+        warnings.append("PDF rendering failed and no HTML fallback was produced.")
+        trace_step.update(
+            {
+                "status": "failed",
+                "errors": errors,
+            }
+        )
+        return documents, warnings, trace_step
+
+
     def _try_handle_real_estate_ranking_directly(
         self,
         *,
@@ -1775,6 +1965,14 @@ class OrchestratorService:
 
         rid = request_id or f"req-{uuid.uuid4()}"
 
+        documents, document_warnings, render_pdf_trace_step = self._try_render_real_estate_ranking_document(
+            report=report,
+            table_rows=table_rows,
+            ranked_geojson=ranked_geojson,
+            summary=summary,
+            request_id=rid,
+        )
+
         outputs = {
             "vectors": [
                 {
@@ -1825,6 +2023,7 @@ class OrchestratorService:
                     "data": report,
                 }
             ],
+            "documents": documents,
         }
 
         layers = [
@@ -1872,6 +2071,7 @@ class OrchestratorService:
                 "output_kind": "json",
                 "status": "success",
             },
+            render_pdf_trace_step,
         ]
 
         return {
@@ -1892,10 +2092,10 @@ class OrchestratorService:
                 "report": report,
                 "layer_ids": ["ranked_properties"],
             },
-            "warnings": [],
+            "warnings": document_warnings,
             "next_actions": [
-                "برای تولید PDF می‌توانید مرحله render_pdf را به این گزارش متصل کنید.",
                 "برای تحلیل دقیق‌تر، فاصله‌ها می‌توانند با pluginهای nearest_neighbor و distance_calculator از لایه‌های واقعی محاسبه شوند.",
+                "در صورت نیاز، خروجی PDF/HTML گزارش از outputs.documents قابل استفاده است.",
             ],
             "metadata": {
                 "service": "OrchestratorService",
@@ -1908,6 +2108,7 @@ class OrchestratorService:
                     "score_features",
                     "rank_features",
                     "build_report",
+                    "render_pdf",
                 ],
             },
             "audit_record": {
@@ -1921,6 +2122,7 @@ class OrchestratorService:
                     "score_features",
                     "rank_features",
                     "build_report",
+                    "render_pdf",
                 ],
                 "trace": trace,
                 "outputs": {

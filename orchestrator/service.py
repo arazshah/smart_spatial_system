@@ -756,6 +756,31 @@ class OrchestratorService:
         This keeps backward-compatible frontend output while making execution
         auditable and capability-based.
         """
+        # Do not let simple vector display/summary swallow real-estate
+        # ranking/report/PDF queries. These must be handled by the
+        # real-estate ranking/report pipeline.
+        _normalized_query_for_vector_guard = str(query or "").lower()
+        _real_estate_ranking_terms = (
+            "ملک",
+            "املاک",
+            "امتیاز",
+            "رتبه",
+            "رتبه‌بندی",
+            "رتبه بندی",
+            "گزارش",
+            "pdf",
+            "پی دی اف",
+            "جدول",
+        )
+        if (
+            self._is_real_estate_analysis_query(query)
+            and any(
+                term in _normalized_query_for_vector_guard
+                for term in _real_estate_ranking_terms
+            )
+        ):
+            return None
+
         is_vector_display = self._is_vector_display_query(query, llm_intent)
         is_vector_summary = self._is_vector_summary_query(query, llm_intent)
 
@@ -1479,6 +1504,39 @@ class OrchestratorService:
         if not isinstance(inputs, dict):
             return None
 
+        def _property_only_feature_collection(fc: dict[str, Any]) -> dict[str, Any]:
+            features = fc.get("features") or []
+            if not isinstance(features, list):
+                features = []
+
+            property_features: list[dict[str, Any]] = []
+            for feature in features:
+                if not isinstance(feature, dict):
+                    continue
+                props = feature.get("properties") or {}
+                if not isinstance(props, dict):
+                    props = {}
+
+                layer = str(props.get("layer") or "").strip().lower()
+                property_type = str(props.get("property_type") or props.get("kind") or "").strip().lower()
+                has_property_identity = bool(
+                    props.get("property_id")
+                    or str(props.get("id") or "").startswith("prop-")
+                    or layer == "property"
+                    or property_type in {"apartment", "villa", "land", "house", "ملک", "آپارتمان", "ویلا", "زمین"}
+                )
+
+                if has_property_identity:
+                    property_features.append(feature)
+
+            # اگر featureهای property پیدا شد، فقط همان‌ها را برای ranking برگردان.
+            if property_features:
+                out = dict(fc)
+                out["features"] = property_features
+                return out
+
+            return fc
+
         candidate_keys = [
             "properties",
             "property_layer",
@@ -1494,12 +1552,12 @@ class OrchestratorService:
         for key in candidate_keys:
             value = inputs.get(key)
             if isinstance(value, dict) and value.get("type") == "FeatureCollection":
-                return value
+                return _property_only_feature_collection(value)
 
             if isinstance(value, dict):
                 nested = value.get("geojson") or value.get("data") or value.get("feature_collection")
                 if isinstance(nested, dict) and nested.get("type") == "FeatureCollection":
-                    return nested
+                    return _property_only_feature_collection(nested)
 
         return None
 
@@ -1567,7 +1625,12 @@ class OrchestratorService:
         score -= risk_penalty
 
         # اگر خارج از محدوده مجاز باشد، جریمه سنگین می‌گیرد.
-        in_allowed_zone = props.get("in_allowed_zone", True)
+        in_allowed_zone = props.get("in_allowed_zone")
+        if in_allowed_zone is None:
+            in_allowed_zone = props.get("build_zone_allowed")
+        if in_allowed_zone is None:
+            in_allowed_zone = props.get("construction_allowed", True)
+
         if in_allowed_zone is False:
             score -= 30.0
 
@@ -1575,7 +1638,7 @@ class OrchestratorService:
         if price is not None:
             score -= min(price / 10_000_000_000.0, 5.0) * 0.8
 
-        kind = str(props.get("kind") or "").lower()
+        kind = str(props.get("kind") or props.get("property_type") or "").lower()
         if "villa" in kind or "ویلا" in kind:
             score += 1.0
 
@@ -1609,7 +1672,11 @@ class OrchestratorService:
         earthquake = self._normalize_risk_level(props.get("earthquake_risk"))
         fire = self._normalize_risk_level(props.get("fire_risk"))
 
-        in_allowed_zone = props.get("in_allowed_zone", True)
+        in_allowed_zone = props.get("in_allowed_zone")
+        if in_allowed_zone is None:
+            in_allowed_zone = props.get("build_zone_allowed")
+        if in_allowed_zone is None:
+            in_allowed_zone = props.get("construction_allowed", True)
 
         reasons: list[str] = []
 
@@ -1801,6 +1868,7 @@ class OrchestratorService:
 
         safe_request_id = str(request_id or "request").replace("/", "_")
         output_dir = Path("artifacts") / "reports"
+        output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / f"real_estate_ranking_{safe_request_id}.pdf"
 
         try:
@@ -2224,7 +2292,7 @@ class OrchestratorService:
                     "rank": idx,
                     "id": props.get("id"),
                     "name": props.get("name"),
-                    "kind": props.get("kind"),
+                    "kind": props.get("kind") or props.get("property_type"),
                     "price": props.get("price"),
                     "score": props.get("score"),
                     "best_poi_distance_m": props.get("best_poi_distance_m"),
@@ -2234,7 +2302,13 @@ class OrchestratorService:
                     "flood_risk": props.get("flood_risk"),
                     "earthquake_risk": props.get("earthquake_risk"),
                     "fire_risk": props.get("fire_risk"),
-                    "in_allowed_zone": props.get("in_allowed_zone"),
+                    "in_allowed_zone": (
+                        props.get("in_allowed_zone")
+                        if props.get("in_allowed_zone") is not None
+                        else props.get("build_zone_allowed")
+                        if props.get("build_zone_allowed") is not None
+                        else props.get("construction_allowed")
+                    ),
                 }
             )
 
@@ -2547,6 +2621,17 @@ class OrchestratorService:
 
             if missing_real_estate_inputs_response is not None:
                 return missing_real_estate_inputs_response
+
+            # Try real-estate ranking again after upload/input references are resolved.
+            # UI auto_project_data often provides only upload refs at first.
+            real_estate_ranking_response = self._try_handle_real_estate_ranking_directly(
+                query=query,
+                inputs=resolved_inputs,
+                request_id=final_request_id,
+                llm_intent=llm_intent,
+            )
+            if real_estate_ranking_response is not None:
+                return real_estate_ranking_response
 
             direct_vector_response = self._try_handle_vector_display_directly(
                 query=query,

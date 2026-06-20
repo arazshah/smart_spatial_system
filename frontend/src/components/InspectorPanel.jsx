@@ -13,6 +13,30 @@ function shortId(value) {
   return `${text.slice(0, 10)}…${text.slice(-6)}`;
 }
 
+function formatInspectorValue(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (Array.isArray(value)) {
+    return value
+      .map((item) =>
+        item && typeof item === "object" ? JSON.stringify(item) : String(item),
+      )
+      .join(", ");
+  }
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function buildDocumentHref(value) {
+  if (!value) return "";
+  const href = String(value);
+  if (/^https?:\/\//i.test(href)) return href;
+  if (href.startsWith("/")) {
+    return `${String(API_BASE_URL || "").replace(/\/$/, "")}${href}`;
+  }
+  return href;
+}
+
 function getLayerKey(layer, index) {
   return String(layer?.id || layer?.name || layer?.title || `layer-${index}`);
 }
@@ -597,7 +621,9 @@ export default function InspectorPanel({
 
   const inspectorSummaryCards = asArray(inspector?.summary_cards);
   const inspectorOutputs = asArray(inspector?.outputs);
-  const inspectorTrace = asArray(inspector?.trace);
+  const inspectorTrace = asArray(inspector?.trace).length
+    ? asArray(inspector?.trace)
+    : asArray(response?.audit_record?.trace || response?.trace);
   const inspectorTables = asArray(inspector?.tables).length
     ? asArray(inspector?.tables)
     : outputs.tables;
@@ -905,6 +931,190 @@ export default function InspectorPanel({
                 icon="⇩"
                 title="هنوز خروجی تولید نشده است"
                 text="پس از اجرای تحلیل‌هایی مثل استخراج، تبدیل، export یا ذخیره‌سازی، فایل‌های خروجی در این بخش نمایش داده می‌شوند."
+              />
+            )}
+          </div>
+        ) : null}
+
+        {tab === "tables" ? (
+          <div className="inspector-section">
+            {inspectorTables.length ? (
+              <div className="inspector-table-list">
+                {inspectorTables.map((table, tableIndex) => {
+                  const rows = asArray(table?.rows);
+                  const columns = asArray(table?.columns).length
+                    ? asArray(table.columns)
+                    : Object.keys(rows[0] || {});
+
+                  return (
+                    <article
+                      key={`${table?.id || table?.name || "table"}-${tableIndex}`}
+                      className="inspector-table-card"
+                    >
+                      <div className="inspector-table-head">
+                        <div>
+                          <strong>{table?.name || table?.id || `Table ${tableIndex + 1}`}</strong>
+                          {table?.role ? <span>{table.role}</span> : null}
+                        </div>
+                        <small>{rows.length} row(s)</small>
+                      </div>
+
+                      {rows.length && columns.length ? (
+                        <div className="inspector-table-scroll">
+                          <table className="inspector-data-table">
+                            <thead>
+                              <tr>
+                                {columns.map((column) => (
+                                  <th key={String(column)}>{String(column)}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map((row, rowIndex) => (
+                                <tr key={`${row?.id || "row"}-${rowIndex}`}>
+                                  {columns.map((column) => (
+                                    <td key={String(column)}>
+                                      {formatInspectorValue(row?.[column])}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="inspector-muted-text">این جدول ردیفی برای نمایش ندارد.</p>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <EmptyState
+                icon="▦"
+                title="جدولی برای نمایش وجود ندارد"
+                text="اگر تحلیل خروجی جدولی تولید کند، جدول‌های رتبه‌بندی یا آمار در این بخش نمایش داده می‌شوند."
+              />
+            )}
+          </div>
+        ) : null}
+
+        {tab === "documents" ? (
+          <div className="inspector-section">
+            {inspectorDocuments.length ? (
+              <div className="inspector-document-list">
+                {inspectorDocuments.map((document, index) => {
+                  const rawHref =
+                    document?.download_url ||
+                    document?.preview_url ||
+                    document?.url ||
+                    document?.path ||
+                    document?.file_path;
+                  const href = buildDocumentHref(rawHref);
+
+                  return (
+                    <article
+                      key={`${document?.id || document?.name || "document"}-${index}`}
+                      className="inspector-document-card"
+                    >
+                      <div className="inspector-document-main">
+                        <strong>
+                          {document?.name ||
+                            document?.label ||
+                            document?.filename ||
+                            document?.id ||
+                            `Document ${index + 1}`}
+                        </strong>
+                        <span>
+                          {document?.format || "document"}
+                          {document?.role ? ` · ${document.role}` : ""}
+                          {document?.size_bytes ? ` · ${document.size_bytes} bytes` : ""}
+                        </span>
+                      </div>
+
+                      {href ? (
+                        <a
+                          className="inspector-document-link"
+                          href={href}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          دانلود / مشاهده PDF
+                        </a>
+                      ) : (
+                        <p className="inspector-muted-text">لینک دانلود برای این سند موجود نیست.</p>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <EmptyState
+                icon="▣"
+                title="سندی برای نمایش وجود ندارد"
+                text="اگر گزارش PDF یا HTML تولید شود، لینک دانلود و مشاهده آن در این بخش نمایش داده می‌شود."
+              />
+            )}
+          </div>
+        ) : null}
+
+        {tab === "trace" ? (
+          <div className="inspector-section">
+            {inspectorTrace.length ? (
+              <div className="inspector-trace-list">
+                {inspectorTrace.map((step, index) => {
+                  const rawStatus = String(step?.status || "unknown").toLowerCase();
+                  const statusClass =
+                    rawStatus === "success" || rawStatus === "succeeded"
+                      ? "success"
+                      : rawStatus === "failed" || rawStatus === "error"
+                        ? "danger"
+                        : rawStatus === "warning"
+                          ? "warning"
+                          : "neutral";
+
+                  return (
+                    <article
+                      key={`${step?.id || step?.node_id || "trace"}-${index}`}
+                      className={`inspector-trace-card ${statusClass}`}
+                    >
+                      <div className="inspector-trace-index">{step?.order || index + 1}</div>
+                      <div className="inspector-trace-body">
+                        <div className="inspector-trace-title">
+                          <strong>
+                            {step?.label ||
+                              step?.capability_name ||
+                              step?.node_id ||
+                              `Step ${index + 1}`}
+                          </strong>
+                          <span>{step?.status || "unknown"}</span>
+                        </div>
+
+                        <div className="inspector-trace-meta">
+                          {step?.capability_name ? <span>{step.capability_name}</span> : null}
+                          {step?.plugin_id ? <span>{step.plugin_id}</span> : null}
+                          {step?.output_kind ? <span>{step.output_kind}</span> : null}
+                        </div>
+
+                        {step?.path ? (
+                          <code className="inspector-trace-path">{step.path}</code>
+                        ) : null}
+
+                        {Array.isArray(step?.errors) && step.errors.length ? (
+                          <pre className="inspector-trace-errors">
+                            {JSON.stringify(step.errors, null, 2)}
+                          </pre>
+                        ) : null}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <EmptyState
+                icon="↯"
+                title="فرآیندی برای نمایش وجود ندارد"
+                text="مراحل اجرای قابلیت‌ها پس از اجرای تحلیل در این بخش نمایش داده می‌شوند."
               />
             )}
           </div>

@@ -275,3 +275,60 @@ def test_simple_vector_display_is_not_hijacked_by_ranking_bridge(monkeypatch):
     assert response["ok"] is True
     assert response["result"]["type"] != "real_estate_ranking"
     assert response["metadata"]["execution_mode"] == "capability_bridge"
+
+
+def test_real_estate_ranking_response_contains_analysis_inspector(monkeypatch):
+    svc = _service_without_real_llm(monkeypatch)
+
+    response = svc.handle_query(
+        query=REAL_ESTATE_QUERY,
+        inputs={"properties": _sample_properties()},
+    )
+
+    inspector = response.get("inspector")
+
+    assert isinstance(inspector, dict)
+    assert inspector["kind"] == "analysis_inspector"
+    assert inspector["domain"] == "real_estate_spatial_ranking"
+    assert inspector["status"] == "succeeded"
+
+    assert isinstance(inspector.get("summary_cards"), list)
+    assert inspector["summary_cards"]
+    assert {card["id"] for card in inspector["summary_cards"]} >= {
+        "candidate_count",
+        "eligible_count",
+        "rejected_count",
+        "top_property",
+        "top_score",
+    }
+
+    assert isinstance(inspector.get("outputs"), list)
+    assert any(item.get("type") == "vector" for item in inspector["outputs"])
+    assert any(item.get("type") == "table" for item in inspector["outputs"])
+    assert any(item.get("type") == "report" for item in inspector["outputs"])
+
+    assert isinstance(inspector.get("documents"), list)
+    assert inspector["documents"] == [
+        item for item in inspector["documents"]
+    ]
+
+    if response.get("outputs", {}).get("documents"):
+        assert inspector["documents"]
+        assert any(item.get("type") == "document" for item in inspector["outputs"])
+        assert inspector.get("primary_actions")
+
+    assert isinstance(inspector.get("layers"), list)
+    assert inspector["layers"]
+    assert inspector["layers"][0]["id"] == "ranked_properties"
+
+    assert isinstance(inspector.get("trace"), list)
+    assert [step["capability_name"] for step in inspector["trace"]] == [
+        "filter_features",
+        "score_features",
+        "rank_features",
+        "build_report",
+        "render_pdf",
+    ]
+
+    audit_outputs = response["audit_record"]["outputs"]
+    assert "document_ids" in audit_outputs

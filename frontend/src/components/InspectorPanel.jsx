@@ -198,11 +198,31 @@ function collectOutputs(response, outputManifest) {
     pushFile(file, "response.output_files");
   }
 
+  for (const file of asArray(response?.outputs?.documents)) {
+    pushFile(file, "response.outputs.documents");
+  }
+
+  for (const file of asArray(response?.inspector?.documents)) {
+    pushFile(file, "response.inspector.documents");
+  }
+
+  const seen = new Set();
+  const uniqueFiles = files.filter((file) => {
+    const key = String(file.id || file.path || file.file_path || file.url || file.name || "");
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
   return {
-    files,
+    files: uniqueFiles,
     vectors: asArray(response?.outputs?.vectors),
     rasters: asArray(response?.outputs?.rasters),
     tables: asArray(response?.outputs?.tables),
+    documents: asArray(response?.outputs?.documents),
+    inspectorItems: asArray(response?.inspector?.outputs),
+    primaryActions: asArray(response?.inspector?.primary_actions),
   };
 }
 
@@ -311,12 +331,36 @@ function LayerCard({
 }
 
 function OutputCard({ file }) {
+  const label = file.label || file.name || file.id || "Output";
+  const subtitle = [
+    file.type,
+    file.format,
+    file.role,
+    Number.isFinite(file.count) ? `${file.count} item(s)` : null,
+    file.source,
+  ].filter(Boolean).join(" · ");
+
+  const path = file.path || file.file_path || file.url;
+
   return (
     <article className="inspector-output-card">
-      <div className="inspector-output-icon">⇩</div>
+      <div className="inspector-output-icon">
+        {file.type === "document" || file.format === "pdf" ? "▣" : "⇩"}
+      </div>
       <div className="inspector-output-info">
-        <strong>{file.name || "Output file"}</strong>
-        <span>{file.format || file.type || file.source || "file"}</span>
+        <strong>{label}</strong>
+        <span>{subtitle || "output"}</span>
+        {path ? (
+          <a
+            className="download-link"
+            href={path}
+            target="_blank"
+            rel="noreferrer"
+            dir="ltr"
+          >
+            {file.format === "pdf" ? "دانلود / مشاهده PDF" : "مشاهده خروجی"}
+          </a>
+        ) : null}
       </div>
     </article>
   );
@@ -357,7 +401,18 @@ export default function InspectorPanel({
     [response, outputManifest],
   );
 
-  const fileCount = outputs.files.length;
+  const inspector =
+    response?.inspector && typeof response.inspector === "object"
+      ? response.inspector
+      : null;
+
+  const inspectorSummaryCards = asArray(inspector?.summary_cards);
+  const inspectorOutputs = asArray(inspector?.outputs);
+  const inspectorTrace = asArray(inspector?.trace);
+
+  const outputItems = inspectorOutputs.length ? inspectorOutputs : outputs.files;
+  const fileCount = outputItems.length;
+
   const featureCount = layers.reduce((sum, layer) => sum + featureCountFromLayer(layer), 0);
   const geometryCounts = aggregateGeometryCounts(layers);
 
@@ -387,7 +442,13 @@ export default function InspectorPanel({
     response?.detail ||
     "هنوز نتیجه‌ای برای نمایش وجود ندارد.";
 
-  const steps = asArray(response?.steps || response?.audit?.steps || response?.run_result?.steps);
+  const steps = inspectorTrace.length
+    ? inspectorTrace.map((step, index) => ({
+        label: step?.label || step?.capability_name || `Step ${index + 1}`,
+        step: step?.capability_name,
+        message: step?.status || "",
+      }))
+    : asArray(response?.steps || response?.audit?.steps || response?.run_result?.steps);
 
   const hiddenLayerKeys = layerWorkspace?.hiddenLayerKeys || new Set();
   const removedLayerKeys = layerWorkspace?.removedLayerKeys || new Set();
@@ -520,10 +581,24 @@ export default function InspectorPanel({
                 ) : null}
 
                 <div className="inspector-metrics-grid">
-                  <MetricCard icon="▧" label="Layers" value={layers.length} tone="blue" />
-                  <MetricCard icon="•" label="Features" value={featureCount} tone="green" />
-                  <MetricCard icon="⇩" label="Files" value={fileCount} tone="purple" />
-                  <MetricCard icon="⚙" label="Status" value={meta.label} tone={meta.className} />
+                  {inspectorSummaryCards.length ? (
+                    inspectorSummaryCards.map((card) => (
+                      <MetricCard
+                        key={card.id || card.label}
+                        icon={card.icon || "•"}
+                        label={card.label || card.id}
+                        value={card.value ?? "—"}
+                        tone={card.tone || "default"}
+                      />
+                    ))
+                  ) : (
+                    <>
+                      <MetricCard icon="▧" label="Layers" value={layers.length} tone="blue" />
+                      <MetricCard icon="•" label="Features" value={featureCount} tone="green" />
+                      <MetricCard icon="⇩" label="Files" value={fileCount} tone="purple" />
+                      <MetricCard icon="⚙" label="Status" value={meta.label} tone={meta.className} />
+                    </>
+                  )}
                 </div>
 
                 {Object.keys(geometryCounts).length ? (
@@ -596,9 +671,9 @@ export default function InspectorPanel({
           <div className="inspector-section">
             {fileCount ? (
               <div className="inspector-card-list">
-                {outputs.files.map((file, index) => (
+                {outputItems.map((file, index) => (
                   <OutputCard
-                    key={`${file.name || "output"}-${index}`}
+                    key={`${file.id || file.name || "output"}-${index}`}
                     file={file}
                   />
                 ))}

@@ -181,3 +181,44 @@ def test_api_outputs_unknown_request_or_file_returns_404(tmp_path: Path) -> None
     )
 
     assert file_response.status_code == 404
+
+
+def test_api_download_real_estate_report_document_file(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    client = _client(tmp_path)
+
+    request_id = "req-api-report-doc-001"
+    filename = f"real_estate_ranking_{request_id}.pdf"
+
+    reports_dir = tmp_path / "artifacts" / "reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+
+    pdf_bytes = b"%PDF-1.4\n% test pdf\n%%EOF\n"
+    (reports_dir / filename).write_bytes(pdf_bytes)
+
+    response = client.get(
+        f"/requests/{request_id}/documents/{filename}"
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/pdf")
+    assert response.content == pdf_bytes
+
+
+def test_api_download_real_estate_report_document_rejects_wrong_filename(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    client = _client(tmp_path)
+
+    response = client.get(
+        "/requests/req-api-report-doc-002/documents/other.pdf"
+    )
+
+    assert response.status_code == 404

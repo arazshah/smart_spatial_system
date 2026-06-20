@@ -1815,15 +1815,22 @@ class OrchestratorService:
         pdf_dict = pdf_out.to_dict() if hasattr(pdf_out, "to_dict") else {}
 
         if getattr(pdf_out, "success", False) and getattr(pdf_out, "file_path", None):
+            pdf_file_path = str(pdf_out.file_path)
+            pdf_filename = Path(pdf_file_path).name
+            pdf_download_url = f"/requests/{request_id}/documents/{pdf_filename}"
+
             documents.append(
                 {
                     "id": "real_estate_ranking_pdf",
                     "name": "real_estate_ranking_report.pdf",
+                    "filename": pdf_filename,
                     "format": "pdf",
                     "role": "downloadable_report",
                     "mime_type": "application/pdf",
-                    "path": pdf_out.file_path,
-                    "file_path": pdf_out.file_path,
+                    "path": pdf_file_path,
+                    "file_path": pdf_file_path,
+                    "download_url": pdf_download_url,
+                    "preview_url": pdf_download_url,
                     "size_bytes": len(getattr(pdf_out, "pdf_bytes", b"") or b""),
                     "meta": getattr(pdf_out, "meta", {}) or pdf_dict.get("meta", {}),
                 }
@@ -2014,7 +2021,13 @@ class OrchestratorService:
 
             doc_id = doc.get("id") or doc.get("name") or f"document_{len(inspector_documents) + 1}"
             doc_format = doc.get("format") or "document"
-            doc_path = doc.get("path") or doc.get("file_path") or doc.get("url")
+            doc_path = (
+                doc.get("download_url")
+                or doc.get("preview_url")
+                or doc.get("url")
+                or doc.get("path")
+                or doc.get("file_path")
+            )
 
             normalized_doc = {
                 "id": doc_id,
@@ -2026,6 +2039,8 @@ class OrchestratorService:
                 "mime_type": doc.get("mime_type"),
                 "path": doc_path,
                 "file_path": doc.get("file_path"),
+                "download_url": doc.get("download_url"),
+                "preview_url": doc.get("preview_url"),
                 "size_bytes": doc.get("size_bytes"),
                 "source": "outputs.documents",
             }
@@ -2039,6 +2054,8 @@ class OrchestratorService:
                     "role": normalized_doc["role"],
                     "format": normalized_doc["format"],
                     "path": normalized_doc["path"],
+                    "download_url": normalized_doc.get("download_url"),
+                    "preview_url": normalized_doc.get("preview_url"),
                     "count": 1,
                     "source": "outputs.documents",
                 }
@@ -2053,6 +2070,8 @@ class OrchestratorService:
                         "type": "download" if doc_format == "pdf" else "open",
                         "target_output_id": doc_id,
                         "path": doc_path,
+                        "download_url": doc.get("download_url"),
+                        "preview_url": doc.get("preview_url"),
                         "mime_type": doc.get("mime_type"),
                     }
                 )

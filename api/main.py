@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from dataclasses import asdict, dataclass, is_dataclass
+from pathlib import Path
 from typing import Any
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -818,6 +819,61 @@ def create_app(
             path=file_path,
             media_type=svc.get_output_file_media_type(filename),
             filename=filename,
+        )
+
+    @app.get("/requests/{request_id}/documents/{filename}")
+    def download_request_document(
+        request: Request,
+        request_id: str,
+        filename: str,
+    ) -> FileResponse:
+        """
+        Download a generated document for a request.
+
+        Security policy:
+        - only serves files from artifacts/reports
+        - blocks path traversal
+        - currently allows the real-estate ranking PDF generated for the same request_id
+        """
+        safe_filename = Path(filename).name
+        if safe_filename != filename:
+            raise HTTPException(
+                status_code=404,
+                detail="Unknown document file.",
+            )
+
+        expected_filename = f"real_estate_ranking_{request_id}.pdf"
+        if safe_filename != expected_filename:
+            raise HTTPException(
+                status_code=404,
+                detail="Unknown document file.",
+            )
+
+        reports_dir = Path("artifacts") / "reports"
+        file_path = reports_dir / safe_filename
+
+        try:
+            resolved_reports_dir = reports_dir.resolve()
+            resolved_file_path = file_path.resolve()
+        except OSError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Unknown document file.",
+            ) from exc
+
+        if (
+            resolved_reports_dir not in resolved_file_path.parents
+            or not resolved_file_path.is_file()
+        ):
+            raise HTTPException(
+                status_code=404,
+                detail="Unknown document file.",
+            )
+
+        return FileResponse(
+            path=resolved_file_path,
+            media_type="application/pdf",
+            filename=safe_filename,
         )
 
     @app.get("/weights")

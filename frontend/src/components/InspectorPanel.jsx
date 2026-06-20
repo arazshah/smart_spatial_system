@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { API_BASE_URL } from "../api/client";
 
 function asArray(value) {
   if (!value) return [];
@@ -330,6 +331,34 @@ function LayerCard({
   );
 }
 
+function resolveOutputHref(file) {
+  const raw =
+    file?.download_url ||
+    file?.preview_url ||
+    file?.url ||
+    file?.path ||
+    file?.file_path;
+
+  if (!raw) return "";
+
+  const text = String(raw);
+
+  if (
+    text.startsWith("http://") ||
+    text.startsWith("https://") ||
+    text.startsWith("blob:") ||
+    text.startsWith("data:")
+  ) {
+    return text;
+  }
+
+  if (text.startsWith("/")) {
+    return `${API_BASE_URL}${text}`;
+  }
+
+  return text;
+}
+
 function OutputCard({ file }) {
   const label = file.label || file.name || file.id || "Output";
   const subtitle = [
@@ -340,7 +369,7 @@ function OutputCard({ file }) {
     file.source,
   ].filter(Boolean).join(" · ");
 
-  const path = file.path || file.file_path || file.url;
+  const path = resolveOutputHref(file);
 
   return (
     <article className="inspector-output-card">

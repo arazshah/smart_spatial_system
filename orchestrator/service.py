@@ -2462,6 +2462,7 @@ class OrchestratorService:
         user_context: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
         min_score: float | None = None,
+        project_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Execute a real user query and return production response dict.
@@ -2474,6 +2475,11 @@ class OrchestratorService:
             "service": "OrchestratorService",
             "weighted_router": self.config.use_weighted_router,
         }
+
+        # Propagate project_id so _remember can link this request to its project.
+        _resolved_project_id = str(project_id or "").strip() or None
+        if _resolved_project_id:
+            final_metadata["project_id"] = _resolved_project_id
 
         if user_context:
             final_metadata["user_context"] = _json_safe(user_context)
@@ -2567,7 +2573,8 @@ class OrchestratorService:
                     "original_inputs": _json_safe(inputs),
                     "band_map": _json_safe(band_map or {}),
                     "user_context": _json_safe(user_context or {}),
-                    "metadata": _json_safe(metadata or {}),
+                    "metadata": _json_safe(final_metadata),
+                    "project_id": _resolved_project_id,
                     "run_result": run_result,
                     "audit_record": run_result.get("audit_record"),
                     "production_response": production_response,
@@ -2620,9 +2627,10 @@ class OrchestratorService:
                     "inputs": _json_safe(inputs),
                     "band_map": _json_safe(band_map or {}),
                     "user_context": _json_safe(user_context or {}),
-                    "metadata": _json_safe(metadata or {}),
+                    "metadata": _json_safe(final_metadata),
                     "error": repr(exc),
                     "production_response": failed_response,
+                    "project_id": _resolved_project_id,
                 },
             )
 
@@ -3980,6 +3988,14 @@ class OrchestratorService:
             return
 
         self._history[request_id] = record
+
+        # Link this request to its project so the UI history stays persistent.
+        project_id = str(record.get("project_id") or "").strip()
+        if project_id:
+            try:
+                self.project_store.attach_request(project_id, request_id)
+            except Exception:
+                pass
 
         if len(self._history) > self.config.max_history_items:
             overflow = len(self._history) - self.config.max_history_items

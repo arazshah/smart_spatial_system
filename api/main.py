@@ -608,6 +608,7 @@ def create_app(
             user_context=user_context,
             metadata=metadata,
             min_score=float(min_score) if min_score is not None else None,
+            project_id=str(body.get("project_id") or "").strip() or None,
         )
 
         return _json_safe(response)

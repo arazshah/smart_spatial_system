@@ -395,6 +395,166 @@ function OutputCard({ file }) {
   );
 }
 
+
+function formatInspectorCell(value) {
+  if (value === null || value === undefined || value === "") return "—";
+
+  if (Array.isArray(value)) {
+    return value.length ? value.join("، ") : "—";
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "بله" : "خیر";
+  }
+
+  if (typeof value === "number") {
+    return Number.isInteger(value) ? String(value) : value.toFixed(2);
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
+
+function InspectorTableCard({ table }) {
+  const rows = asArray(table?.rows);
+  const columns =
+    Array.isArray(table?.columns) && table.columns.length
+      ? table.columns
+      : rows.length
+        ? Object.keys(rows[0] || {})
+        : [];
+
+  return (
+    <article className="inspector-table-card">
+      <div className="inspector-table-head">
+        <div>
+          <strong>{table?.label || table?.name || table?.id || "Table"}</strong>
+          <span>{table?.role || "table"} · {rows.length} rows</span>
+        </div>
+        <div className="inspector-table-badge">Table</div>
+      </div>
+
+      {rows.length && columns.length ? (
+        <div className="inspector-table-scroll">
+          <table className="inspector-data-table">
+            <thead>
+              <tr>
+                {columns.map((column) => (
+                  <th key={column}>{column}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.slice(0, 20).map((row, rowIndex) => (
+                <tr key={row?.id || rowIndex}>
+                  {columns.map((column) => (
+                    <td key={`${rowIndex}-${column}`}>
+                      {formatInspectorCell(row?.[column])}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {rows.length > 20 ? (
+            <div className="inspector-table-note">
+              نمایش ۲۰ ردیف اول از {rows.length} ردیف
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <p className="inspector-table-empty">داده جدولی برای نمایش وجود ندارد.</p>
+      )}
+    </article>
+  );
+}
+
+function InspectorDocumentCard({ document }) {
+  const href = resolveOutputHref(document);
+  const title = document?.label || document?.name || document?.id || "Document";
+  const format = document?.format || document?.type || "document";
+
+  return (
+    <article className="inspector-document-card">
+      <div className="inspector-document-icon">
+        {format === "pdf" ? "PDF" : "DOC"}
+      </div>
+
+      <div className="inspector-document-body">
+        <strong>{title}</strong>
+        <span>
+          {[format, document?.role, document?.mime_type].filter(Boolean).join(" · ")}
+        </span>
+
+        {document?.size_bytes ? (
+          <small>{document.size_bytes} bytes</small>
+        ) : null}
+
+        {href ? (
+          <a
+            className="download-link"
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            dir="ltr"
+          >
+            {format === "pdf" ? "دانلود / مشاهده PDF" : "دانلود / مشاهده سند"}
+          </a>
+        ) : (
+          <small>لینک دانلود برای این سند موجود نیست.</small>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function InspectorTraceCard({ step, index }) {
+  const status = String(step?.status || "unknown").toLowerCase();
+  const isSuccess = status === "success" || status === "succeeded" || status === "done";
+  const isWarning = status === "warning" || status === "skipped";
+  const isFailed = status === "failed" || status === "error";
+
+  const statusClass = isSuccess
+    ? "success"
+    : isFailed
+      ? "danger"
+      : isWarning
+        ? "warning"
+        : "neutral";
+
+  return (
+    <article className={`inspector-trace-card ${statusClass}`}>
+      <div className="inspector-trace-index">
+        {isSuccess ? "✓" : isFailed ? "!" : index + 1}
+      </div>
+
+      <div className="inspector-trace-body">
+        <div className="inspector-trace-title">
+          <strong>{step?.label || step?.capability_name || `Step ${index + 1}`}</strong>
+          <span>{status}</span>
+        </div>
+
+        <div className="inspector-trace-meta">
+          {step?.capability_name ? <span>{step.capability_name}</span> : null}
+          {step?.plugin_id ? <span>{step.plugin_id}</span> : null}
+          {step?.output_kind ? <span>{step.output_kind}</span> : null}
+        </div>
+
+        {step?.path ? (
+          <small dir="ltr">{step.path}</small>
+        ) : null}
+
+        {Array.isArray(step?.errors) && step.errors.length ? (
+          <p>{step.errors.join("، ")}</p>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
 function EmptyState({ icon, title, text }) {
   return (
     <div className="inspector-empty">
@@ -438,6 +598,12 @@ export default function InspectorPanel({
   const inspectorSummaryCards = asArray(inspector?.summary_cards);
   const inspectorOutputs = asArray(inspector?.outputs);
   const inspectorTrace = asArray(inspector?.trace);
+  const inspectorTables = asArray(inspector?.tables).length
+    ? asArray(inspector?.tables)
+    : outputs.tables;
+  const inspectorDocuments = asArray(inspector?.documents).length
+    ? asArray(inspector?.documents)
+    : outputs.documents;
 
   const outputItems = inspectorOutputs.length ? inspectorOutputs : outputs.files;
   const fileCount = outputItems.length;
@@ -574,6 +740,27 @@ export default function InspectorPanel({
           label="Outputs"
           count={fileCount}
           onClick={() => setTab("outputs")}
+        />
+        <TabButton
+          active={tab === "tables"}
+          icon="▦"
+          label="Tables"
+          count={inspectorTables.length}
+          onClick={() => setTab("tables")}
+        />
+        <TabButton
+          active={tab === "documents"}
+          icon="▣"
+          label="Documents"
+          count={inspectorDocuments.length}
+          onClick={() => setTab("documents")}
+        />
+        <TabButton
+          active={tab === "trace"}
+          icon="↯"
+          label="Trace"
+          count={inspectorTrace.length}
+          onClick={() => setTab("trace")}
         />
         <TabButton
           active={tab === "raw"}

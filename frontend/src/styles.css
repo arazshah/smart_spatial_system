@@ -9376,3 +9376,208 @@ details.modal-section[open] summary::before {
   background: rgba(255,255,255,.65);
 }
 
+
+/* Phase 15: Analysis Inspector table/document/trace tabs */
+
+.inspector-table-card,
+.inspector-document-card,
+.inspector-trace-card {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.58);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--shadow-soft);
+}
+
+.inspector-table-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.inspector-table-head strong,
+.inspector-document-body strong,
+.inspector-trace-title strong {
+  display: block;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.inspector-table-head span,
+.inspector-document-body span,
+.inspector-trace-meta span,
+.inspector-table-note,
+.inspector-table-empty,
+.inspector-document-body small,
+.inspector-trace-card small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.inspector-table-badge {
+  flex: 0 0 auto;
+  border: 1px solid rgba(53, 104, 212, 0.18);
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.inspector-table-scroll {
+  max-width: 100%;
+  overflow: auto;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 252, 245, 0.72);
+}
+
+.inspector-data-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  direction: ltr;
+  text-align: left;
+  font-size: 0.78rem;
+}
+
+.inspector-data-table th,
+.inspector-data-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(83, 71, 54, 0.1);
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.inspector-data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(242, 234, 220, 0.96);
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.inspector-data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.inspector-table-note,
+.inspector-table-empty {
+  padding: 10px;
+}
+
+.inspector-document-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.inspector-document-icon {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 0.76rem;
+  font-weight: 900;
+  border: 1px solid rgba(53, 104, 212, 0.18);
+}
+
+.inspector-document-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inspector-trace-card {
+  display: flex;
+  gap: 12px;
+}
+
+.inspector-trace-index {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  background: rgba(123, 112, 95, 0.1);
+  color: var(--muted);
+}
+
+.inspector-trace-card.success .inspector-trace-index {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.inspector-trace-card.danger .inspector-trace-index {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.inspector-trace-card.warning .inspector-trace-index {
+  background: rgba(217, 144, 49, 0.12);
+  color: #a76816;
+}
+
+.inspector-trace-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.inspector-trace-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.inspector-trace-title span {
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  background: rgba(123, 112, 95, 0.1);
+  color: var(--muted);
+}
+
+.inspector-trace-card.success .inspector-trace-title span {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.inspector-trace-card.danger .inspector-trace-title span {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.inspector-trace-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.inspector-trace-meta span {
+  border: 1px solid var(--border);
+  background: rgba(255, 252, 245, 0.72);
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+
+.inspector-trace-card p {
+  margin: 8px 0 0;
+  color: var(--danger);
+  font-size: 0.78rem;
+  line-height: 1.7;
+}

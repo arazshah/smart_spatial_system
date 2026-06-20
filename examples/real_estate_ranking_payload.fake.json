@@ -1,0 +1,271 @@
+{
+  "request_id": "req-manual-real-estate-fake-001",
+  "query": "ملک‌هایی را پیدا کن که کمتر از ۵۰۰ متر به مترو یا مرکز خرید نزدیک باشند، نزدیک خیابان اصلی باشند، ریسک سیل و زلزله و آتش‌سوزی پایینی داشته باشند، داخل محدوده مجاز ساخت‌وساز باشند، به هر ملک امتیاز بده و گزارش PDF شامل نقشه و جدول رتبه‌بندی تولید کن",
+  "inputs": {
+    "properties": {
+      "type": "FeatureCollection",
+      "name": "fake_candidate_properties",
+      "crs": {
+        "type": "name",
+        "properties": {
+          "name": "EPSG:4326"
+        }
+      },
+      "features": [
+        {
+          "type": "Feature",
+          "id": "prop-001",
+          "properties": {
+            "id": "prop-001",
+            "property_id": "prop-001",
+            "name": "آپارتمان مرکز",
+            "title": "آپارتمان مرکز",
+            "property_type": "apartment",
+            "price": 12000000000,
+            "area_m2": 115,
+            "distance_to_metro_m": 420,
+            "distance_to_mall_m": 620,
+            "distance_to_main_road_m": 90,
+            "flood_risk": "low",
+            "earthquake_risk": "medium",
+            "fire_risk": "low",
+            "construction_allowed": true,
+            "build_zone_allowed": true,
+            "description": "ملک نزدیک مترو، نزدیک خیابان اصلی، با ریسک زلزله متوسط"
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [51.405, 35.721]
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "prop-002",
+          "properties": {
+            "id": "prop-002",
+            "property_id": "prop-002",
+            "name": "ویلای لوکس",
+            "title": "ویلای لوکس",
+            "property_type": "villa",
+            "price": 18000000000,
+            "area_m2": 320,
+            "distance_to_metro_m": 700,
+            "distance_to_mall_m": 310,
+            "distance_to_main_road_m": 120,
+            "flood_risk": "low",
+            "earthquake_risk": "low",
+            "fire_risk": "low",
+            "construction_allowed": true,
+            "build_zone_allowed": true,
+            "description": "ملک نزدیک مرکز خرید، نزدیک خیابان اصلی، با ریسک پایین"
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [51.382, 35.805]
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "prop-003",
+          "properties": {
+            "id": "prop-003",
+            "property_id": "prop-003",
+            "name": "زمین حاشیه‌ای",
+            "title": "زمین حاشیه‌ای",
+            "property_type": "land",
+            "price": 6000000000,
+            "area_m2": 540,
+            "distance_to_metro_m": 1600,
+            "distance_to_mall_m": 1400,
+            "distance_to_main_road_m": 260,
+            "flood_risk": "high",
+            "earthquake_risk": "medium",
+            "fire_risk": "low",
+            "construction_allowed": false,
+            "build_zone_allowed": false,
+            "description": "ملک دور از مترو و مرکز خرید، دور از خیابان اصلی، با ریسک سیل بالا و خارج از محدوده مجاز ساخت"
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [51.555, 35.62]
+          }
+        }
+      ]
+    },
+    "candidate_properties": [
+      {
+        "id": "prop-001",
+        "property_id": "prop-001",
+        "name": "آپارتمان مرکز",
+        "title": "آپارتمان مرکز",
+        "property_type": "apartment",
+        "price": 12000000000,
+        "area_m2": 115,
+        "longitude": 51.405,
+        "latitude": 35.721,
+        "distance_to_metro_m": 420,
+        "distance_to_mall_m": 620,
+        "distance_to_main_road_m": 90,
+        "flood_risk": "low",
+        "earthquake_risk": "medium",
+        "fire_risk": "low",
+        "construction_allowed": true,
+        "build_zone_allowed": true
+      },
+      {
+        "id": "prop-002",
+        "property_id": "prop-002",
+        "name": "ویلای لوکس",
+        "title": "ویلای لوکس",
+        "property_type": "villa",
+        "price": 18000000000,
+        "area_m2": 320,
+        "longitude": 51.382,
+        "latitude": 35.805,
+        "distance_to_metro_m": 700,
+        "distance_to_mall_m": 310,
+        "distance_to_main_road_m": 120,
+        "flood_risk": "low",
+        "earthquake_risk": "low",
+        "fire_risk": "low",
+        "construction_allowed": true,
+        "build_zone_allowed": true
+      },
+      {
+        "id": "prop-003",
+        "property_id": "prop-003",
+        "name": "زمین حاشیه‌ای",
+        "title": "زمین حاشیه‌ای",
+        "property_type": "land",
+        "price": 6000000000,
+        "area_m2": 540,
+        "longitude": 51.555,
+        "latitude": 35.62,
+        "distance_to_metro_m": 1600,
+        "distance_to_mall_m": 1400,
+        "distance_to_main_road_m": 260,
+        "flood_risk": "high",
+        "earthquake_risk": "medium",
+        "fire_risk": "low",
+        "construction_allowed": false,
+        "build_zone_allowed": false
+      }
+    ],
+    "metro_stations": {
+      "type": "FeatureCollection",
+      "name": "fake_metro_stations",
+      "features": [
+        {
+          "type": "Feature",
+          "properties": {
+            "id": "metro-001",
+            "name": "ایستگاه مترو مرکزی"
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [51.401, 35.724]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "id": "metro-002",
+            "name": "ایستگاه مترو شمال"
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [51.39, 35.812]
+          }
+        }
+      ]
+    },
+    "shopping_centers": {
+      "type": "FeatureCollection",
+      "name": "fake_shopping_centers",
+      "features": [
+        {
+          "type": "Feature",
+          "properties": {
+            "id": "mall-001",
+            "name": "مرکز خرید ونک"
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [51.384, 35.807]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "id": "mall-002",
+            "name": "مرکز خرید مرکزی"
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [51.412, 35.719]
+          }
+        }
+      ]
+    },
+    "main_roads": {
+      "type": "FeatureCollection",
+      "name": "fake_main_roads",
+      "features": [
+        {
+          "type": "Feature",
+          "properties": {
+            "id": "road-001",
+            "name": "خیابان اصلی مرکزی"
+          },
+          "geometry": {
+            "type": "LineString",
+            "coordinates": [
+              [51.395, 35.716],
+              [51.415, 35.726]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "id": "road-002",
+            "name": "بلوار شمالی"
+          },
+          "geometry": {
+            "type": "LineString",
+            "coordinates": [
+              [51.375, 35.8],
+              [51.395, 35.81]
+            ]
+          }
+        }
+      ]
+    },
+    "construction_zones": {
+      "type": "FeatureCollection",
+      "name": "fake_construction_allowed_zones",
+      "features": [
+        {
+          "type": "Feature",
+          "properties": {
+            "id": "zone-001",
+            "name": "محدوده مجاز ساخت‌وساز",
+            "construction_allowed": true
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [51.34, 35.69],
+                [51.44, 35.69],
+                [51.44, 35.84],
+                [51.34, 35.84],
+                [51.34, 35.69]
+              ]
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

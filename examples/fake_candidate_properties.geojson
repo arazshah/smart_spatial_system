@@ -1,0 +1,99 @@
+{
+  "type": "FeatureCollection",
+  "name": "fake_candidate_properties",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "prop-001",
+      "properties": {
+        "id": "prop-001",
+        "property_id": "prop-001",
+        "name": "آپارتمان مرکز",
+        "title": "آپارتمان مرکز",
+        "property_type": "apartment",
+        "price": 12000000000,
+        "area_m2": 115,
+        "distance_to_metro_m": 420,
+        "distance_to_mall_m": 620,
+        "distance_to_main_road_m": 90,
+        "flood_risk": "low",
+        "earthquake_risk": "medium",
+        "fire_risk": "low",
+        "construction_allowed": true,
+        "build_zone_allowed": true,
+        "description": "ملک نزدیک مترو، نزدیک خیابان اصلی، با ریسک زلزله متوسط"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          51.405,
+          35.721
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "prop-002",
+      "properties": {
+        "id": "prop-002",
+        "property_id": "prop-002",
+        "name": "ویلای لوکس",
+        "title": "ویلای لوکس",
+        "property_type": "villa",
+        "price": 18000000000,
+        "area_m2": 320,
+        "distance_to_metro_m": 700,
+        "distance_to_mall_m": 310,
+        "distance_to_main_road_m": 120,
+        "flood_risk": "low",
+        "earthquake_risk": "low",
+        "fire_risk": "low",
+        "construction_allowed": true,
+        "build_zone_allowed": true,
+        "description": "ملک نزدیک مرکز خرید، نزدیک خیابان اصلی، با ریسک پایین"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          51.382,
+          35.805
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "prop-003",
+      "properties": {
+        "id": "prop-003",
+        "property_id": "prop-003",
+        "name": "زمین حاشیه‌ای",
+        "title": "زمین حاشیه‌ای",
+        "property_type": "land",
+        "price": 6000000000,
+        "area_m2": 540,
+        "distance_to_metro_m": 1600,
+        "distance_to_mall_m": 1400,
+        "distance_to_main_road_m": 260,
+        "flood_risk": "high",
+        "earthquake_risk": "medium",
+        "fire_risk": "low",
+        "construction_allowed": false,
+        "build_zone_allowed": false,
+        "description": "ملک دور از مترو و مرکز خرید، دور از خیابان اصلی، با ریسک سیل بالا و خارج از محدوده مجاز ساخت"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          51.555,
+          35.62
+        ]
+      }
+    }
+  ]
+}

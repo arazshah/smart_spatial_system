@@ -1801,6 +1801,7 @@ class OrchestratorService:
                     "domain": "real_estate_spatial_ranking",
                     "report_id": "real_estate_ranking_report",
                     "document_ids": [doc.get("id") for doc in documents],
+                    "document_ids": [doc.get("id") for doc in documents],
                 },
             )
         except Exception as exc:

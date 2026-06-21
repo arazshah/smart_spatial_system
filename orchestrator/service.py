@@ -147,6 +147,7 @@ from orchestrator.planning.postgis_semantic_resolver import (
     ColumnInfo,
     PostGISSchemaContext,
     PostGISTableInfo,
+    discover_postgis_schema,
 )
 from orchestrator.planning.semantic_planning_context import (
     build_semantic_planning_context,
@@ -260,6 +261,243 @@ def _coerce_postgis_schema_context(value: Any) -> PostGISSchemaContext | None:
     return PostGISSchemaContext(tables=tuple(tables))
 
 
+_POSTGIS_CONNECTION_KEYS = (
+    "postgis_connection",
+    "postgis",
+    "database_connection",
+    "db_connection",
+    "connection",
+)
+
+
+def _looks_like_postgis_connection(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+
+    lowered = {
+        str(k).lower(): v
+        for k, v in value.items()
+    }
+
+    for key in ("source_type", "type", "driver", "dialect", "engine"):
+        raw = lowered.get(key)
+        if raw is not None and str(raw).strip().lower() in {
+            "postgis",
+            "postgres",
+            "postgresql",
+        }:
+            return True
+
+    if lowered.get("dsn"):
+        dsn = str(lowered.get("dsn") or "").lower()
+        if "postgres" in dsn or "postgis" in dsn or "dbname=" in dsn:
+            return True
+
+    has_database = any(k in lowered for k in ("database", "dbname", "db_name"))
+    has_host = "host" in lowered or "hostname" in lowered
+    has_user = "user" in lowered or "username" in lowered
+
+    # Host+database is usually enough for explicit postgis_connection containers.
+    return bool(has_database and (has_host or has_user))
+
+
+def _normalize_postgis_connection_config(value: Any) -> dict[str, Any] | None:
+    """
+    Normalize a PostGIS/PostgreSQL connection config.
+
+    Returns a safe internal dict with only connection-related fields:
+      dsn, host, port, database, user, password, connect_timeout, schemas
+
+    It intentionally ignores arbitrary extra fields.
+    """
+    if not _looks_like_postgis_connection(value):
+        return None
+
+    raw = dict(value)
+
+    def pick(*names: str) -> Any:
+        for name in names:
+            if name in raw and raw.get(name) not in (None, ""):
+                return raw.get(name)
+        return None
+
+    config: dict[str, Any] = {}
+
+    dsn = pick("dsn", "url", "uri")
+    if dsn:
+        config["dsn"] = str(dsn)
+
+    host = pick("host", "hostname")
+    if host:
+        config["host"] = str(host)
+
+    port = pick("port")
+    if port not in (None, ""):
+        try:
+            config["port"] = int(port)
+        except Exception:
+            config["port"] = str(port)
+
+    database = pick("database", "dbname", "db_name")
+    if database:
+        config["database"] = str(database)
+
+    user = pick("user", "username")
+    if user:
+        config["user"] = str(user)
+
+    password = pick("password", "pass")
+    if password:
+        config["password"] = str(password)
+
+    timeout = pick("connect_timeout", "timeout")
+    if timeout not in (None, ""):
+        try:
+            config["connect_timeout"] = int(timeout)
+        except Exception:
+            config["connect_timeout"] = timeout
+
+    schemas = pick("schemas", "schema")
+    if schemas:
+        if isinstance(schemas, str):
+            config["schemas"] = [schemas]
+        elif isinstance(schemas, (list, tuple, set)):
+            config["schemas"] = [str(s) for s in schemas if str(s).strip()]
+
+    if not config.get("dsn") and not config.get("database"):
+        return None
+
+    return config
+
+
+def _extract_postgis_connection_config_from_sources(
+    *,
+    resolved_inputs: dict[str, Any] | None,
+    user_context: dict[str, Any] | None,
+    metadata: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """
+    Find PostGIS connection configuration in known request/context locations.
+
+    Priority:
+      user_context → metadata → resolved_inputs
+    """
+    sources = (
+        user_context or {},
+        metadata or {},
+        resolved_inputs or {},
+    )
+
+    # First check known container keys.
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+
+        for key in _POSTGIS_CONNECTION_KEYS:
+            candidate = source.get(key)
+            normalized = _normalize_postgis_connection_config(candidate)
+            if normalized is not None:
+                return normalized
+
+    # Then allow the source object itself to be a connection config.
+    for source in sources:
+        normalized = _normalize_postgis_connection_config(source)
+        if normalized is not None:
+            return normalized
+
+    return None
+
+
+def _discover_postgis_schema_context_from_connection_config(
+    connection_config: dict[str, Any],
+) -> PostGISSchemaContext:
+    """
+    Open a psycopg2 connection and discover PostGIS schema.
+
+    The caller receives exceptions; higher-level planning should handle them
+    non-fatally.
+    """
+    import psycopg2
+
+    schemas = connection_config.get("schemas") or None
+
+    connect_timeout = connection_config.get("connect_timeout", 5)
+
+    if connection_config.get("dsn"):
+        conn = psycopg2.connect(
+            connection_config["dsn"],
+            connect_timeout=connect_timeout,
+        )
+    else:
+        kwargs: dict[str, Any] = {
+            "host": connection_config.get("host"),
+            "port": connection_config.get("port"),
+            "dbname": connection_config.get("database"),
+            "user": connection_config.get("user"),
+            "password": connection_config.get("password"),
+            "connect_timeout": connect_timeout,
+        }
+        kwargs = {k: v for k, v in kwargs.items() if v not in (None, "")}
+        conn = psycopg2.connect(**kwargs)
+
+    try:
+        return discover_postgis_schema(
+            conn,
+            schemas=schemas,
+        )
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _build_query_spec_runtime_inputs(
+    *,
+    resolved_inputs: dict[str, Any] | None,
+    user_context: dict[str, Any] | None,
+    metadata: dict[str, Any] | None,
+) -> tuple[dict[str, Any], bool]:
+    """
+    Build runtime inputs used to enrich executable QuerySpec operation params.
+
+    Important:
+    LLM/semantic planning creates safe logical query_database params:
+      schema/table/columns/geom_col/where
+
+    Runtime execution also needs connection params:
+      host/port/database/user/password/connect_timeout/dsn/profile
+
+    UI often sends those params nested under:
+      user_context.postgis_connection
+      user_context.postgis
+      metadata.postgis_connection
+      resolved_inputs.postgis_connection
+
+    `_enrich_query_database_params_from_inputs` expects top-level keys, so this
+    helper flattens the normalized connection config into runtime_inputs.
+
+    Password is included only in runtime inputs for execution; response metadata
+    must continue using redaction helpers.
+    """
+    runtime_inputs: dict[str, Any] = dict(resolved_inputs or {})
+
+    connection_config = _extract_postgis_connection_config_from_sources(
+        resolved_inputs=resolved_inputs,
+        user_context=user_context,
+        metadata=metadata,
+    )
+
+    if connection_config is None:
+        return runtime_inputs, False
+
+    runtime_inputs.update(connection_config)
+    runtime_inputs.setdefault("postgis_connection", connection_config)
+    runtime_inputs.setdefault("database_connection", connection_config)
+
+    return runtime_inputs, True
+
+
 def _extract_semantic_planning_context_from_sources(
     *,
     query: str,
@@ -300,8 +538,20 @@ def _extract_semantic_planning_context_from_sources(
         )
 
         schema_context = _coerce_postgis_schema_context(schema_source)
+
         if schema_context is None:
-            return None, None
+            connection_config = _extract_postgis_connection_config_from_sources(
+                resolved_inputs=resolved_inputs,
+                user_context=user_context,
+                metadata=metadata,
+            )
+
+            if connection_config is None:
+                return None, None
+
+            schema_context = _discover_postgis_schema_context_from_connection_config(
+                connection_config
+            )
 
         explicit_concepts = (
             user_context.get("semantic_concepts")
@@ -3617,9 +3867,20 @@ class OrchestratorService:
                 context=planning_context,
             )
 
+            planning_runtime_inputs, postgis_runtime_connection_injected = (
+                _build_query_spec_runtime_inputs(
+                    resolved_inputs=resolved_inputs,
+                    user_context=user_context,
+                    metadata=metadata,
+                )
+            )
+
+            if postgis_runtime_connection_injected:
+                final_metadata["postgis_runtime_connection_injected"] = True
+
             self._enrich_query_database_params_from_inputs(
                 query_spec,
-                resolved_inputs or {},
+                planning_runtime_inputs,
             )
 
             from orchestrator.planning.query_spec_contract import validate_query_spec_contract

@@ -194,6 +194,141 @@ def _list(value: Any, label: str) -> list[Any]:
     return value
 
 
+def _coerce_list_of_pairs_to_dict(value: Any) -> dict[str, Any] | None:
+    """
+    Coerce common LLM mistakes into an object.
+
+    Accepted examples:
+      [{"source": "a"}, {"target": "b"}] -> {"source": "a", "target": "b"}
+      [{"key": "source", "value": "a"}] -> {"source": "a"}
+      [{"name": "k", "value": 1}] -> {"k": 1}
+      [["source", "a"], ["target", "b"]] -> {"source": "a", "target": "b"}
+
+    Ambiguous values return None.
+    """
+    if isinstance(value, dict):
+        return dict(value)
+
+    if value in (None, ""):
+        return {}
+
+    if not isinstance(value, list):
+        return None
+
+    result: dict[str, Any] = {}
+
+    for index, item in enumerate(value):
+        if isinstance(item, dict):
+            # Common explicit key/value shapes.
+            explicit_key = (
+                item.get("key")
+                or item.get("name")
+                or item.get("role")
+                or item.get("input")
+                or item.get("param")
+            )
+
+            if explicit_key is not None:
+                explicit_value = (
+                    item.get("value")
+                    if "value" in item
+                    else item.get("source")
+                    if "source" in item
+                    else item.get("ref")
+                    if "ref" in item
+                    else item.get("target")
+                    if "target" in item
+                    else None
+                )
+                result[str(explicit_key)] = explicit_value
+                continue
+
+            # Single-key object: {"source": "layer"}
+            if len(item) == 1:
+                k, v = next(iter(item.items()))
+                result[str(k)] = v
+                continue
+
+            # Multi-key object where all keys look like direct mapping.
+            # Example: {"source": "a", "target": "b"}
+            if item:
+                for k, v in item.items():
+                    result[str(k)] = v
+                continue
+
+            continue
+
+        if isinstance(item, (list, tuple)) and len(item) == 2:
+            result[str(item[0])] = item[1]
+            continue
+
+        # Plain string arrays are ambiguous for strict QuerySpec inputs.
+        return None
+
+    return result
+
+
+def _pre_normalize_query_spec_json(data: dict[str, Any]) -> dict[str, Any]:
+    """
+    Pre-normalize raw LLM JSON before strict QuerySpec parsing.
+
+    The strict parser is still the source of truth. This function only repairs
+    common JSON-shape mistakes that do not change semantic meaning, especially
+    arrays used where QuerySpec requires objects.
+    """
+    if not isinstance(data, dict):
+        return data
+
+    normalized = dict(data)
+
+    operations = normalized.get("operations")
+    if isinstance(operations, list):
+        new_operations: list[Any] = []
+
+        for op_item in operations:
+            if not isinstance(op_item, dict):
+                new_operations.append(op_item)
+                continue
+
+            op_copy = dict(op_item)
+
+            if "inputs" in op_copy:
+                coerced_inputs = _coerce_list_of_pairs_to_dict(op_copy.get("inputs"))
+                if coerced_inputs is not None:
+                    op_copy["inputs"] = coerced_inputs
+
+            if "params" in op_copy:
+                coerced_params = _coerce_list_of_pairs_to_dict(op_copy.get("params"))
+                if coerced_params is not None:
+                    op_copy["params"] = coerced_params
+
+            new_operations.append(op_copy)
+
+        normalized["operations"] = new_operations
+
+    outputs = normalized.get("outputs")
+    if isinstance(outputs, list):
+        new_outputs: list[Any] = []
+
+        for output_item in outputs:
+            if not isinstance(output_item, dict):
+                new_outputs.append(output_item)
+                continue
+
+            out_copy = dict(output_item)
+
+            if "config" in out_copy:
+                coerced_config = _coerce_list_of_pairs_to_dict(out_copy.get("config"))
+                if coerced_config is not None:
+                    out_copy["config"] = coerced_config
+
+            new_outputs.append(out_copy)
+
+        normalized["outputs"] = new_outputs
+
+    return normalized
+
+
 def query_spec_from_dict(data: dict[str, Any], *, raw_query_fallback: str = "") -> QuerySpec:
     data = _dict(data, "QuerySpec JSON")
 
@@ -405,6 +540,17 @@ Semantic Planning Context Guardrails:
     "limit": requested_limit
   }
 - If semantic_planning_context.operation_hints is provided, follow those hints.
+- QuerySpec JSON shape is strict:
+  operations must be an array of objects.
+  operations[i].inputs must be a JSON object, never an array.
+  operations[i].params must be a JSON object, never an array.
+  outputs[i].config must be a JSON object, never an array.
+- Correct examples:
+  "inputs": {"source": "metro_layer", "target": "shopping_layer"}
+  "params": {"k": 1, "include_target_geometry": true}
+- Incorrect examples:
+  "inputs": [{"source": "metro_layer"}, {"target": "shopping_layer"}]
+  "params": [{"k": 1}]
 - If no semantic layer candidate exists for a requested concept, do not guess a
   table or column. Return a safe QuerySpec that reports insufficient semantic
   layer resolution or asks for clarification.
@@ -1052,6 +1198,7 @@ class LLMQuerySpecGenerator:
 
         text = self.llm_client.complete(messages, **kwargs)
         data = extract_json_object(text)
+        data = _pre_normalize_query_spec_json(data)
 
         spec = query_spec_from_dict(data, raw_query_fallback=raw_query)
         return normalize_llm_query_spec_for_planning(spec)

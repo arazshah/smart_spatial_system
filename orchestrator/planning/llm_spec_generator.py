@@ -494,7 +494,290 @@ def _inject_query_database_ops_for_database_entities(data: dict[str, Any]) -> di
     return new_data
 
 
-def _pre_normalize_query_spec_json(data: dict[str, Any]) -> dict[str, Any]:
+def _compact_ref(value: Any) -> str:
+    s = str(value or "").strip().lower()
+    s = s.replace("-", "_").replace(" ", "_")
+    return "".join(ch for ch in s if ch.isalnum() or ch == "_")
+
+
+def _semantic_concept_aliases(concept: str) -> set[str]:
+    c = _compact_ref(concept)
+    aliases = {c}
+
+    if c:
+        aliases.add(c + "s")
+
+    # Common plural/alias variants produced by LLMs.
+    if c == "metro_station":
+        aliases.update({"metro_stations", "metro", "subway_station", "subway_stations"})
+    elif c == "shopping_center":
+        aliases.update({
+            "shopping_centers",
+            "shopping_centre",
+            "shopping_centres",
+            "mall",
+            "malls",
+            "market",
+            "markets",
+        })
+    elif c == "park":
+        aliases.update({"parks"})
+    elif c == "hospital":
+        aliases.update({"hospitals"})
+    elif c == "school":
+        aliases.update({"schools"})
+
+    return aliases
+
+
+def _ref_matches_concept(ref: Any, concept: str) -> bool:
+    r = _compact_ref(ref)
+    if not r:
+        return False
+
+    aliases = _semantic_concept_aliases(concept)
+    if r in aliases:
+        return True
+
+    if any(alias and alias in r for alias in aliases):
+        return True
+
+    # Fallback: all concept tokens appear in output ref.
+    tokens = [t for t in _compact_ref(concept).split("_") if t]
+    return bool(tokens) and all(t in r for t in tokens)
+
+
+def _semantic_layer_params_from_context(
+    context: dict[str, Any] | None,
+) -> list[tuple[str, dict[str, Any]]]:
+    if not isinstance(context, dict):
+        return []
+
+    semantic_context = context.get("semantic_planning_context")
+    if not isinstance(semantic_context, dict):
+        return []
+
+    layers_by_concept = semantic_context.get("semantic_layers")
+    if not isinstance(layers_by_concept, dict):
+        return []
+
+    result: list[tuple[str, dict[str, Any]]] = []
+
+    for concept, layers in layers_by_concept.items():
+        if not isinstance(layers, list):
+            continue
+
+        for layer in layers:
+            if not isinstance(layer, dict):
+                continue
+
+            params = layer.get("params")
+            if not isinstance(params, dict):
+                continue
+
+            clean_params = {
+                k: v
+                for k, v in params.items()
+                if k in _QUERY_DATABASE_PARAM_KEYS and v not in (None, "")
+            }
+
+            if clean_params:
+                result.append((str(concept), clean_params))
+
+    return result
+
+
+def _best_semantic_params_for_output(
+    output_ref: Any,
+    context: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    candidates = _semantic_layer_params_from_context(context)
+    if not candidates:
+        return None
+
+    # First, match by concept/output alias.
+    for concept, params in candidates:
+        if _ref_matches_concept(output_ref, concept):
+            return dict(params)
+
+    return None
+
+
+def _query_database_params_complete(params: Any) -> bool:
+    if not isinstance(params, dict):
+        return False
+
+    return bool(
+        params.get("schema")
+        and params.get("table")
+        and params.get("geom_col")
+    )
+
+
+def _merge_query_database_params(
+    base: dict[str, Any],
+    override: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Merge semantic candidate params with LLM params.
+
+    Semantic params provide schema/table/geom_col/columns/where.
+    LLM params may override non-empty values, but cannot remove required fields.
+    """
+    merged = dict(base)
+
+    for k, v in override.items():
+        if v not in (None, ""):
+            merged[k] = v
+
+    merged.setdefault("source_type", "postgis")
+    merged.setdefault("mode", "select_table")
+    merged.setdefault("geom_alias", "geom")
+    merged.setdefault("limit", 5000)
+
+    return merged
+
+
+def _repair_query_database_from_semantic_context(
+    op_item: dict[str, Any],
+    context: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """
+    Complete incomplete query_database/load_postgis_layer operations using
+    semantic_planning_context.semantic_layers.
+
+    Example:
+      params={"where": "...", "output_srid": 3857}
+    becomes:
+      params={
+        "source_type": "postgis",
+        "mode": "select_table",
+        "schema": "public",
+        "table": "planet_osm_point",
+        "columns": [...],
+        "geom_col": "way",
+        "geom_alias": "geom",
+        "where": "...",
+        "limit": 5000,
+        "output_srid": 3857
+      }
+    """
+    op_copy = dict(op_item)
+    op_name = str(op_copy.get("op") or "")
+
+    if op_name not in {"query_database", "load_postgis_layer"}:
+        return op_copy
+
+    params = op_copy.get("params")
+    if not isinstance(params, dict):
+        params = {}
+
+    if _query_database_params_complete(params):
+        return op_copy
+
+    semantic_params = _best_semantic_params_for_output(
+        op_copy.get("output"),
+        context,
+    )
+
+    if not semantic_params:
+        return op_copy
+
+    op_copy["params"] = _merge_query_database_params(
+        semantic_params,
+        params,
+    )
+    op_copy.setdefault("inputs", {})
+
+    return op_copy
+
+
+def _has_query_database_for_entity_ref(
+    operations: list[Any],
+    ref: str,
+) -> bool:
+    for op in operations:
+        if not isinstance(op, dict):
+            continue
+
+        if str(op.get("op") or "") not in {"query_database", "load_postgis_layer"}:
+            continue
+
+        output = op.get("output")
+        if _ref_matches_concept(output, ref):
+            return True
+
+    return False
+
+
+def _inject_query_database_ops_for_database_entities(
+    data: dict[str, Any],
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Improved version.
+
+    Inject query_database only when there is no existing query_database output
+    matching the entity ref/concept, including plural aliases like:
+      metro_station -> metro_stations
+      shopping_center -> shopping_centers
+
+    If semantic context has a better candidate, use it to complete injected params.
+    """
+    entities = data.get("entities")
+    operations = data.get("operations")
+
+    if not isinstance(entities, list) or not isinstance(operations, list):
+        return data
+
+    injected: list[dict[str, Any]] = []
+
+    for entity in entities:
+        if not _is_database_entity(entity):
+            continue
+
+        ref = str(entity.get("ref") or "").strip()
+        if not ref:
+            continue
+
+        if _has_query_database_for_entity_ref(operations, ref):
+            continue
+
+        binding = entity.get("binding")
+        if not isinstance(binding, dict):
+            continue
+
+        params = _query_database_params_from_binding(binding)
+
+        semantic_params = _best_semantic_params_for_output(ref, context)
+        if semantic_params:
+            params = _merge_query_database_params(semantic_params, params)
+
+        injected.append(
+            {
+                "op": "query_database",
+                "inputs": {},
+                "params": params,
+                "output": ref,
+            }
+        )
+
+    if not injected:
+        return data
+
+    new_data = dict(data)
+    new_data["operations"] = injected + operations
+
+    metadata = dict(new_data.get("metadata") or {})
+    repairs = list((metadata.get("pre_normalization_repairs") or []))
+    repairs.append("injected query_database operations for database entities")
+    metadata["pre_normalization_repairs"] = repairs
+    new_data["metadata"] = metadata
+
+    return new_data
+
+
+def _pre_normalize_query_spec_json(data: dict[str, Any], *, context: dict[str, Any] | None = None) -> dict[str, Any]:
     """
     Pre-normalize raw LLM JSON before strict QuerySpec parsing.
 
@@ -532,6 +815,7 @@ def _pre_normalize_query_spec_json(data: dict[str, Any]) -> dict[str, Any]:
                     op_copy["params"] = coerced_params
 
             op_copy = _repair_query_database_operation_shape(op_copy)
+            op_copy = _repair_query_database_from_semantic_context(op_copy, context)
             op_copy = _repair_vector_input_aliases(op_copy)
 
             new_operations.append(op_copy)
@@ -558,7 +842,7 @@ def _pre_normalize_query_spec_json(data: dict[str, Any]) -> dict[str, Any]:
 
         normalized["outputs"] = new_outputs
 
-    normalized = _inject_query_database_ops_for_database_entities(normalized)
+    normalized = _inject_query_database_ops_for_database_entities(normalized, context=context)
 
     return normalized
 
@@ -1432,7 +1716,7 @@ class LLMQuerySpecGenerator:
 
         text = self.llm_client.complete(messages, **kwargs)
         data = extract_json_object(text)
-        data = _pre_normalize_query_spec_json(data)
+        data = _pre_normalize_query_spec_json(data, context=context)
 
         spec = query_spec_from_dict(data, raw_query_fallback=raw_query)
         return normalize_llm_query_spec_for_planning(spec)

@@ -134,6 +134,23 @@ from orchestrator.weight_store_persistence import (
     WeightStorePersistenceError,
 )
 from orchestrator.weighted_router import WeightedCapabilityRouter, WeightedRouterConfig
+from orchestrator.planning.dag_executor import DagExecutionError, DagValidationError
+from orchestrator.planning.llm_spec_generator import (
+    LLMQuerySpecGenerator,
+    LLMSpecGenerationError,
+    OpenAICompatibleLLMClient,
+    query_spec_to_dict,
+)
+from orchestrator.planning.planner import PlanningError
+from orchestrator.planning.runner import make_registry_planning_runner
+
+
+def _is_feature_collection(value: Any) -> bool:
+    return (
+        isinstance(value, dict)
+        and value.get("type") == "FeatureCollection"
+        and isinstance(value.get("features"), list)
+    )
 
 
 DEFAULT_SAFE_PLUGIN_MODULES = [
@@ -168,6 +185,7 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.attribute_statistics",
     "plugins.crs_transformer",
     "plugins.data_writer_exporter",
+    "plugins.postgis_connector",
 ]
 
 
@@ -330,6 +348,18 @@ class OrchestratorService:
         import os
 
         value = os.getenv("LLM_PLANNING_ENABLED", "false").strip().lower()
+        return value in {"1", "true", "yes", "on"}
+
+    @staticmethod
+    def _query_spec_planning_enabled() -> bool:
+        """
+        Whether QuerySpec-based planning is enabled for /query.
+
+        This is separate from legacy LLM intent planning.
+        """
+        import os
+
+        value = os.getenv("QUERY_SPEC_PLANNING_ENABLED", "false").strip().lower()
         return value in {"1", "true", "yes", "on"}
 
     def _maybe_plan_llm_intent(
@@ -3092,6 +3122,324 @@ class OrchestratorService:
             },
         }
 
+
+    def _planning_trace_to_steps(self, trace: list[Any]) -> list[dict[str, Any]]:
+        steps: list[dict[str, Any]] = []
+
+        for item in trace or []:
+            capability_name = getattr(item, "capability_name", None)
+            node_id = getattr(item, "node_id", None)
+            status = getattr(item, "status", None)
+            error = getattr(item, "error", None)
+            output_summary = getattr(item, "output_summary", None) or {}
+
+            if error:
+                message = error
+            elif isinstance(output_summary, dict) and output_summary:
+                parts = [f"{k}={v}" for k, v in output_summary.items()]
+                message = ", ".join(parts[:6])
+            else:
+                message = status or ""
+
+            steps.append(
+                {
+                    "label": capability_name or node_id or "step",
+                    "step": node_id or capability_name or "step",
+                    "status": status or "unknown",
+                    "message": message,
+                }
+            )
+
+        return steps
+
+    def _planning_outputs_to_response_payload(
+        self,
+        planning_result: Any,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any] | None]:
+        layers: list[dict[str, Any]] = []
+        outputs: dict[str, Any] = {
+            "files": [],
+            "vectors": [],
+            "tables": [],
+            "rasters": [],
+        }
+        primary_report: dict[str, Any] | None = None
+
+        def _as_feature_collection(value: Any) -> dict[str, Any] | None:
+            if _is_feature_collection(value):
+                return value
+
+            geojson = getattr(value, "geojson", None)
+            if _is_feature_collection(geojson):
+                return geojson
+
+            features = getattr(value, "features", None)
+            if isinstance(features, list):
+                return {
+                    "type": "FeatureCollection",
+                    "features": _json_safe(features),
+                }
+
+            if isinstance(value, dict) and isinstance(value.get("features"), list):
+                return {
+                    "type": "FeatureCollection",
+                    "features": _json_safe(value.get("features") or []),
+                }
+
+            return None
+
+        for node_id, value in (getattr(planning_result, "output_nodes", None) or {}).items():
+            feature_collection = _as_feature_collection(value)
+
+            if feature_collection is not None:
+                layer = {
+                    "id": node_id,
+                    "name": node_id,
+                    "type": "vector",
+                    "format": "geojson",
+                    "geojson": feature_collection,
+                    "summary": {
+                        "feature_count": len(feature_collection.get("features", [])),
+                    },
+                }
+                layers.append(layer)
+                outputs["vectors"].append(layer)
+                continue
+
+            safe_value = _json_safe(value)
+
+            if isinstance(safe_value, dict):
+                if any(
+                    key in safe_value
+                    for key in ("title", "summary", "sections", "rankings", "table", "rows")
+                ):
+                    if primary_report is None:
+                        primary_report = safe_value
+
+                    outputs["tables"].append(
+                        {
+                            "name": node_id,
+                            "source": "planning.output_nodes",
+                            "data": safe_value,
+                        }
+                    )
+
+                for key in ("path", "file_path", "output_path", "pdf_path"):
+                    file_path = safe_value.get(key)
+                    if isinstance(file_path, str) and file_path:
+                        outputs["files"].append(
+                            {
+                                "name": safe_value.get("name") or node_id,
+                                "path": file_path,
+                                "source": "planning.output_nodes",
+                                "format": (
+                                    "pdf"
+                                    if str(file_path).lower().endswith(".pdf")
+                                    else "file"
+                                ),
+                            }
+                        )
+                        break
+
+                continue
+
+            if isinstance(value, str) and value.lower().endswith(".pdf"):
+                outputs["files"].append(
+                    {
+                        "name": node_id,
+                        "path": value,
+                        "source": "planning.output_nodes",
+                        "format": "pdf",
+                    }
+                )
+
+        return layers, outputs, primary_report
+
+    def _try_handle_query_with_planning(
+        self,
+        *,
+        query: str,
+        resolved_inputs: dict[str, Any],
+        final_request_id: str,
+        final_metadata: dict[str, Any],
+        user_context: dict[str, Any] | None = None,
+        original_inputs: dict[str, Any] | None = None,
+        band_map: dict[str, int] | None = None,
+        metadata: dict[str, Any] | None = None,
+        project_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        if not self._query_spec_planning_enabled():
+            return None
+
+        try:
+            llm_client = OpenAICompatibleLLMClient()
+            generator = LLMQuerySpecGenerator(llm_client)
+
+            query_spec = generator.generate(
+                query,
+                context={
+                    "available_inputs": sorted((resolved_inputs or {}).keys()),
+                    "response_language": getattr(self.config, "response_language", None),
+                    "project_id": project_id,
+                },
+            )
+
+            runner = make_registry_planning_runner(self.registry)
+            planning_result = runner.run(
+                query_spec,
+                initial_inputs=resolved_inputs,
+                fail_fast=True,
+            )
+
+            layers, outputs, primary_report = self._planning_outputs_to_response_payload(
+                planning_result
+            )
+            steps = self._planning_trace_to_steps(
+                getattr(planning_result, "trace", []) or []
+            )
+
+            success = bool(getattr(planning_result, "success", False))
+            planning_error = getattr(planning_result, "error", None)
+
+            answer = (
+                "تحلیل با موفقیت انجام شد."
+                if success
+                else (planning_error or "اجرای تحلیل برنامه‌ریزی‌شده ناموفق بود.")
+            )
+
+            if success and outputs["files"]:
+                answer = "تحلیل با موفقیت انجام شد و فایل خروجی آماده است."
+
+            if success and primary_report is not None:
+                answer = "تحلیل با موفقیت انجام شد و گزارش آماده است."
+
+            planning_metadata = {
+                **final_metadata,
+                "query_spec_planning_enabled": True,
+                "planning_attempted": True,
+                "planner_type": "deterministic_query_spec",
+                "query_spec": query_spec_to_dict(query_spec),
+                "planning_summary": {
+                    "success": success,
+                    "error": planning_error,
+                    "output_nodes": sorted(
+                        (getattr(planning_result, "output_nodes", None) or {}).keys()
+                    ),
+                },
+            }
+
+            production_response = {
+                "status": "succeeded" if success else "failed",
+                "request_id": final_request_id,
+                "query_hash": None,
+                "answer": answer,
+                "message": answer,
+                "outputs": outputs,
+                "layers": layers,
+                "steps": steps,
+                "confidence": {
+                    "level": None,
+                    "score": None,
+                    "llm_action": "query_spec_planning",
+                    "is_ambiguous": False,
+                    "competitive_gap": None,
+                },
+                "audit_ref": {
+                    "request_id": final_request_id,
+                    "query_hash": None,
+                    "status": "succeeded" if success else "failed",
+                    "plan_steps": len(steps),
+                },
+                "warnings": [] if success else [planning_error or "Planning execution failed."],
+                "next_actions": [],
+                "metadata": planning_metadata,
+            }
+
+            if primary_report is not None:
+                production_response["report"] = primary_report
+
+            self._remember(
+                request_id=final_request_id,
+                record={
+                    "request_id": final_request_id,
+                    "query": query,
+                    "inputs": _json_safe(resolved_inputs),
+                    "original_inputs": _json_safe(original_inputs or {}),
+                    "band_map": _json_safe(band_map or {}),
+                    "user_context": _json_safe(user_context or {}),
+                    "metadata": _json_safe(metadata or {}),
+                    "final_metadata": _json_safe(planning_metadata),
+                    "project_id": project_id,
+                    "query_spec": query_spec_to_dict(query_spec),
+                    "planning_result": {
+                        "success": success,
+                        "error": planning_error,
+                        "outputs": _json_safe(getattr(planning_result, "outputs", {})),
+                        "output_nodes": _json_safe(
+                            getattr(planning_result, "output_nodes", {})
+                        ),
+                        "trace": _json_safe(
+                            [
+                                {
+                                    "node_id": getattr(t, "node_id", None),
+                                    "capability_name": getattr(t, "capability_name", None),
+                                    "status": getattr(t, "status", None),
+                                    "started_at": getattr(t, "started_at", None),
+                                    "finished_at": getattr(t, "finished_at", None),
+                                    "error": getattr(t, "error", None),
+                                    "input_keys": getattr(t, "input_keys", None),
+                                    "output_summary": getattr(t, "output_summary", None),
+                                }
+                                for t in (getattr(planning_result, "trace", []) or [])
+                            ]
+                        ),
+                    },
+                    "production_response": production_response,
+                },
+            )
+
+            stored_record = self.get_request(final_request_id)
+
+            if stored_record is not None:
+                stored_project_id = stored_record.get("project_id")
+
+                if stored_project_id:
+                    try:
+                        self.project_store.attach_request(
+                            stored_project_id,
+                            final_request_id,
+                        )
+                    except Exception:
+                        pass
+
+                if self.config.persist_outputs:
+                    manifest = self._persist_outputs_for_record(stored_record)
+
+                    if stored_project_id and isinstance(manifest, dict):
+                        try:
+                            self.project_store.attach_output(
+                                stored_project_id,
+                                final_request_id,
+                            )
+                        except Exception:
+                            pass
+
+            return production_response
+
+        except (
+            LLMSpecGenerationError,
+            PlanningError,
+            DagValidationError,
+            DagExecutionError,
+            ValueError,
+            RuntimeError,
+            Exception,
+        ) as exc:
+            final_metadata["query_spec_planning_enabled"] = True
+            final_metadata["planning_attempted"] = True
+            final_metadata["planning_error"] = str(exc)
+            return None
+
     def handle_query(
         self,
         *,
@@ -3200,6 +3548,25 @@ class OrchestratorService:
 
             if direct_vector_response is not None:
                 return direct_vector_response
+
+            query_spec_planning_enabled = self._query_spec_planning_enabled()
+            final_metadata["query_spec_planning_enabled"] = query_spec_planning_enabled
+
+            if query_spec_planning_enabled:
+                planning_response = self._try_handle_query_with_planning(
+                    query=effective_query,
+                    resolved_inputs=resolved_inputs,
+                    final_request_id=final_request_id,
+                    final_metadata=final_metadata,
+                    user_context=user_context,
+                    original_inputs=inputs,
+                    band_map=band_map,
+                    metadata=metadata,
+                    project_id=_resolved_project_id,
+                )
+
+                if planning_response is not None:
+                    return planning_response
 
             run_result = run_natural_query_with_routing_evidence(
                 effective_query,

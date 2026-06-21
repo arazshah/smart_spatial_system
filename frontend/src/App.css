@@ -1110,3 +1110,31 @@ button {
   font-weight: 850;
 }
 
+
+/* Persian query input fix */
+.command-input-wrap,
+.query-command-row,
+.query-command-row.minimal,
+.top-query-bar {
+  direction: rtl;
+}
+
+.command-input-wrap input,
+.command-input-wrap textarea,
+.query-command-row textarea,
+.query-command-row.minimal textarea,
+.top-query-bar textarea {
+  direction: rtl !important;
+  text-align: right !important;
+  unicode-bidi: plaintext !important;
+}
+
+.command-input-wrap input::placeholder,
+.command-input-wrap textarea::placeholder,
+.query-command-row textarea::placeholder,
+.query-command-row.minimal textarea::placeholder,
+.top-query-bar textarea::placeholder {
+  direction: rtl !important;
+  text-align: right !important;
+}
+

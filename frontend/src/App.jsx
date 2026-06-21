@@ -924,7 +924,7 @@ const [dsmUploadKind, setDsmUploadKind] = useState("vector");
           throw new Error("host و database الزامی هستند.");
 
         result = await registerPostGISSource({
-          project_id: selectedProject?.project_id || activeProject?.project_id || getDsmUploadProjectId() || null,
+          project_id: activeProject?.project_id || getDsmUploadProjectId() || null,
           display_name: dsmPGName.trim() || dsmPGTable.trim(),
           host: dsmPGHost.trim() || undefined,
           port: dsmPGPort ? parseInt(dsmPGPort) : undefined,
@@ -941,7 +941,7 @@ const [dsmUploadKind, setDsmUploadKind] = useState("vector");
         if (!dsmWFSTypeName.trim()) throw new Error("نام لایه (TypeName) الزامی است.");
 
         result = await registerWFSSource({
-          project_id: selectedProject?.project_id || activeProject?.project_id || getDsmUploadProjectId() || null,
+          project_id: activeProject?.project_id || getDsmUploadProjectId() || null,
           display_name: dsmWFSName.trim() || dsmWFSTypeName.trim(),
           base_url: dsmWFSUrl.trim(),
           type_name: dsmWFSTypeName.trim(),
@@ -952,7 +952,7 @@ const [dsmUploadKind, setDsmUploadKind] = useState("vector");
         if (!dsmURLValue.trim()) throw new Error("آدرس URL الزامی است.");
 
         result = await registerURLSource({
-          project_id: selectedProject?.project_id || activeProject?.project_id || getDsmUploadProjectId() || null,
+          project_id: activeProject?.project_id || getDsmUploadProjectId() || null,
           display_name: dsmURLName.trim() || undefined,
           url: dsmURLValue.trim(),
           kind: dsmURLKind || "vector",
@@ -963,7 +963,7 @@ const [dsmUploadKind, setDsmUploadKind] = useState("vector");
         }
 
         result = await registerCSVTableSource({
-          project_id: selectedProject?.project_id || activeProject?.project_id || getDsmUploadProjectId() || null,
+          project_id: activeProject?.project_id || getDsmUploadProjectId() || null,
           display_name: dsmCSVName.trim() || dsmCSVTableName.trim() || undefined,
           url: dsmCSVUrl.trim() || undefined,
           table_name: dsmCSVTableName.trim() || undefined,
@@ -979,7 +979,7 @@ const [dsmUploadKind, setDsmUploadKind] = useState("vector");
         if (!dsmWMSLayer.trim()) throw new Error("نام لایه WMS الزامی است.");
 
         result = await registerWMSSource({
-          project_id: selectedProject?.project_id || activeProject?.project_id || getDsmUploadProjectId() || null,
+          project_id: activeProject?.project_id || getDsmUploadProjectId() || null,
           display_name: dsmWMSName.trim() || dsmWMSLayer.trim(),
           base_url: dsmWMSUrl.trim(),
           layer_name: dsmWMSLayer.trim(),

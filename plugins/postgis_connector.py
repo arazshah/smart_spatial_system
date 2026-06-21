@@ -352,6 +352,43 @@ def _execute_postgis_query(conninfo: str, sql: str, params: list[Any]) -> list[d
         raise RuntimeError(f"Failed to execute PostGIS query. Error: {exc}") from exc
 
 
+def _auto_detect_geom_column(
+    conninfo: str,
+    schema: str,
+    table: str,
+) -> str | None:
+    """
+    Query geometry_columns to auto-detect the geometry column name.
+
+    Returns None if detection fails (e.g. psycopg not installed,
+    table not registered in geometry_columns, or connection error).
+    """
+    try:
+        import psycopg
+    except ImportError:
+        return None
+
+    sql = """
+        SELECT f_geometry_column
+        FROM geometry_columns
+        WHERE f_table_schema = %s
+          AND f_table_name = %s
+        LIMIT 1
+    """
+
+    try:
+        with psycopg.connect(conninfo) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (schema, table))
+                row = cur.fetchone()
+        if row and row[0]:
+            return str(row[0])
+    except Exception:
+        pass
+
+    return None
+
+
 def _build_metadata(
     *,
     features: list[dict[str, Any]],
@@ -516,6 +553,9 @@ def fetch_postgis_layer(
         )
 
     Direct function parameters always override config values.
+
+    Geometry column is auto-detected from geometry_columns unless explicitly provided
+    via geom_col parameter or config profile.
     """
     # If direct connection parameters are provided and no explicit profile is requested,
     # do not load profile config. This prevents unrelated config/env problems from
@@ -558,7 +598,7 @@ def fetch_postgis_layer(
         geom_col,
         profile_config.get("default_geom_col"),
         profile_config.get("geom_col"),
-        default="geom",
+        default=None,
     )
 
     final_limit = pick_first(
@@ -588,7 +628,6 @@ def fetch_postgis_layer(
 
     final_schema = _validate_identifier(str(final_schema), "schema")
     table = _validate_identifier(table, "table")
-    final_geom_col = _validate_identifier(str(final_geom_col), "geom_col")
     final_limit = _validate_limit(_to_int_or_none(final_limit))
     final_output_srid = _validate_output_srid(_to_int_or_none(final_output_srid))
     where = _validate_where_clause(where)
@@ -604,6 +643,24 @@ def fetch_postgis_layer(
         password=final_password,
         connect_timeout=final_connect_timeout,
     )
+
+    # ------------------------------------------------------------------
+    # Auto-detect geometry column if not explicitly provided
+    # ------------------------------------------------------------------
+    if final_geom_col is None:
+        detected = _auto_detect_geom_column(conninfo, final_schema, table)
+        if detected:
+            final_geom_col = detected
+
+    if final_geom_col is None:
+        raise ValueError(
+            f"Could not auto-detect geometry column for "
+            f'"{final_schema}"."{table}". '
+            "Please specify geom_col explicitly."
+        )
+
+    final_geom_col = _validate_identifier(str(final_geom_col), "geom_col")
+    # ------------------------------------------------------------------
 
     sql, params = _build_select_features_sql(
         schema=final_schema,
@@ -641,11 +698,12 @@ def fetch_postgis_layer(
 
 PLUGIN = auto_collect(
     id=PLUGIN_ID,
-    version="1.1.0",
+    version="1.2.0",
     name="PostGIS Connector",
     description=(
         "Connects to PostgreSQL/PostGIS databases and fetches spatial layers "
-        "as GeoJSON features for the GeoChat spatial pipeline. Supports config profiles."
+        "as GeoJSON features for the GeoChat spatial pipeline. "
+        "Supports config profiles and auto-detection of geometry columns."
     ),
     author="GeoChat Platform Team",
     permissions=["database"],

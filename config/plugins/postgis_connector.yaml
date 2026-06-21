@@ -1,6 +1,18 @@
 default_profile: local
 
 profiles:
+  osm_tehran:
+    host: localhost
+    port: 5433
+    database: osm_tehran
+    user: osm
+    password: osm
+    connect_timeout: 10
+    default_schema: public
+    default_geom_col: way
+    default_limit: 1000
+    output_srid: 4326
+
   local:
     host: localhost
     port: 5432

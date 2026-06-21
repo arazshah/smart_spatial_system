@@ -605,7 +605,7 @@ def fetch_postgis_layer(
         limit,
         profile_config.get("default_limit"),
         profile_config.get("limit"),
-        default=1000,
+        default=10000,
     )
 
     final_output_srid = pick_first(
@@ -693,6 +693,403 @@ def fetch_postgis_layer(
     return VectorOut(
         features=features,
         metadata=metadata,
+    )
+
+
+
+_READONLY_SQL_FORBIDDEN_TOKENS = [
+    ";",
+    "--",
+    "/*",
+    "*/",
+    " drop ",
+    " delete ",
+    " update ",
+    " insert ",
+    " alter ",
+    " truncate ",
+    " create ",
+    " grant ",
+    " revoke ",
+    " copy ",
+    " vacuum ",
+    " execute ",
+    " call ",
+    " merge ",
+]
+
+
+def _validate_readonly_select_sql(sql: str) -> str:
+    if not isinstance(sql, str) or not sql.strip():
+        raise ValueError("sql must be a non-empty string.")
+
+    cleaned = sql.strip()
+
+    # Accept SELECT/WITH even when followed by newline/tab/space.
+    # Examples:
+    #   SELECT ...
+    #   SELECT\n...
+    #   WITH ...
+    #   WITH\n...
+    first_word = cleaned.split(None, 1)[0].lower()
+    if first_word not in {"select", "with"}:
+        raise ValueError("Only read-only SELECT/WITH SQL statements are allowed.")
+
+    # Normalize whitespace for forbidden token checks.
+    lowered = " " + " ".join(cleaned.lower().split()) + " "
+
+    for token in _READONLY_SQL_FORBIDDEN_TOKENS:
+        if token in lowered:
+            raise ValueError(f"Unsafe token found in SQL query: {token.strip()}")
+
+    return cleaned
+
+def _build_select_from_sql_query(
+    *,
+    sql: str,
+    geom_col: str,
+    limit: int,
+    output_srid: int | None,
+) -> tuple[str, list[Any]]:
+    sql = _validate_readonly_select_sql(sql)
+    geom_col = _validate_identifier(geom_col, "geom_col")
+    limit = _validate_limit(limit)
+    output_srid = _validate_output_srid(output_srid)
+
+    geom_sql = f'q.{_quote_identifier(geom_col)}'
+    params: list[Any] = []
+
+    if output_srid is not None:
+        geometry_expr = (
+            f"CASE WHEN {geom_sql} IS NULL THEN NULL "
+            f"ELSE ST_AsGeoJSON(ST_Transform({geom_sql}, %s))::jsonb END"
+        )
+        params.append(output_srid)
+    else:
+        geometry_expr = (
+            f"CASE WHEN {geom_sql} IS NULL THEN NULL "
+            f"ELSE ST_AsGeoJSON({geom_sql})::jsonb END"
+        )
+
+    wrapped_sql = f"""
+SELECT
+    jsonb_build_object(
+        'type', 'Feature',
+        'geometry', {geometry_expr},
+        'properties', to_jsonb(q) - %s
+    ) AS feature
+FROM (
+{sql}
+) AS q
+WHERE {geom_sql} IS NOT NULL
+LIMIT %s
+""".strip()
+
+    params.append(geom_col)
+    params.append(limit)
+
+    return wrapped_sql, params
+
+
+@capability(
+    name="fetch_postgis_sql_layer",
+    keywords=[
+        "postgis sql",
+        "postgres sql",
+        "spatial sql",
+        "execute spatial query",
+        "run postgis query",
+        "read sql layer",
+        "sql geojson",
+        "query postgis",
+        "تحلیل postgis",
+        "کوئری postgis",
+        "کوئری پست‌جیس",
+        "کوئری پست جیس",
+        "کوئری مکانی",
+        "تحلیل مکانی دیتابیس",
+        "اجرای sql مکانی",
+    ],
+    description=(
+        "Execute a read-only SELECT/WITH SQL query against PostgreSQL/PostGIS "
+        "and return the result rows as a GeoJSON-like VectorOut. The SQL must expose "
+        "a geometry column alias, usually AS geom."
+    ),
+    required_inputs=["sql"],
+    optional_inputs=[
+        "profile",
+        "dsn",
+        "geom_col",
+        "limit",
+        "output_srid",
+        "host",
+        "port",
+        "database",
+        "user",
+        "password",
+        "connect_timeout",
+    ],
+    output_kind="vector",
+    permissions=["database"],
+    metadata={
+        "category": "data_io",
+        "data_type": "vector",
+        "source_type": "postgis",
+        "source_priority": 1,
+        "returns": "VectorOut",
+        "artifact_kind": "features",
+        "access_scope": "read_database",
+        "config_aware": True,
+        "supports_profiles": True,
+        "routable": True,
+        "sql_capable": True,
+    },
+)
+def fetch_postgis_sql_layer(
+    sql: str,
+    profile: str | None = None,
+    dsn: str | None = None,
+    geom_col: str | None = None,
+    limit: int | None = None,
+    output_srid: int | None = None,
+    host: str | None = None,
+    port: int | None = None,
+    database: str | None = None,
+    user: str | None = None,
+    password: str | None = None,
+    connect_timeout: int | None = None,
+) -> VectorOut:
+    """
+    Execute a safe read-only PostGIS SQL query and return it as VectorOut.
+
+    The SQL must expose a geometry column with an alias matching geom_col.
+
+    Example:
+        SELECT osm_id, name, way AS geom
+        FROM osm_tehran_parks
+        WHERE area_m2 > 50000
+    """
+    direct_connection_provided = any(
+        value is not None
+        for value in (
+            dsn,
+            host,
+            port,
+            database,
+            user,
+            password,
+            connect_timeout,
+        )
+    )
+
+    if profile is None and direct_connection_provided:
+        profile_config = {}
+    else:
+        profile_config = get_profile_config(
+            plugin_id=PLUGIN_ID,
+            profile=profile,
+            required=False,
+        )
+
+    final_geom_col = pick_first(
+        geom_col,
+        profile_config.get("sql_geom_col"),
+        default="geom",
+    )
+
+    final_limit = pick_first(
+        limit,
+        profile_config.get("default_limit"),
+        profile_config.get("limit"),
+        default=1000,
+    )
+
+    final_output_srid = pick_first(
+        output_srid,
+        profile_config.get("output_srid"),
+        default=None,
+    )
+
+    final_dsn = pick_first(dsn, profile_config.get("dsn"), default=None)
+    final_host = pick_first(host, profile_config.get("host"), default=None)
+    final_port = pick_first(port, profile_config.get("port"), default=5432)
+    final_database = pick_first(database, profile_config.get("database"), default=None)
+    final_user = pick_first(user, profile_config.get("user"), default=None)
+    final_password = pick_first(password, profile_config.get("password"), default=None)
+    final_connect_timeout = pick_first(
+        connect_timeout,
+        profile_config.get("connect_timeout"),
+        default=10,
+    )
+
+    final_geom_col = _validate_identifier(str(final_geom_col), "geom_col")
+    final_limit = _validate_limit(_to_int_or_none(final_limit))
+    final_output_srid = _validate_output_srid(_to_int_or_none(final_output_srid))
+    final_port = _to_int_or_none(final_port)
+    final_connect_timeout = _to_int_or_none(final_connect_timeout)
+
+    conninfo = _build_conninfo(
+        dsn=final_dsn,
+        host=final_host,
+        port=final_port,
+        database=final_database,
+        user=final_user,
+        password=final_password,
+        connect_timeout=final_connect_timeout,
+    )
+
+    wrapped_sql, params = _build_select_from_sql_query(
+        sql=sql,
+        geom_col=final_geom_col,
+        limit=final_limit,
+        output_srid=final_output_srid,
+    )
+
+    features = _execute_postgis_query(
+        conninfo=conninfo,
+        sql=wrapped_sql,
+        params=params,
+    )
+
+    metadata = _build_metadata(
+        features=features,
+        schema="public",
+        table="__sql_query__",
+        geom_col=final_geom_col,
+        where=None,
+        limit=final_limit,
+        output_srid=final_output_srid,
+        host=final_host,
+        database=final_database,
+        profile=profile,
+    )
+    metadata["sql_query"] = True
+
+    return VectorOut(
+        features=features,
+        metadata=metadata,
+    )
+
+
+
+
+@capability(
+    name="query_database_postgis",
+    keywords=[
+        "query database",
+        "postgis query database",
+        "database query",
+        "spatial database query",
+        "query_database",
+        "کوئری دیتابیس",
+        "کوئری پایگاه داده",
+        "کوئری postgis",
+        "پرس‌وجوی postgis",
+    ],
+    description=(
+        "Adapter capability for logical query_database operations. "
+        "If sql is provided, executes a safe read-only PostGIS SQL query. "
+        "Otherwise, fetches a PostGIS table/layer."
+    ),
+    required_inputs=[],
+    optional_inputs=[
+        "sql",
+        "table",
+        "profile",
+        "dsn",
+        "schema",
+        "geom_col",
+        "where",
+        "limit",
+        "output_srid",
+        "host",
+        "port",
+        "database",
+        "user",
+        "password",
+        "connect_timeout",
+    ],
+    output_kind="vector",
+    permissions=["database"],
+    metadata={
+        "category": "data_io",
+        "data_type": "vector",
+        "source_type": "postgis",
+        "source_priority": 0,
+        "returns": "VectorOut",
+        "artifact_kind": "features",
+        "access_scope": "read_database",
+        "config_aware": True,
+        "supports_profiles": True,
+        "routable": True,
+        "sql_capable": True,
+        "adapter_for": ["fetch_postgis_layer", "fetch_postgis_sql_layer"],
+    },
+)
+def query_database_postgis(
+    sql: str | None = None,
+    table: str | None = None,
+    profile: str | None = None,
+    dsn: str | None = None,
+    schema: str | None = None,
+    geom_col: str | None = None,
+    where: str | None = None,
+    limit: int | None = None,
+    output_srid: int | None = None,
+    host: str | None = None,
+    port: int | None = None,
+    database: str | None = None,
+    user: str | None = None,
+    password: str | None = None,
+    connect_timeout: int | None = None,
+) -> VectorOut:
+    """
+    Execute the logical query_database operation against PostGIS.
+
+    Modes:
+      1. SQL mode:
+         sql is provided -> fetch_postgis_sql_layer(...)
+
+      2. Table mode:
+         table is provided -> fetch_postgis_layer(...)
+
+    This adapter exists because LLM-generated QuerySpec may represent database
+    access either as a table fetch or as a safe read-only SQL query.
+    """
+    if isinstance(sql, str) and sql.strip():
+        return fetch_postgis_sql_layer(
+            sql=sql,
+            profile=profile,
+            dsn=dsn,
+            geom_col=geom_col or "geom",
+            limit=limit,
+            output_srid=output_srid,
+            host=host,
+            port=port,
+            database=database,
+            user=user,
+            password=password,
+            connect_timeout=connect_timeout,
+        )
+
+    if not isinstance(table, str) or not table.strip():
+        raise ValueError("query_database_postgis requires either sql or table.")
+
+    return fetch_postgis_layer(
+        table=table,
+        profile=profile,
+        dsn=dsn,
+        schema=schema,
+        geom_col=geom_col,
+        where=where,
+        limit=limit,
+        output_srid=output_srid,
+        host=host,
+        port=port,
+        database=database,
+        user=user,
+        password=password,
+        connect_timeout=connect_timeout,
     )
 
 

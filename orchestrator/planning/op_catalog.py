@@ -43,8 +43,9 @@ OP_CATALOG: dict[str, OpDescriptor] = {
 
     "query_database": OpDescriptor(
         op_name="query_database",
-        capability_name="fetch_postgis_layer",
+        capability_name="query_database_postgis",
         param_map={
+            "sql": "sql",
             "table": "table",
             "profile": "profile",
             "dsn": "dsn",
@@ -53,8 +54,19 @@ OP_CATALOG: dict[str, OpDescriptor] = {
             "where": "where",
             "limit": "limit",
             "output_srid": "output_srid",
+            "host": "host",
+            "port": "port",
+            "database": "database",
+            "user": "user",
+            "password": "password",
+            "connect_timeout": "connect_timeout",
         },
         output_type="vector",
+        notes=(
+            "Logical database query adapter. If params.sql is present, "
+            "executes a safe read-only PostGIS SQL query; otherwise fetches "
+            "a table/layer using params.table."
+        ),
     ),
 
     "filter_attribute": OpDescriptor(

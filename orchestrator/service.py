@@ -153,6 +153,37 @@ def _is_feature_collection(value: Any) -> bool:
     )
 
 
+_SENSITIVE_METADATA_KEYS = {
+    "password",
+    "passwd",
+    "secret",
+    "token",
+    "api_key",
+    "apikey",
+    "authorization",
+}
+
+
+def _redact_sensitive_json(value: Any) -> Any:
+    if isinstance(value, dict):
+        redacted: dict[str, Any] = {}
+        for key, item in value.items():
+            key_text = str(key).lower()
+            if key_text in _SENSITIVE_METADATA_KEYS or any(
+                marker in key_text
+                for marker in ("password", "secret", "token", "api_key", "apikey")
+            ):
+                redacted[key] = "***"
+            else:
+                redacted[key] = _redact_sensitive_json(item)
+        return redacted
+
+    if isinstance(value, list):
+        return [_redact_sensitive_json(item) for item in value]
+
+    return value
+
+
 DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.spectral_indices",
     "plugins.raster_threshold",
@@ -3255,6 +3286,66 @@ class OrchestratorService:
 
         return layers, outputs, primary_report
 
+
+    def _enrich_query_database_params_from_inputs(
+        self,
+        query_spec: Any,
+        resolved_inputs: dict[str, Any],
+    ) -> None:
+        """
+        Inject runtime database connection parameters into query_database ops.
+
+        The LLM should describe *what* to query, not invent secrets or runtime
+        connection details. This method copies safe runtime inputs into the
+        executable QuerySpec before DAG planning.
+        """
+        if not resolved_inputs:
+            return
+
+        runtime_keys = (
+            "host",
+            "port",
+            "database",
+            "user",
+            "password",
+            "connect_timeout",
+            "profile",
+            "dsn",
+            "schema",
+            "table",
+            "geom_col",
+            "limit",
+            "output_srid",
+        )
+
+        operations = getattr(query_spec, "operations", None) or []
+
+        for operation in operations:
+            if getattr(operation, "op", None) != "query_database":
+                continue
+
+            params = getattr(operation, "params", None)
+
+            if not isinstance(params, dict):
+                continue
+
+            for key in runtime_keys:
+                value = resolved_inputs.get(key)
+
+                if value is None:
+                    continue
+
+                if key in params and params.get(key) not in (None, "", "<provided-at-runtime>"):
+                    continue
+
+                params[key] = value
+
+            # SQL mode normally exposes geometry as "AS geom".
+            # If the LLM generated SQL and no geom_col is present, use "geom".
+            if isinstance(params.get("sql"), str) and params.get("sql", "").strip():
+                params.setdefault("geom_col", "geom")
+
+
     def _try_handle_query_with_planning(
         self,
         *,
@@ -3282,6 +3373,11 @@ class OrchestratorService:
                     "response_language": getattr(self.config, "response_language", None),
                     "project_id": project_id,
                 },
+            )
+
+            self._enrich_query_database_params_from_inputs(
+                query_spec,
+                resolved_inputs or {},
             )
 
             runner = make_registry_planning_runner(self.registry)
@@ -3318,7 +3414,7 @@ class OrchestratorService:
                 "query_spec_planning_enabled": True,
                 "planning_attempted": True,
                 "planner_type": "deterministic_query_spec",
-                "query_spec": query_spec_to_dict(query_spec),
+                "query_spec": _redact_sensitive_json(query_spec_to_dict(query_spec)),
                 "planning_summary": {
                     "success": success,
                     "error": planning_error,
@@ -3370,7 +3466,7 @@ class OrchestratorService:
                     "metadata": _json_safe(metadata or {}),
                     "final_metadata": _json_safe(planning_metadata),
                     "project_id": project_id,
-                    "query_spec": query_spec_to_dict(query_spec),
+                    "query_spec": _redact_sensitive_json(query_spec_to_dict(query_spec)),
                     "planning_result": {
                         "success": success,
                         "error": planning_error,

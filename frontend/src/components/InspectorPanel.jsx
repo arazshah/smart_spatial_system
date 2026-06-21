@@ -600,6 +600,7 @@ export default function InspectorPanel({
   onLayerWorkspaceChange = null,
 }) {
   const [tab, setTab] = useState("summary");
+  const [selectedInspectorTable, setSelectedInspectorTable] = useState(null);
 
   const status = normalizeStatus(response, activeRequest, loading, error);
   const meta = statusMeta(status);
@@ -945,6 +946,7 @@ export default function InspectorPanel({
                   const columns = asArray(table?.columns).length
                     ? asArray(table.columns)
                     : Object.keys(rows[0] || {});
+                  const previewRows = rows.slice(0, 4);
 
                   return (
                     <article
@@ -955,33 +957,47 @@ export default function InspectorPanel({
                         <div>
                           <strong>{table?.name || table?.id || `Table ${tableIndex + 1}`}</strong>
                           {table?.role ? <span>{table.role}</span> : null}
+                          <small>{rows.length} row(s)</small>
                         </div>
-                        <small>{rows.length} row(s)</small>
+
+                        <button
+                          type="button"
+                          className="inspector-open-table-button"
+                          onClick={() => setSelectedInspectorTable(table)}
+                        >
+                          مشاهده کامل
+                        </button>
                       </div>
 
-                      {rows.length && columns.length ? (
-                        <div className="inspector-table-scroll">
-                          <table className="inspector-data-table">
-                            <thead>
-                              <tr>
-                                {columns.map((column) => (
-                                  <th key={String(column)}>{String(column)}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {rows.map((row, rowIndex) => (
-                                <tr key={`${row?.id || "row"}-${rowIndex}`}>
-                                  {columns.map((column) => (
-                                    <td key={String(column)}>
-                                      {formatInspectorValue(row?.[column])}
-                                    </td>
+                      {previewRows.length && columns.length ? (
+                        <>
+                          <div className="inspector-table-scroll inspector-table-preview-scroll">
+                            <table className="inspector-data-table inspector-data-table-preview">
+                              <thead>
+                                <tr>
+                                  {columns.slice(0, 5).map((column) => (
+                                    <th key={String(column)}>{String(column)}</th>
                                   ))}
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                              </thead>
+                              <tbody>
+                                {previewRows.map((row, rowIndex) => (
+                                  <tr key={`${row?.id || "row"}-${rowIndex}`}>
+                                    {columns.slice(0, 5).map((column) => (
+                                      <td key={String(column)}>
+                                        {formatInspectorValue(row?.[column])}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          <p className="inspector-table-preview-note">
+                            پیش‌نمایش محدود است؛ برای مشاهده همه ستون‌ها و ردیف‌ها روی «مشاهده کامل» کلیک کنید.
+                          </p>
+                        </>
                       ) : (
                         <p className="inspector-muted-text">این جدول ردیفی برای نمایش ندارد.</p>
                       )}
@@ -1136,6 +1152,96 @@ export default function InspectorPanel({
           </div>
         ) : null}
       </section>
+
+      {selectedInspectorTable ? (() => {
+        const rows = asArray(selectedInspectorTable?.rows);
+        const columns = asArray(selectedInspectorTable?.columns).length
+          ? asArray(selectedInspectorTable.columns)
+          : Object.keys(rows[0] || {});
+        const title =
+          selectedInspectorTable?.name ||
+          selectedInspectorTable?.id ||
+          "جدول تحلیل";
+
+        return (
+          <div
+            className="app-modal-backdrop inspector-table-modal-backdrop"
+            role="presentation"
+            onClick={() => setSelectedInspectorTable(null)}
+          >
+            <div
+              className="app-modal app-modal-xl inspector-table-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label={title}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <header className="app-modal-header inspector-table-modal-header">
+                <div>
+                  <p className="modal-subtitle">Analysis table</p>
+                  <h3>{title}</h3>
+                  <p>
+                    {rows.length} ردیف
+                    {columns.length ? ` · ${columns.length} ستون` : ""}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  className="modal-close"
+                  aria-label="Close"
+                  onClick={() => setSelectedInspectorTable(null)}
+                >
+                  ×
+                </button>
+              </header>
+
+              <div className="app-modal-body inspector-table-modal-body">
+                {rows.length && columns.length ? (
+                  <div className="inspector-table-modal-scroll">
+                    <table className="inspector-table-modal-table">
+                      <thead>
+                        <tr>
+                          {columns.map((column) => (
+                            <th key={String(column)}>{String(column)}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row, rowIndex) => (
+                          <tr key={`${row?.id || "row"}-${rowIndex}`}>
+                            {columns.map((column) => (
+                              <td key={String(column)}>
+                                {formatInspectorValue(row?.[column])}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <EmptyState
+                    icon="▦"
+                    title="جدول خالی است"
+                    text="ردیفی برای نمایش در این جدول وجود ندارد."
+                  />
+                )}
+              </div>
+
+              <footer className="app-modal-footer inspector-table-modal-footer">
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => setSelectedInspectorTable(null)}
+                >
+                  بستن
+                </button>
+              </footer>
+            </div>
+          </div>
+        );
+      })() : null}
     </aside>
   );
 }

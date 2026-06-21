@@ -216,6 +216,7 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.attribute_statistics",
     "plugins.crs_transformer",
     "plugins.data_writer_exporter",
+    "plugins.local_vector_loader",
     "plugins.postgis_connector",
 ]
 

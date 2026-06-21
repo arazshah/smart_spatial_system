@@ -1561,6 +1561,535 @@ class OrchestratorService:
 
         return None
 
+
+    def _extract_real_estate_spatial_context_from_inputs(self, inputs: dict[str, Any] | None) -> dict[str, Any]:
+        """
+        Extract optional spatial context layers for real-estate ranking.
+
+        Supported layer groups:
+        - metro: point features
+        - malls: point/polygon features
+        - main_roads: line features
+        - allowed_zones: polygon features
+
+        The extractor is deliberately permissive and can work with:
+        - inputs["geojson"] as one mixed FeatureCollection
+        - inputs["metro_layer"], inputs["main_roads"], ...
+        - nested {"geojson": FeatureCollection} wrappers
+        """
+        context: dict[str, list[dict[str, Any]]] = {
+            "metro": [],
+            "malls": [],
+            "main_roads": [],
+            "allowed_zones": [],
+        }
+
+        if not isinstance(inputs, dict):
+            return context
+
+        seen: set[int] = set()
+
+        def _iter_feature_collections(value: Any, hint: str = "", depth: int = 0):
+            if depth > 6:
+                return
+
+            if isinstance(value, dict):
+                obj_id = id(value)
+                if obj_id in seen:
+                    return
+                seen.add(obj_id)
+
+                if value.get("type") == "FeatureCollection" and isinstance(value.get("features"), list):
+                    yield value, hint
+
+                for key, nested in value.items():
+                    if key in {"features", "geometry", "properties"}:
+                        continue
+                    next_hint = f"{hint}.{key}" if hint else str(key)
+                    if isinstance(nested, (dict, list)):
+                        yield from _iter_feature_collections(nested, next_hint, depth + 1)
+
+            elif isinstance(value, list):
+                for index, item in enumerate(value):
+                    next_hint = f"{hint}[{index}]"
+                    if isinstance(item, (dict, list)):
+                        yield from _iter_feature_collections(item, next_hint, depth + 1)
+
+        def _search_text(feature: dict[str, Any], source_hint: str) -> str:
+            props = feature.get("properties") or {}
+            if not isinstance(props, dict):
+                props = {}
+
+            parts = [
+                source_hint,
+                props.get("layer"),
+                props.get("category"),
+                props.get("kind"),
+                props.get("type"),
+                props.get("feature_type"),
+                props.get("role"),
+                props.get("class"),
+                props.get("name"),
+                props.get("title"),
+                props.get("description"),
+            ]
+            return " ".join(str(part or "") for part in parts).strip().lower()
+
+        def _classify_feature(feature: dict[str, Any], source_hint: str) -> str | None:
+            geom = feature.get("geometry") or {}
+            geom_type = str(geom.get("type") or "").lower()
+            text = _search_text(feature, source_hint)
+
+            # Property features are handled by _extract_property_feature_collection_from_inputs.
+            property_terms = [
+                "property",
+                "properties",
+                "real_estate",
+                "real-estate",
+                "parcel",
+                "apartment",
+                "villa",
+                "house",
+                "land",
+                "ملک",
+                "آپارتمان",
+                "ویلا",
+                "زمین",
+            ]
+            if any(term in text for term in property_terms):
+                return "property"
+
+            metro_terms = [
+                "metro",
+                "subway",
+                "station",
+                "metro_station",
+                "ایستگاه مترو",
+                "مترو",
+            ]
+            if any(term in text for term in metro_terms):
+                return "metro"
+
+            mall_terms = [
+                "mall",
+                "shopping",
+                "shopping_center",
+                "commercial_center",
+                "مرکز خرید",
+                "خرید",
+                "مال",
+            ]
+            if any(term in text for term in mall_terms):
+                return "malls"
+
+            road_terms = [
+                "main_road",
+                "main-road",
+                "road",
+                "street",
+                "highway",
+                "primary",
+                "خیابان اصلی",
+                "جاده اصلی",
+                "خیابان",
+                "جاده",
+            ]
+            if any(term in text for term in road_terms):
+                return "main_roads"
+
+            allowed_zone_terms = [
+                "allowed_zone",
+                "allowed-zone",
+                "construction_zone",
+                "construction-zone",
+                "build_zone",
+                "build-zone",
+                "zoning",
+                "allowed construction",
+                "محدوده مجاز",
+                "محدوده ساخت",
+                "ساخت‌وساز مجاز",
+                "ساخت و ساز مجاز",
+            ]
+            if any(term in text for term in allowed_zone_terms):
+                return "allowed_zones"
+
+            # Geometry-based conservative hints from source key.
+            if "metro" in text and geom_type == "point":
+                return "metro"
+            if ("mall" in text or "shopping" in text) and geom_type in {"point", "polygon", "multipolygon"}:
+                return "malls"
+            if ("road" in text or "street" in text or "highway" in text) and geom_type in {"linestring", "multilinestring"}:
+                return "main_roads"
+            if ("zone" in text or "zoning" in text) and geom_type in {"polygon", "multipolygon"}:
+                return "allowed_zones"
+
+            return None
+
+        for fc, source_hint in _iter_feature_collections(inputs):
+            for feature in fc.get("features") or []:
+                if not isinstance(feature, dict):
+                    continue
+                group = _classify_feature(feature, source_hint)
+                if group in context:
+                    context[group].append(feature)
+
+        return context
+
+    def _feature_point_lonlat(self, feature: dict[str, Any]) -> tuple[float, float] | None:
+        geom = feature.get("geometry") or {}
+        if not isinstance(geom, dict) or geom.get("type") != "Point":
+            return None
+
+        coords = geom.get("coordinates")
+        if not isinstance(coords, list) or len(coords) < 2:
+            return None
+
+        lon = self._to_float_or_none(coords[0])
+        lat = self._to_float_or_none(coords[1])
+        if lon is None or lat is None:
+            return None
+
+        return lon, lat
+
+    def _point_in_ring_lonlat(self, point: tuple[float, float], ring: list[Any]) -> bool:
+        if not isinstance(ring, list) or len(ring) < 3:
+            return False
+
+        x, y = point
+        inside = False
+        j = len(ring) - 1
+
+        for i in range(len(ring)):
+            pi = ring[i]
+            pj = ring[j]
+            if (
+                isinstance(pi, list)
+                and isinstance(pj, list)
+                and len(pi) >= 2
+                and len(pj) >= 2
+            ):
+                xi = self._to_float_or_none(pi[0])
+                yi = self._to_float_or_none(pi[1])
+                xj = self._to_float_or_none(pj[0])
+                yj = self._to_float_or_none(pj[1])
+
+                if xi is not None and yi is not None and xj is not None and yj is not None:
+                    intersects = ((yi > y) != (yj > y)) and (
+                        x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi
+                    )
+                    if intersects:
+                        inside = not inside
+
+            j = i
+
+        return inside
+
+    def _point_in_polygon_feature_lonlat(self, point: tuple[float, float], feature: dict[str, Any]) -> bool:
+        geom = feature.get("geometry") or {}
+        if not isinstance(geom, dict):
+            return False
+
+        geom_type = geom.get("type")
+        coords = geom.get("coordinates")
+
+        def _inside_polygon(poly_coords: Any) -> bool:
+            if not isinstance(poly_coords, list) or not poly_coords:
+                return False
+
+            outer = poly_coords[0]
+            if not self._point_in_ring_lonlat(point, outer):
+                return False
+
+            # Holes: if inside any inner ring, point is outside polygon.
+            for hole in poly_coords[1:]:
+                if self._point_in_ring_lonlat(point, hole):
+                    return False
+
+            return True
+
+        if geom_type == "Polygon":
+            return _inside_polygon(coords)
+
+        if geom_type == "MultiPolygon" and isinstance(coords, list):
+            return any(_inside_polygon(poly) for poly in coords)
+
+        return False
+
+    def _lonlat_to_local_xy_m(
+        self,
+        point: tuple[float, float],
+        *,
+        ref_lat: float,
+    ) -> tuple[float, float]:
+        import math
+
+        lon, lat = point
+        x = lon * 111_320.0 * math.cos(math.radians(ref_lat))
+        y = lat * 110_540.0
+        return x, y
+
+    def _distance_point_to_segment_m(
+        self,
+        point: tuple[float, float],
+        start: tuple[float, float],
+        end: tuple[float, float],
+    ) -> float:
+        import math
+
+        ref_lat = point[1]
+        px, py = self._lonlat_to_local_xy_m(point, ref_lat=ref_lat)
+        ax, ay = self._lonlat_to_local_xy_m(start, ref_lat=ref_lat)
+        bx, by = self._lonlat_to_local_xy_m(end, ref_lat=ref_lat)
+
+        dx = bx - ax
+        dy = by - ay
+        if dx == 0 and dy == 0:
+            return math.hypot(px - ax, py - ay)
+
+        t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)
+        t = max(0.0, min(1.0, t))
+        cx = ax + t * dx
+        cy = ay + t * dy
+        return math.hypot(px - cx, py - cy)
+
+    def _distance_point_to_point_m(
+        self,
+        a: tuple[float, float],
+        b: tuple[float, float],
+    ) -> float:
+        import math
+
+        lon1, lat1 = a
+        lon2, lat2 = b
+
+        radius_m = 6_371_000.0
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        d_phi = math.radians(lat2 - lat1)
+        d_lambda = math.radians(lon2 - lon1)
+
+        h = (
+            math.sin(d_phi / 2) ** 2
+            + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+        )
+        return 2 * radius_m * math.atan2(math.sqrt(h), math.sqrt(max(0.0, 1 - h)))
+
+    def _distance_point_to_geometry_m(
+        self,
+        point: tuple[float, float],
+        feature: dict[str, Any],
+    ) -> float | None:
+        geom = feature.get("geometry") or {}
+        if not isinstance(geom, dict):
+            return None
+
+        geom_type = geom.get("type")
+        coords = geom.get("coordinates")
+
+        def _coord_to_point(value: Any) -> tuple[float, float] | None:
+            if not isinstance(value, list) or len(value) < 2:
+                return None
+            lon = self._to_float_or_none(value[0])
+            lat = self._to_float_or_none(value[1])
+            if lon is None or lat is None:
+                return None
+            return lon, lat
+
+        def _line_distance(line: Any) -> float | None:
+            if not isinstance(line, list) or len(line) < 2:
+                return None
+
+            best: float | None = None
+            prev = _coord_to_point(line[0])
+            for raw in line[1:]:
+                current = _coord_to_point(raw)
+                if prev is not None and current is not None:
+                    dist = self._distance_point_to_segment_m(point, prev, current)
+                    best = dist if best is None else min(best, dist)
+                prev = current
+
+            return best
+
+        if geom_type == "Point":
+            other = _coord_to_point(coords)
+            return self._distance_point_to_point_m(point, other) if other else None
+
+        if geom_type == "MultiPoint" and isinstance(coords, list):
+            distances = []
+            for raw_point in coords:
+                other = _coord_to_point(raw_point)
+                if other:
+                    distances.append(self._distance_point_to_point_m(point, other))
+            return min(distances) if distances else None
+
+        if geom_type == "LineString":
+            return _line_distance(coords)
+
+        if geom_type == "MultiLineString" and isinstance(coords, list):
+            distances = [d for line in coords if (d := _line_distance(line)) is not None]
+            return min(distances) if distances else None
+
+        if geom_type == "Polygon":
+            if self._point_in_polygon_feature_lonlat(point, feature):
+                return 0.0
+            if isinstance(coords, list):
+                distances = [d for ring in coords if (d := _line_distance(ring)) is not None]
+                return min(distances) if distances else None
+
+        if geom_type == "MultiPolygon" and isinstance(coords, list):
+            if self._point_in_polygon_feature_lonlat(point, feature):
+                return 0.0
+
+            distances: list[float] = []
+            for poly in coords:
+                if isinstance(poly, list):
+                    for ring in poly:
+                        dist = _line_distance(ring)
+                        if dist is not None:
+                            distances.append(dist)
+            return min(distances) if distances else None
+
+        return None
+
+    def _nearest_distance_to_features_m(
+        self,
+        point: tuple[float, float],
+        features: list[dict[str, Any]],
+    ) -> float | None:
+        distances: list[float] = []
+        for feature in features:
+            if not isinstance(feature, dict):
+                continue
+            dist = self._distance_point_to_geometry_m(point, feature)
+            if dist is not None:
+                distances.append(dist)
+
+        return min(distances) if distances else None
+
+    def _has_metric_value(self, props: dict[str, Any], key: str) -> bool:
+        value = props.get(key)
+        if value is None:
+            return False
+        if isinstance(value, str) and not value.strip():
+            return False
+        return self._to_float_or_none(value) is not None
+
+    def _has_bool_like_value(self, props: dict[str, Any], *keys: str) -> bool:
+        for key in keys:
+            if props.get(key) is not None:
+                return True
+        return False
+
+    def _enrich_property_feature_collection_with_spatial_context(
+        self,
+        feature_collection: dict[str, Any],
+        spatial_context: dict[str, list[dict[str, Any]]] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """
+        Fill missing real-estate ranking metrics from optional spatial layers.
+
+        This is an additive fallback:
+        - existing property distance/risk fields are preserved
+        - only missing distance_to_* and in_allowed_zone aliases are computed
+        """
+        context = spatial_context or {}
+        metro_features = context.get("metro") or []
+        mall_features = context.get("malls") or []
+        road_features = context.get("main_roads") or []
+        allowed_zone_features = context.get("allowed_zones") or []
+
+        features = feature_collection.get("features") or []
+        if not isinstance(features, list):
+            features = []
+
+        enriched_features: list[dict[str, Any]] = []
+        updated_distance_count = 0
+        updated_allowed_zone_count = 0
+        touched_property_count = 0
+
+        for feature in features:
+            if not isinstance(feature, dict):
+                continue
+
+            props = dict(feature.get("properties") or {})
+            point = self._feature_point_lonlat(feature)
+
+            touched = False
+
+            if point is not None:
+                if not self._has_metric_value(props, "distance_to_metro_m") and metro_features:
+                    distance = self._nearest_distance_to_features_m(point, metro_features)
+                    if distance is not None:
+                        props["distance_to_metro_m"] = int(round(distance))
+                        updated_distance_count += 1
+                        touched = True
+
+                if not self._has_metric_value(props, "distance_to_mall_m") and mall_features:
+                    distance = self._nearest_distance_to_features_m(point, mall_features)
+                    if distance is not None:
+                        props["distance_to_mall_m"] = int(round(distance))
+                        updated_distance_count += 1
+                        touched = True
+
+                if not self._has_metric_value(props, "distance_to_main_road_m") and road_features:
+                    distance = self._nearest_distance_to_features_m(point, road_features)
+                    if distance is not None:
+                        props["distance_to_main_road_m"] = int(round(distance))
+                        updated_distance_count += 1
+                        touched = True
+
+                if (
+                    not self._has_bool_like_value(
+                        props,
+                        "in_allowed_zone",
+                        "build_zone_allowed",
+                        "construction_allowed",
+                    )
+                    and allowed_zone_features
+                ):
+                    in_zone = any(
+                        self._point_in_polygon_feature_lonlat(point, zone_feature)
+                        for zone_feature in allowed_zone_features
+                        if isinstance(zone_feature, dict)
+                    )
+                    props["in_allowed_zone"] = bool(in_zone)
+                    props["build_zone_allowed"] = bool(in_zone)
+                    props["construction_allowed"] = bool(in_zone)
+                    updated_allowed_zone_count += 1
+                    touched = True
+
+            if touched:
+                touched_property_count += 1
+                props["spatial_enrichment_applied"] = True
+
+            enriched_features.append(
+                {
+                    **feature,
+                    "properties": props,
+                }
+            )
+
+        enriched_fc = dict(feature_collection)
+        enriched_fc["features"] = enriched_features
+
+        summary = {
+            "applied": touched_property_count > 0,
+            "property_count": len(enriched_features),
+            "touched_property_count": touched_property_count,
+            "updated_distance_count": updated_distance_count,
+            "updated_allowed_zone_count": updated_allowed_zone_count,
+            "context_counts": {
+                "metro": len(metro_features),
+                "malls": len(mall_features),
+                "main_roads": len(road_features),
+                "allowed_zones": len(allowed_zone_features),
+            },
+        }
+
+        return enriched_fc, summary
+
+
     def _normalize_risk_level(self, value: Any) -> str:
         text = str(value or "").strip().lower()
 
@@ -2232,6 +2761,14 @@ class OrchestratorService:
         if not isinstance(feature_collection, dict):
             return None
 
+        spatial_context = self._extract_real_estate_spatial_context_from_inputs(inputs)
+        feature_collection, spatial_enrichment_summary = (
+            self._enrich_property_feature_collection_with_spatial_context(
+                feature_collection,
+                spatial_context,
+            )
+        )
+
         features = feature_collection.get("features") or []
         if not isinstance(features, list):
             features = []
@@ -2333,6 +2870,9 @@ class OrchestratorService:
                 "requires_allowed_construction_zone": True,
             },
         }
+
+        if spatial_enrichment_summary.get("applied"):
+            summary["spatial_enrichment"] = spatial_enrichment_summary
 
         report = {
             "title": "گزارش رتبه‌بندی و تحلیل سرمایه‌گذاری املاک",
@@ -2464,6 +3004,20 @@ class OrchestratorService:
             },
             render_pdf_trace_step,
         ]
+
+        if spatial_enrichment_summary.get("applied"):
+            trace.insert(
+                0,
+                {
+                    "order": 0,
+                    "node_id": "node_000_spatial_enrichment",
+                    "capability_name": "feature_enrichment",
+                    "plugin_id": "real_estate_spatial_enrichment",
+                    "output_kind": "vector",
+                    "status": "success",
+                    "metrics": spatial_enrichment_summary,
+                },
+            )
 
         inspector = self._build_real_estate_analysis_inspector(
             title=report.get("title") or "گزارش رتبه‌بندی املاک",

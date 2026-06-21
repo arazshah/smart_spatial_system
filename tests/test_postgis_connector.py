@@ -40,7 +40,7 @@ def test_plugin_manifest_basic_fields() -> None:
     """
     assert PLUGIN.manifest.id == PLUGIN_ID
     assert PLUGIN.manifest.id == "postgis_connector"
-    assert PLUGIN.manifest.version == "1.1.0"
+    assert PLUGIN.manifest.version == "1.2.0"
     assert PLUGIN.manifest.name == "PostGIS Connector"
     assert "database" in PLUGIN.manifest.permissions
 

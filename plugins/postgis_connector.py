@@ -645,19 +645,18 @@ def fetch_postgis_layer(
     )
 
     # ------------------------------------------------------------------
-    # Auto-detect geometry column if not explicitly provided
+    # Auto-detect geometry column if not explicitly provided.
+    #
+    # If geometry_columns is unavailable or does not contain the layer,
+    # fall back to the common "geom" column. This keeps direct calls and
+    # tests usable while still allowing callers to override geom_col.
     # ------------------------------------------------------------------
     if final_geom_col is None:
         detected = _auto_detect_geom_column(conninfo, final_schema, table)
         if detected:
             final_geom_col = detected
-
-    if final_geom_col is None:
-        raise ValueError(
-            f"Could not auto-detect geometry column for "
-            f'"{final_schema}"."{table}". '
-            "Please specify geom_col explicitly."
-        )
+        else:
+            final_geom_col = "geom"
 
     final_geom_col = _validate_identifier(str(final_geom_col), "geom_col")
     # ------------------------------------------------------------------

@@ -972,6 +972,96 @@ def fetch_postgis_sql_layer(
 
 
 
+
+_SELECT_CLAUSE_FORBIDDEN_TOKENS = [
+    ";",
+    "--",
+    "/*",
+    "*/",
+    " from ",
+    " where ",
+    " group ",
+    " order ",
+    " limit ",
+    " union ",
+    " join ",
+    " drop ",
+    " delete ",
+    " update ",
+    " insert ",
+    " alter ",
+    " truncate ",
+    " create ",
+    " grant ",
+    " revoke ",
+    " copy ",
+    " vacuum ",
+    " execute ",
+    " call ",
+]
+
+
+def _validate_select_clause(select: str | None) -> str | None:
+    """
+    Validate a SELECT-list fragment such as:
+        osm_id, name, way AS geom
+
+    This is intentionally stricter than full SQL validation because it is only
+    used to build:
+        SELECT <select> FROM "schema"."table" ...
+    """
+    if select is None:
+        return None
+
+    if not isinstance(select, str):
+        raise ValueError("select must be a string or None.")
+
+    cleaned = select.strip()
+    if not cleaned:
+        return None
+
+    lowered = f" {cleaned.lower()} "
+
+    for token in _SELECT_CLAUSE_FORBIDDEN_TOKENS:
+        if token in lowered:
+            raise ValueError(f"Unsafe token found in select clause: {token.strip()}")
+
+    return cleaned
+
+
+def _build_safe_sql_from_select_parts(
+    *,
+    select: str,
+    schema: str | None,
+    table: str,
+    where: str | None,
+    limit: int | None,
+) -> str:
+    final_schema = _validate_identifier(str(schema or "public"), "schema")
+    final_table = _validate_identifier(table, "table")
+    final_select = _validate_select_clause(select)
+
+    if not final_select:
+        raise ValueError("select must be provided when building SQL from select parts.")
+
+    final_where = _validate_where_clause(where)
+    final_limit = _validate_limit(_to_int_or_none(limit if limit is not None else 1000))
+
+    sql = (
+        f"SELECT {final_select}\n"
+        f"FROM {_quote_identifier(final_schema)}.{_quote_identifier(final_table)}"
+    )
+
+    if final_where:
+        sql += f"\nWHERE {final_where}"
+
+    sql += f"\nLIMIT {final_limit}"
+
+    # Reuse the full read-only SQL validator as a second safety gate.
+    return _validate_readonly_select_sql(sql)
+
+
+
 @capability(
     name="query_database_postgis",
     keywords=[
@@ -986,18 +1076,20 @@ def fetch_postgis_sql_layer(
         "پرس‌وجوی postgis",
     ],
     description=(
-        "Adapter capability for logical query_database operations. "
-        "If sql is provided, executes a safe read-only PostGIS SQL query. "
-        "Otherwise, fetches a PostGIS table/layer."
+        "Canonical adapter for logical query_database operations against PostGIS. "
+        "LLM must provide a strict schema; this adapter compiles it deterministically "
+        "to safe read-only SQL or table fetch."
     ),
-    required_inputs=[],
+    required_inputs=["table"],
     optional_inputs=[
-        "sql",
-        "table",
+        "source_type",
+        "mode",
+        "columns",
         "profile",
         "dsn",
         "schema",
         "geom_col",
+        "geom_alias",
         "where",
         "limit",
         "output_srid",
@@ -1021,17 +1113,21 @@ def fetch_postgis_sql_layer(
         "config_aware": True,
         "supports_profiles": True,
         "routable": True,
-        "sql_capable": True,
+        "sql_capable": False,
+        "canonical_contract": "query_database.postgis.v1",
         "adapter_for": ["fetch_postgis_layer", "fetch_postgis_sql_layer"],
     },
 )
 def query_database_postgis(
-    sql: str | None = None,
-    table: str | None = None,
+    table: str,
+    source_type: str | None = "postgis",
+    mode: str | None = "select_table",
+    columns: list[str] | None = None,
     profile: str | None = None,
     dsn: str | None = None,
     schema: str | None = None,
     geom_col: str | None = None,
+    geom_alias: str | None = "geom",
     where: str | None = None,
     limit: int | None = None,
     output_srid: int | None = None,
@@ -1043,26 +1139,86 @@ def query_database_postgis(
     connect_timeout: int | None = None,
 ) -> VectorOut:
     """
-    Execute the logical query_database operation against PostGIS.
+    Execute canonical query_database/PostGIS V1.
 
-    Modes:
-      1. SQL mode:
-         sql is provided -> fetch_postgis_sql_layer(...)
+    Canonical select_table params:
+      {
+        "source_type": "postgis",
+        "mode": "select_table",
+        "schema": "public",
+        "table": "osm_tehran_parks",
+        "columns": ["osm_id", "name"],
+        "geom_col": "way",
+        "geom_alias": "geom",
+        "where": "way IS NOT NULL",
+        "limit": 10,
+        "output_srid": 4326
+      }
 
-      2. Table mode:
-         table is provided -> fetch_postgis_layer(...)
-
-    This adapter exists because LLM-generated QuerySpec may represent database
-    access either as a table fetch or as a safe read-only SQL query.
+    Important:
+      - LLM must not provide raw SQL.
+      - LLM must not put "way AS geom" inside columns.
+      - SQL is built deterministically here.
     """
-    if isinstance(sql, str) and sql.strip():
+    if source_type not in (None, "postgis"):
+        raise ValueError("query_database_postgis only supports source_type='postgis'.")
+
+    final_mode = mode or "select_table"
+    final_schema = _validate_identifier(str(schema or "public"), "schema")
+    final_table = _validate_identifier(table, "table")
+    final_limit = _validate_limit(_to_int_or_none(limit if limit is not None else 1000))
+    final_output_srid = _validate_output_srid(_to_int_or_none(output_srid))
+    final_where = _validate_where_clause(where)
+
+    if final_mode == "select_table":
+        if not isinstance(columns, list):
+            raise ValueError(
+                "query_database_postgis select_table mode requires columns as a list of property column names."
+            )
+
+        safe_columns: list[str] = []
+        for index, item in enumerate(columns):
+            if not isinstance(item, str):
+                raise ValueError(f"columns[{index}] must be a string.")
+
+            cleaned = item.strip()
+
+            if not cleaned:
+                raise ValueError(f"columns[{index}] must be non-empty.")
+
+            # columns are property identifiers only, not SQL expressions.
+            safe_columns.append(_validate_identifier(cleaned, f"columns[{index}]"))
+
+        if not geom_col:
+            raise ValueError("query_database_postgis select_table mode requires geom_col.")
+
+        final_geom_col = _validate_identifier(str(geom_col), "geom_col")
+        final_geom_alias = _validate_identifier(str(geom_alias or "geom"), "geom_alias")
+
+        select_parts = [_quote_identifier(col) for col in safe_columns]
+        select_parts.append(
+            f"{_quote_identifier(final_geom_col)} AS {_quote_identifier(final_geom_alias)}"
+        )
+
+        sql = (
+            f"SELECT {', '.join(select_parts)} "
+            f"FROM {_quote_identifier(final_schema)}.{_quote_identifier(final_table)}"
+        )
+
+        if final_where:
+            sql += f" WHERE {final_where}"
+
+        sql += f" LIMIT {final_limit}"
+
+        sql = _validate_readonly_select_sql(sql)
+
         return fetch_postgis_sql_layer(
             sql=sql,
             profile=profile,
             dsn=dsn,
-            geom_col=geom_col or "geom",
-            limit=limit,
-            output_srid=output_srid,
+            geom_col=final_geom_alias,
+            limit=final_limit,
+            output_srid=final_output_srid,
             host=host,
             port=port,
             database=database,
@@ -1071,25 +1227,29 @@ def query_database_postgis(
             connect_timeout=connect_timeout,
         )
 
-    if not isinstance(table, str) or not table.strip():
-        raise ValueError("query_database_postgis requires either sql or table.")
+    if final_mode == "table_layer":
+        final_geom_col = None
+        if geom_col is not None:
+            final_geom_col = _validate_identifier(str(geom_col), "geom_col")
 
-    return fetch_postgis_layer(
-        table=table,
-        profile=profile,
-        dsn=dsn,
-        schema=schema,
-        geom_col=geom_col,
-        where=where,
-        limit=limit,
-        output_srid=output_srid,
-        host=host,
-        port=port,
-        database=database,
-        user=user,
-        password=password,
-        connect_timeout=connect_timeout,
-    )
+        return fetch_postgis_layer(
+            table=final_table,
+            profile=profile,
+            dsn=dsn,
+            schema=final_schema,
+            geom_col=final_geom_col,
+            where=final_where,
+            limit=final_limit,
+            output_srid=final_output_srid,
+            host=host,
+            port=port,
+            database=database,
+            user=user,
+            password=password,
+            connect_timeout=connect_timeout,
+        )
+
+    raise ValueError("query_database_postgis mode must be 'select_table' or 'table_layer'.")
 
 
 PLUGIN = auto_collect(

@@ -45,15 +45,18 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         op_name="query_database",
         capability_name="query_database_postgis",
         param_map={
-            "sql": "sql",
-            "table": "table",
-            "profile": "profile",
-            "dsn": "dsn",
+            "source_type": "source_type",
+            "mode": "mode",
             "schema": "schema",
+            "table": "table",
+            "columns": "columns",
             "geom_col": "geom_col",
+            "geom_alias": "geom_alias",
             "where": "where",
             "limit": "limit",
             "output_srid": "output_srid",
+            "profile": "profile",
+            "dsn": "dsn",
             "host": "host",
             "port": "port",
             "database": "database",
@@ -63,9 +66,9 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         },
         output_type="vector",
         notes=(
-            "Logical database query adapter. If params.sql is present, "
-            "executes a safe read-only PostGIS SQL query; otherwise fetches "
-            "a table/layer using params.table."
+            "Canonical query_database/PostGIS V1. LLM must not generate raw SQL. "
+            "Use source_type=postgis, mode=select_table, schema, table, columns, "
+            "geom_col, geom_alias, where, limit, output_srid."
         ),
     ),
 

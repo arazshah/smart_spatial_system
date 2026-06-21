@@ -3372,6 +3372,50 @@ class OrchestratorService:
                     "available_inputs": sorted((resolved_inputs or {}).keys()),
                     "response_language": getattr(self.config, "response_language", None),
                     "project_id": project_id,
+                    "query_spec_contracts": {
+                        "query_database": {
+                            "contract": "query_database.postgis.v1",
+                            "required_format": {
+                                "source_type": "postgis",
+                                "mode": "select_table",
+                                "schema": "public",
+                                "table": "table_name_without_schema",
+                                "columns": ["property_column_1", "property_column_2"],
+                                "geom_col": "real_geometry_column",
+                                "geom_alias": "geom",
+                                "where": "optional safe where clause",
+                                "limit": 1000,
+                                "output_srid": 4326
+                            },
+                            "rules": [
+                                "Do not use sql.",
+                                "Do not use select.",
+                                "Do not use fields.",
+                                "Do not use projection.",
+                                "Do not invent parameter names.",
+                                "columns must contain only property column names.",
+                                "Do not put geometry expressions like 'way AS geom' in columns.",
+                                "Use geom_col for the real geometry column and geom_alias for the output geometry alias."
+                            ],
+                            "valid_example": {
+                                "op": "query_database",
+                                "inputs": {},
+                                "params": {
+                                    "source_type": "postgis",
+                                    "mode": "select_table",
+                                    "schema": "public",
+                                    "table": "osm_tehran_parks",
+                                    "columns": ["osm_id", "name"],
+                                    "geom_col": "way",
+                                    "geom_alias": "geom",
+                                    "where": "way IS NOT NULL",
+                                    "limit": 10,
+                                    "output_srid": 4326
+                                },
+                                "output": "parks_layer"
+                            }
+                        }
+                    },
                 },
             )
 
@@ -3379,6 +3423,10 @@ class OrchestratorService:
                 query_spec,
                 resolved_inputs or {},
             )
+
+            from orchestrator.planning.query_spec_contract import validate_query_spec_contract
+
+            validate_query_spec_contract(query_spec)
 
             runner = make_registry_planning_runner(self.registry)
             planning_result = runner.run(

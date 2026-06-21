@@ -268,13 +268,242 @@ def _coerce_list_of_pairs_to_dict(value: Any) -> dict[str, Any] | None:
     return result
 
 
+_QUERY_DATABASE_PARAM_KEYS = {
+    "source_type",
+    "mode",
+    "schema",
+    "table",
+    "columns",
+    "geom_col",
+    "geom_alias",
+    "where",
+    "limit",
+    "output_srid",
+    "profile",
+    "dsn",
+    "host",
+    "port",
+    "database",
+    "user",
+    "password",
+    "connect_timeout",
+    "metadata",
+}
+
+
+_VECTOR_INPUT_ALIAS_OPS = {
+    "top_n",
+    "rank",
+    "rank_features",
+    "sort_limit",
+    "display_vector",
+    "summarize_vector",
+    "export_geojson",
+    "build_report",
+}
+
+
+def _is_database_entity(item: Any) -> bool:
+    if not isinstance(item, dict):
+        return False
+
+    kind = str(item.get("kind") or "").strip().lower()
+    binding = item.get("binding")
+
+    if kind not in {"database", "postgis", "table", "layer"}:
+        return False
+
+    if not isinstance(binding, dict):
+        return False
+
+    return bool(binding.get("schema") and binding.get("table") and binding.get("geom_col"))
+
+
+def _query_database_params_from_binding(binding: dict[str, Any]) -> dict[str, Any]:
+    params = {
+        k: v
+        for k, v in binding.items()
+        if k in _QUERY_DATABASE_PARAM_KEYS and v not in (None, "")
+    }
+
+    params.setdefault("source_type", "postgis")
+    params.setdefault("mode", "select_table")
+    params.setdefault("geom_alias", "geom")
+
+    if "limit" not in params:
+        params["limit"] = 5000
+
+    return params
+
+
+def _repair_query_database_operation_shape(op_item: dict[str, Any]) -> dict[str, Any]:
+    """
+    Repair common LLM mistake:
+      query_database.inputs contains PostGIS params and params is empty.
+
+    Correct shape:
+      query_database.inputs = {}
+      query_database.params = {...}
+    """
+    op_copy = dict(op_item)
+
+    if str(op_copy.get("op") or "") not in {"query_database", "load_postgis_layer"}:
+        return op_copy
+
+    inputs = op_copy.get("inputs")
+    params = op_copy.get("params")
+
+    if not isinstance(inputs, dict):
+        return op_copy
+
+    if not isinstance(params, dict):
+        params = {}
+
+    movable = {
+        k: v
+        for k, v in inputs.items()
+        if k in _QUERY_DATABASE_PARAM_KEYS
+    }
+
+    if not movable:
+        return op_copy
+
+    remaining_inputs = {
+        k: v
+        for k, v in inputs.items()
+        if k not in _QUERY_DATABASE_PARAM_KEYS
+    }
+
+    merged_params = dict(params)
+    for k, v in movable.items():
+        merged_params.setdefault(k, v)
+
+    merged_params.setdefault("source_type", "postgis")
+    merged_params.setdefault("mode", "select_table")
+    merged_params.setdefault("geom_alias", "geom")
+
+    if "limit" not in merged_params:
+        merged_params["limit"] = 5000
+
+    op_copy["inputs"] = remaining_inputs
+    op_copy["params"] = merged_params
+
+    return op_copy
+
+
+def _repair_vector_input_aliases(op_item: dict[str, Any]) -> dict[str, Any]:
+    """
+    Repair common LLM mistake:
+      top_n/display_vector/summarize_vector inputs={"source": "..."}
+    when the catalog expects:
+      inputs={"vector": "..."}
+    """
+    op_copy = dict(op_item)
+    op_name = str(op_copy.get("op") or "")
+
+    if op_name not in _VECTOR_INPUT_ALIAS_OPS:
+        return op_copy
+
+    inputs = op_copy.get("inputs")
+    if not isinstance(inputs, dict):
+        return op_copy
+
+    if "vector" not in inputs:
+        for alias in ("source", "features", "input", "layer"):
+            if alias in inputs and inputs.get(alias) not in (None, ""):
+                new_inputs = dict(inputs)
+                new_inputs["vector"] = new_inputs.get(alias)
+                op_copy["inputs"] = new_inputs
+                break
+
+    return op_copy
+
+
+def _existing_operation_outputs(operations: list[Any]) -> set[str]:
+    outputs: set[str] = set()
+    for op in operations:
+        if isinstance(op, dict) and op.get("output"):
+            outputs.add(str(op.get("output")))
+    return outputs
+
+
+def _inject_query_database_ops_for_database_entities(data: dict[str, Any]) -> dict[str, Any]:
+    """
+    If LLM defines database entities but forgets to create query_database
+    operations for them, inject deterministic load operations.
+
+    Example:
+      entities:
+        ref=metro_station, kind=database, binding={schema, table, geom_col, ...}
+      operations:
+        spatial_nearest inputs={source: metro_station, target: shopping_center}
+
+    Becomes:
+      query_database output=metro_station
+      query_database output=shopping_center
+      spatial_nearest ...
+    """
+    entities = data.get("entities")
+    operations = data.get("operations")
+
+    if not isinstance(entities, list) or not isinstance(operations, list):
+        return data
+
+    existing_outputs = _existing_operation_outputs(operations)
+
+    injected: list[dict[str, Any]] = []
+
+    for entity in entities:
+        if not _is_database_entity(entity):
+            continue
+
+        ref = str(entity.get("ref") or "").strip()
+        if not ref:
+            continue
+
+        if ref in existing_outputs:
+            continue
+
+        binding = entity.get("binding")
+        if not isinstance(binding, dict):
+            continue
+
+        params = _query_database_params_from_binding(binding)
+
+        injected.append(
+            {
+                "op": "query_database",
+                "inputs": {},
+                "params": params,
+                "output": ref,
+            }
+        )
+
+    if not injected:
+        return data
+
+    new_data = dict(data)
+    new_data["operations"] = injected + operations
+
+    metadata = dict(new_data.get("metadata") or {})
+    repairs = list((metadata.get("pre_normalization_repairs") or []))
+    repairs.append("injected query_database operations for database entities")
+    metadata["pre_normalization_repairs"] = repairs
+    new_data["metadata"] = metadata
+
+    return new_data
+
+
 def _pre_normalize_query_spec_json(data: dict[str, Any]) -> dict[str, Any]:
     """
     Pre-normalize raw LLM JSON before strict QuerySpec parsing.
 
     The strict parser is still the source of truth. This function only repairs
-    common JSON-shape mistakes that do not change semantic meaning, especially
-    arrays used where QuerySpec requires objects.
+    common JSON-shape mistakes that do not change semantic meaning, especially:
+      - arrays used where QuerySpec requires objects
+      - query_database params placed under inputs
+      - source/features aliases where op_catalog expects vector
+      - database entities without query_database load operations
     """
     if not isinstance(data, dict):
         return data
@@ -302,6 +531,9 @@ def _pre_normalize_query_spec_json(data: dict[str, Any]) -> dict[str, Any]:
                 if coerced_params is not None:
                     op_copy["params"] = coerced_params
 
+            op_copy = _repair_query_database_operation_shape(op_copy)
+            op_copy = _repair_vector_input_aliases(op_copy)
+
             new_operations.append(op_copy)
 
         normalized["operations"] = new_operations
@@ -325,6 +557,8 @@ def _pre_normalize_query_spec_json(data: dict[str, Any]) -> dict[str, Any]:
             new_outputs.append(out_copy)
 
         normalized["outputs"] = new_outputs
+
+    normalized = _inject_query_database_ops_for_database_entities(normalized)
 
     return normalized
 

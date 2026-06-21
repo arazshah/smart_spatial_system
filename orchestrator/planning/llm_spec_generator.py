@@ -376,6 +376,41 @@ Safety:
 """
 
 
+def _semantic_planning_context_guidance() -> str:
+    return """
+Semantic Planning Context Guardrails:
+- If context.semantic_planning_context is provided, use it as the primary source
+  for PostGIS layer selection and spatial operation planning.
+- Do not invent PostGIS table names.
+- Do not invent PostGIS column names.
+- Do not generate raw SQL.
+- Do not use params.sql for query_database.
+- For loading PostGIS data, use op="query_database" or op="load_postgis_layer"
+  with params copied/adapted from semantic_planning_context.semantic_layers[*][*].params.
+- Use only schema/table/geom_col/columns/where values present in semantic layer
+  candidates unless the user explicitly provides a verified schema.
+- Respect semantic_planning_context.guardrails:
+  llm_must_not_generate_raw_sql,
+  llm_must_not_invent_table_names,
+  llm_must_not_invent_column_names,
+  use_semantic_layer_candidates_first.
+- For nearest/closest relationship between two semantic concepts, use:
+  op="spatial_nearest"
+  params={"k": 1, "include_target_geometry": true}
+- For top N nearest results after spatial_nearest, use:
+  op="top_n"
+  params={
+    "score_field": "_nearest_distance",
+    "descending": false,
+    "limit": requested_limit
+  }
+- If semantic_planning_context.operation_hints is provided, follow those hints.
+- If no semantic layer candidate exists for a requested concept, do not guess a
+  table or column. Return a safe QuerySpec that reports insufficient semantic
+  layer resolution or asks for clarification.
+"""
+
+
 def build_llm_messages(
     raw_query: str,
     *,
@@ -383,6 +418,10 @@ def build_llm_messages(
     system_hints: str | None = None,
 ) -> list[dict[str, str]]:
     system = _domain_guidance() + "\n" + _schema_hint()
+
+    if isinstance(context, dict) and context.get("semantic_planning_context"):
+        system += "\n" + _semantic_planning_context_guidance()
+
     if system_hints:
         system += "\nAdditional hints:\n" + system_hints
 

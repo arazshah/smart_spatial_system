@@ -143,6 +143,183 @@ from orchestrator.planning.llm_spec_generator import (
 )
 from orchestrator.planning.planner import PlanningError
 from orchestrator.planning.runner import make_registry_planning_runner
+from orchestrator.planning.postgis_semantic_resolver import (
+    ColumnInfo,
+    PostGISSchemaContext,
+    PostGISTableInfo,
+)
+from orchestrator.planning.semantic_planning_context import (
+    build_semantic_planning_context,
+)
+
+
+def _first_mapping_value(*values: Any) -> dict[str, Any] | None:
+    for value in values:
+        if isinstance(value, dict):
+            return value
+    return None
+
+
+def _coerce_postgis_schema_context(value: Any) -> PostGISSchemaContext | None:
+    """
+    Convert a JSON-friendly schema context into PostGISSchemaContext.
+
+    Accepted shape:
+      {
+        "tables": [
+          {
+            "schema": "public",
+            "table": "planet_osm_point",
+            "geom_col": "way",
+            "geometry_type": "POINT",
+            "srid": 3857,
+            "estimated_rows": 1000,
+            "columns": [
+              {"name": "osm_id", "data_type": "bigint", "udt_name": "int8"},
+              ...
+            ]
+          }
+        ]
+      }
+
+    If value is already PostGISSchemaContext, it is returned as-is.
+    """
+    if isinstance(value, PostGISSchemaContext):
+        return value
+
+    if not isinstance(value, dict):
+        return None
+
+    raw_tables = value.get("tables")
+    if not isinstance(raw_tables, list):
+        return None
+
+    tables: list[PostGISTableInfo] = []
+
+    for raw_table in raw_tables:
+        if not isinstance(raw_table, dict):
+            continue
+
+        schema = str(raw_table.get("schema") or "").strip()
+        table = str(raw_table.get("table") or "").strip()
+        geom_col = str(raw_table.get("geom_col") or raw_table.get("geometry_column") or "").strip()
+
+        if not schema or not table or not geom_col:
+            continue
+
+        raw_columns = raw_table.get("columns") or []
+        columns: list[ColumnInfo] = []
+
+        if isinstance(raw_columns, list):
+            for raw_col in raw_columns:
+                if isinstance(raw_col, dict):
+                    name = str(raw_col.get("name") or "").strip()
+                    if not name:
+                        continue
+                    columns.append(
+                        ColumnInfo(
+                            name=name,
+                            data_type=str(raw_col.get("data_type") or ""),
+                            udt_name=str(raw_col.get("udt_name") or ""),
+                        )
+                    )
+                elif isinstance(raw_col, str) and raw_col.strip():
+                    columns.append(ColumnInfo(name=raw_col.strip()))
+
+        srid_value = raw_table.get("srid")
+        try:
+            srid = int(srid_value) if srid_value is not None else None
+        except Exception:
+            srid = None
+
+        estimated_rows_value = raw_table.get("estimated_rows")
+        try:
+            estimated_rows = (
+                int(estimated_rows_value)
+                if estimated_rows_value is not None
+                else None
+            )
+        except Exception:
+            estimated_rows = None
+
+        tables.append(
+            PostGISTableInfo(
+                schema=schema,
+                table=table,
+                geom_col=geom_col,
+                geometry_type=str(raw_table.get("geometry_type") or ""),
+                srid=srid,
+                columns=tuple(columns),
+                estimated_rows=estimated_rows,
+            )
+        )
+
+    if not tables:
+        return None
+
+    return PostGISSchemaContext(tables=tuple(tables))
+
+
+def _extract_semantic_planning_context_from_sources(
+    *,
+    query: str,
+    resolved_inputs: dict[str, Any] | None,
+    user_context: dict[str, Any] | None,
+    metadata: dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """
+    Build or forward semantic_planning_context for LLM planning.
+
+    Priority:
+    1. Existing semantic_planning_context from user_context/metadata/resolved_inputs.
+    2. Build from postgis_schema_context if provided.
+
+    This function is intentionally non-fatal: errors are returned as strings and
+    must not break the existing planning path.
+    """
+    try:
+        user_context = user_context or {}
+        metadata = metadata or {}
+        resolved_inputs = resolved_inputs or {}
+
+        existing = _first_mapping_value(
+            user_context.get("semantic_planning_context"),
+            metadata.get("semantic_planning_context"),
+            resolved_inputs.get("semantic_planning_context"),
+        )
+        if existing is not None:
+            return existing, None
+
+        schema_source = _first_mapping_value(
+            user_context.get("postgis_schema_context"),
+            user_context.get("postgis_schema"),
+            metadata.get("postgis_schema_context"),
+            metadata.get("postgis_schema"),
+            resolved_inputs.get("postgis_schema_context"),
+            resolved_inputs.get("postgis_schema"),
+        )
+
+        schema_context = _coerce_postgis_schema_context(schema_source)
+        if schema_context is None:
+            return None, None
+
+        explicit_concepts = (
+            user_context.get("semantic_concepts")
+            or metadata.get("semantic_concepts")
+            or resolved_inputs.get("semantic_concepts")
+            or None
+        )
+
+        context = build_semantic_planning_context(
+            query,
+            schema_context,
+            explicit_concepts=explicit_concepts,
+        )
+
+        return context.to_dict(), None
+
+    except Exception as exc:
+        return None, str(exc)
 
 
 def _is_feature_collection(value: Any) -> bool:
@@ -3367,57 +3544,77 @@ class OrchestratorService:
             llm_client = OpenAICompatibleLLMClient()
             generator = LLMQuerySpecGenerator(llm_client)
 
-            query_spec = generator.generate(
-                query,
-                context={
-                    "available_inputs": sorted((resolved_inputs or {}).keys()),
-                    "response_language": getattr(self.config, "response_language", None),
-                    "project_id": project_id,
-                    "query_spec_contracts": {
-                        "query_database": {
-                            "contract": "query_database.postgis.v1",
-                            "required_format": {
+            semantic_planning_context, semantic_planning_context_error = (
+                _extract_semantic_planning_context_from_sources(
+                    query=query,
+                    resolved_inputs=resolved_inputs,
+                    user_context=user_context,
+                    metadata=metadata,
+                )
+            )
+
+            planning_context: dict[str, Any] = {
+                "available_inputs": sorted((resolved_inputs or {}).keys()),
+                "response_language": getattr(self.config, "response_language", None),
+                "project_id": project_id,
+                "query_spec_contracts": {
+                    "query_database": {
+                        "contract": "query_database.postgis.v1",
+                        "required_format": {
+                            "source_type": "postgis",
+                            "mode": "select_table",
+                            "schema": "public",
+                            "table": "table_name_without_schema",
+                            "columns": ["property_column_1", "property_column_2"],
+                            "geom_col": "real_geometry_column",
+                            "geom_alias": "geom",
+                            "where": "optional safe where clause",
+                            "limit": 1000,
+                            "output_srid": 4326
+                        },
+                        "rules": [
+                            "Do not use sql.",
+                            "Do not use select.",
+                            "Do not use fields.",
+                            "Do not use projection.",
+                            "Do not invent parameter names.",
+                            "columns must contain only property column names.",
+                            "Do not put geometry expressions like 'way AS geom' in columns.",
+                            "Use geom_col for the real geometry column and geom_alias for the output geometry alias."
+                        ],
+                        "valid_example": {
+                            "op": "query_database",
+                            "inputs": {},
+                            "params": {
                                 "source_type": "postgis",
                                 "mode": "select_table",
                                 "schema": "public",
-                                "table": "table_name_without_schema",
-                                "columns": ["property_column_1", "property_column_2"],
-                                "geom_col": "real_geometry_column",
+                                "table": "osm_tehran_parks",
+                                "columns": ["osm_id", "name"],
+                                "geom_col": "way",
                                 "geom_alias": "geom",
-                                "where": "optional safe where clause",
-                                "limit": 1000,
+                                "where": "way IS NOT NULL",
+                                "limit": 10,
                                 "output_srid": 4326
                             },
-                            "rules": [
-                                "Do not use sql.",
-                                "Do not use select.",
-                                "Do not use fields.",
-                                "Do not use projection.",
-                                "Do not invent parameter names.",
-                                "columns must contain only property column names.",
-                                "Do not put geometry expressions like 'way AS geom' in columns.",
-                                "Use geom_col for the real geometry column and geom_alias for the output geometry alias."
-                            ],
-                            "valid_example": {
-                                "op": "query_database",
-                                "inputs": {},
-                                "params": {
-                                    "source_type": "postgis",
-                                    "mode": "select_table",
-                                    "schema": "public",
-                                    "table": "osm_tehran_parks",
-                                    "columns": ["osm_id", "name"],
-                                    "geom_col": "way",
-                                    "geom_alias": "geom",
-                                    "where": "way IS NOT NULL",
-                                    "limit": 10,
-                                    "output_srid": 4326
-                                },
-                                "output": "parks_layer"
-                            }
+                            "output": "parks_layer"
                         }
-                    },
+                    }
                 },
+            }
+
+            if semantic_planning_context is not None:
+                planning_context["semantic_planning_context"] = semantic_planning_context
+                final_metadata["semantic_planning_context_attached"] = True
+
+            if semantic_planning_context_error:
+                final_metadata["semantic_planning_context_error"] = (
+                    semantic_planning_context_error
+                )
+
+            query_spec = generator.generate(
+                query,
+                context=planning_context,
             )
 
             self._enrich_query_database_params_from_inputs(

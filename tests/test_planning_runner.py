@@ -205,3 +205,67 @@ def test_make_registry_planning_runner_with_fake_service_registry():
 
     assert result.success is True
     assert result.output_nodes["ranked"].features[0]["properties"]["name"] == "A"
+
+
+def test_planning_runner_can_run_with_optional_kernel_execution() -> None:
+    runner = make_static_planning_runner(
+        {
+            "score_features": score_features,
+            "rank_features": rank_features,
+        }
+    )
+
+    query_spec = _sample_query_spec()
+
+    initial_inputs = {
+        "properties": _sample_features(),
+    }
+
+    result = runner.run_with_kernel_execution(
+        query_spec,
+        initial_inputs=initial_inputs,
+    )
+
+    assert result.success is True
+
+    # Existing production DAG execution is still available.
+    assert result.execution.success is True
+    assert result.output_nodes["ranked"].features[0]["properties"]["investment_rank"] == 1
+
+    # Kernel plan is still attached.
+    assert result.kernel_plan is not None
+    assert result.kernel_plan.validate_dag() == []
+
+    # New optional kernel execution result is attached.
+    assert result.kernel_execution is not None
+    assert result.kernel_execution.success is True
+    assert result.kernel_execution.error is None
+    assert set(result.kernel_execution.artifacts) == {"scored", "ranked"}
+    assert set(result.kernel_execution.output_artifacts) == {"ranked"}
+
+    kernel_ranked = result.kernel_execution.output_nodes["ranked"]
+    dag_ranked = result.output_nodes["ranked"]
+
+    assert kernel_ranked.features == dag_ranked.features
+    assert kernel_ranked.features[0]["properties"]["investment_rank"] == 1
+    assert kernel_ranked.features[0]["properties"]["name"] == "A"
+
+
+def test_planning_runner_default_run_does_not_execute_kernel_path() -> None:
+    runner = make_static_planning_runner(
+        {
+            "score_features": score_features,
+            "rank_features": rank_features,
+        }
+    )
+
+    result = runner.run(
+        _sample_query_spec(),
+        initial_inputs={
+            "properties": _sample_features(),
+        },
+    )
+
+    assert result.success is True
+    assert result.kernel_plan is not None
+    assert result.kernel_execution is None

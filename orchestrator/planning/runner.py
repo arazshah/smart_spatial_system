@@ -33,6 +33,10 @@ from geochat_kernel.models import QueryPlan
 
 from orchestrator.planning.dag import DagPlan
 from orchestrator.planning.dag_executor import DagExecutionResult, DagExecutor
+from orchestrator.planning.kernel_execution_bridge import (
+    KernelExecutionBridgeResult,
+    execute_kernel_plan_with_capabilities_sync,
+)
 from orchestrator.planning.kernel_plan_adapter import dag_plan_to_query_plan
 from orchestrator.planning.planner import DeterministicPlanner, PlannerConfig
 from orchestrator.planning.spec import QuerySpec
@@ -51,7 +55,11 @@ class PlanningRunResult:
 
     kernel_plan:
         geochat_kernel QueryPlan equivalent of the current DagPlan.
-        This is used during Phase 2/3 migration and is not executed here yet.
+
+    kernel_execution:
+        Optional experimental kernel execution result produced by
+        run_with_kernel_execution(). It is intentionally opt-in and does not
+        affect the default run() production path.
 
     success:
         Convenience mirror of execution.success.
@@ -61,6 +69,7 @@ class PlanningRunResult:
     plan: DagPlan
     execution: DagExecutionResult
     kernel_plan: QueryPlan | None = None
+    kernel_execution: KernelExecutionBridgeResult | None = None
 
     @property
     def outputs(self) -> dict[str, Any]:
@@ -149,6 +158,48 @@ class PlanningRunner:
             plan=plan,
             execution=execution,
             kernel_plan=kernel_plan,
+        )
+
+    def run_with_kernel_execution(
+        self,
+        query_spec: QuerySpec,
+        *,
+        initial_inputs: dict[str, Any] | None = None,
+        fail_fast: bool = True,
+        raise_on_kernel_error: bool = False,
+    ) -> PlanningRunResult:
+        """
+        Run the current DAG execution path and, additionally, execute the
+        generated kernel QueryPlan through the Phase 3 kernel execution bridge.
+
+        This is intentionally opt-in. The default run() method remains the
+        production-safe DAG executor path.
+        """
+        initial_inputs = initial_inputs or {}
+
+        plan = self.build_plan(query_spec)
+        kernel_plan = self.build_kernel_plan(plan)
+
+        executor = DagExecutor(self.capability_resolver)
+        execution = executor.execute(
+            plan,
+            initial_inputs=initial_inputs,
+            fail_fast=fail_fast,
+        )
+
+        kernel_execution = execute_kernel_plan_with_capabilities_sync(
+            kernel_plan,
+            capability_resolver=self.capability_resolver,
+            initial_inputs=initial_inputs,
+            raise_on_error=raise_on_kernel_error,
+        )
+
+        return PlanningRunResult(
+            success=execution.success,
+            plan=plan,
+            execution=execution,
+            kernel_plan=kernel_plan,
+            kernel_execution=kernel_execution,
         )
 
 

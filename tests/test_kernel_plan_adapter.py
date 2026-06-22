@@ -246,3 +246,186 @@ def test_kernel_plan_to_summary_accepts_none() -> None:
     from orchestrator.planning.kernel_plan_adapter import kernel_plan_to_summary
 
     assert kernel_plan_to_summary(None) is None
+
+
+def test_compare_dag_plan_to_query_plan_reports_valid_equivalent_plan() -> None:
+    from orchestrator.planning.kernel_plan_adapter import (
+        compare_dag_plan_to_query_plan,
+        format_plan_comparison_report,
+    )
+
+    dag_plan = DagPlan(
+        nodes=[
+            DagNode(
+                id="scored",
+                capability_name="score_features",
+                inputs={
+                    "features": "$inputs.properties",
+                },
+                static_params={
+                    "scoring_spec": {
+                        "output_field": "score",
+                    }
+                },
+                produces="vector",
+            ),
+            DagNode(
+                id="ranked",
+                capability_name="rank_features",
+                inputs={
+                    "features": "$node.scored",
+                    "limit": 10,
+                },
+                static_params={
+                    "score_field": "score",
+                },
+                needs=["scored"],
+                produces="vector",
+            ),
+        ],
+        output_nodes=["ranked"],
+    )
+
+    query_plan = dag_plan_to_query_plan(
+        dag_plan,
+        query_ir_id="query_ir_compare_001",
+        plan_id="plan_compare_001",
+    )
+
+    comparison = compare_dag_plan_to_query_plan(
+        dag_plan,
+        query_plan,
+    )
+
+    assert comparison["valid"] is True
+    assert comparison["problems"] == []
+    assert comparison["dag_node_count"] == 2
+    assert comparison["kernel_step_count"] == 2
+    assert comparison["missing_steps"] == []
+    assert comparison["extra_steps"] == []
+    assert comparison["output_nodes_match"] is True
+    assert comparison["kernel_validate_dag_problems"] == []
+
+    assert len(comparison["steps"]) == 2
+    assert all(step["valid"] for step in comparison["steps"])
+
+    ranked = comparison["steps"][1]
+    assert ranked["id"] == "ranked"
+    assert ranked["dependencies_match"] is True
+    assert ranked["input_map_matches"] is True
+    assert ranked["parameters_match"] is True
+    assert ranked["literal_inputs_match"] is True
+
+    report = format_plan_comparison_report(comparison)
+    assert "VALID" in report
+    assert "dag=2" in report
+    assert "kernel=2" in report
+
+
+def test_compare_dag_plan_to_query_plan_detects_missing_step() -> None:
+    from geochat_kernel.models import QueryPlan
+
+    from orchestrator.planning.kernel_plan_adapter import compare_dag_plan_to_query_plan
+
+    dag_plan = DagPlan(
+        nodes=[
+            DagNode(
+                id="n1",
+                capability_name="load_features",
+            )
+        ],
+        output_nodes=["n1"],
+    )
+
+    query_plan = QueryPlan(
+        id="plan_missing_step",
+        query_ir_id="query_ir_missing_step",
+        steps=[],
+        metadata={
+            "output_nodes": ["n1"],
+        },
+    )
+
+    comparison = compare_dag_plan_to_query_plan(
+        dag_plan,
+        query_plan,
+    )
+
+    assert comparison["valid"] is False
+    assert comparison["missing_steps"] == ["n1"]
+    assert any("missing" in problem.lower() for problem in comparison["problems"])
+
+
+def test_compare_dag_plan_to_query_plan_detects_output_node_mismatch() -> None:
+    from orchestrator.planning.kernel_plan_adapter import compare_dag_plan_to_query_plan
+
+    dag_plan = DagPlan(
+        nodes=[
+            DagNode(
+                id="n1",
+                capability_name="load_features",
+            )
+        ],
+        output_nodes=["n1"],
+    )
+
+    query_plan = dag_plan_to_query_plan(
+        dag_plan,
+        query_ir_id="query_ir_output_mismatch",
+        plan_id="plan_output_mismatch",
+    )
+    query_plan.metadata["output_nodes"] = ["other"]
+
+    comparison = compare_dag_plan_to_query_plan(
+        dag_plan,
+        query_plan,
+    )
+
+    assert comparison["valid"] is False
+    assert comparison["output_nodes_match"] is False
+    assert comparison["dag_output_nodes"] == ["n1"]
+    assert comparison["kernel_output_nodes"] == ["other"]
+    assert any("Output nodes mismatch" in problem for problem in comparison["problems"])
+
+
+def test_compare_dag_plan_to_query_plan_detects_step_field_mismatch() -> None:
+    from orchestrator.planning.kernel_plan_adapter import compare_dag_plan_to_query_plan
+
+    dag_plan = DagPlan(
+        nodes=[
+            DagNode(
+                id="n1",
+                capability_name="load_features",
+                static_params={
+                    "limit": 10,
+                },
+                produces="vector",
+            )
+        ],
+        output_nodes=["n1"],
+    )
+
+    query_plan = dag_plan_to_query_plan(
+        dag_plan,
+        query_ir_id="query_ir_step_mismatch",
+        plan_id="plan_step_mismatch",
+    )
+
+    query_plan.steps[0].type = "wrong_capability"
+    query_plan.steps[0].parameters = {
+        "limit": 20,
+    }
+    query_plan.steps[0].metadata["produces"] = "json"
+
+    comparison = compare_dag_plan_to_query_plan(
+        dag_plan,
+        query_plan,
+    )
+
+    assert comparison["valid"] is False
+    assert comparison["steps"][0]["valid"] is False
+    assert comparison["steps"][0]["type_matches"] is False
+    assert comparison["steps"][0]["parameters_match"] is False
+    assert comparison["steps"][0]["produces_matches"] is False
+    assert any("type mismatch" in problem for problem in comparison["problems"])
+    assert any("parameters payload mismatch" in problem for problem in comparison["problems"])

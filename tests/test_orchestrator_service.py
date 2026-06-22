@@ -665,3 +665,151 @@ def test_service_planning_uses_config_kernel_execution_flag(
     assert metadata["kernel_execution_enabled"] is True
     assert metadata["execution_mode"] == "query_spec_planning_kernel_execution"
     assert metadata["planning_summary"]["kernel_execution_enabled"] is True
+
+
+def test_orchestrator_service_kernel_execution_can_be_enabled_from_config(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", raising=False)
+    monkeypatch.delenv("ENABLE_KERNEL_EXECUTION", raising=False)
+
+    service = _make_service(tmp_path, enable_kernel_execution=True)
+
+    assert service.config.enable_kernel_execution is True
+    assert service._kernel_execution_enabled() is True
+
+    # Per-request metadata can still explicitly disable config-level default.
+    assert service._kernel_execution_enabled(
+        metadata={"enable_kernel_execution": False}
+    ) is False
+
+    default_service = _make_service(tmp_path)
+
+    assert default_service.config.enable_kernel_execution is False
+    assert default_service._kernel_execution_enabled() is False
+
+    # Env remains a deployment-level override.
+    monkeypatch.setenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", "1")
+    assert default_service._kernel_execution_enabled() is True
+
+    monkeypatch.setenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", "0")
+    assert service._kernel_execution_enabled() is False
+
+
+def test_service_planning_uses_config_kernel_execution_flag(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from orchestrator.planning.spec import EntitySpec, OperationSpec, OutputSpec, QuerySpec
+
+    service = _make_service(tmp_path, enable_kernel_execution=True)
+
+    monkeypatch.setattr(service, "_query_spec_planning_enabled", lambda: True)
+
+    class FakeLLMClient:
+        pass
+
+    class FakeQuerySpecGenerator:
+        def __init__(self, llm_client):
+            self.llm_client = llm_client
+
+        def generate(self, query: str, context=None) -> QuerySpec:
+            return QuerySpec(
+                raw_query=query,
+                goal="rank_properties",
+                entities=[
+                    EntitySpec(ref="properties", kind="vector"),
+                ],
+                operations=[
+                    OperationSpec(
+                        op="score_features",
+                        inputs={"vector": "properties"},
+                        params={
+                            "scoring_spec": {
+                                "output_field": "investment_score",
+                            }
+                        },
+                        output="scored",
+                    ),
+                    OperationSpec(
+                        op="rank_features",
+                        inputs={"vector": "scored"},
+                        params={
+                            "score_field": "investment_score",
+                            "rank_field": "investment_rank",
+                        },
+                        output="ranked",
+                    ),
+                ],
+                outputs=[
+                    OutputSpec(kind="vector", source="ranked"),
+                ],
+            )
+
+    calls = {
+        "run": 0,
+        "run_with_kernel_execution": 0,
+    }
+
+    class FakePlanningResult:
+        success = True
+        error = None
+        output_nodes = {}
+        trace = []
+        kernel_plan = None
+        kernel_execution = None
+
+    class FakeRunner:
+        def run(self, query_spec, *, initial_inputs=None, fail_fast=True):
+            calls["run"] += 1
+            return FakePlanningResult()
+
+        def run_with_kernel_execution(
+            self,
+            query_spec,
+            *,
+            initial_inputs=None,
+            fail_fast=True,
+            raise_on_kernel_error=False,
+        ):
+            calls["run_with_kernel_execution"] += 1
+            return FakePlanningResult()
+
+    monkeypatch.setattr(
+        "orchestrator.service.OpenAICompatibleLLMClient",
+        FakeLLMClient,
+    )
+    monkeypatch.setattr(
+        "orchestrator.service.LLMQuerySpecGenerator",
+        FakeQuerySpecGenerator,
+    )
+    monkeypatch.setattr(
+        "orchestrator.service.make_registry_planning_runner",
+        lambda registry: FakeRunner(),
+    )
+
+    response = service._try_handle_query_with_planning(
+        query="املاک را امتیاز بده و رتبه‌بندی کن",
+        resolved_inputs={
+            "properties": {
+                "type": "FeatureCollection",
+                "features": [],
+            }
+        },
+        final_request_id="req_kernel_execution_from_config",
+        final_metadata={},
+        metadata={},
+    )
+
+    assert response is not None
+    assert response["status"] == "succeeded"
+
+    assert calls["run"] == 0
+    assert calls["run_with_kernel_execution"] == 1
+
+    metadata = response["metadata"]
+
+    assert metadata["kernel_execution_enabled"] is True
+    assert metadata["execution_mode"] == "query_spec_planning_kernel_execution"
+    assert metadata["planning_summary"]["kernel_execution_enabled"] is True

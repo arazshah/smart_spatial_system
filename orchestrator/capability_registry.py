@@ -31,6 +31,7 @@ from types import ModuleType
 from typing import Any
 
 from orchestrator.models import CapabilityBinding
+from orchestrator.plugin_error_mapping import plugin_exception_to_structured_error
 
 
 DEFAULT_SAFE_PLUGIN_MODULES = [
@@ -95,6 +96,12 @@ class CapabilityRegistry:
                     {
                         "module": module_name,
                         "error": f"{type(exc).__name__}: {exc}",
+                        "structured_error": plugin_exception_to_structured_error(
+                            exc,
+                            module_name=module_name,
+                            stage="plugin_import_or_registration",
+                            source="capability_registry",
+                        ),
                     }
                 )
 

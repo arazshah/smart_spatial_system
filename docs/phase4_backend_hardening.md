@@ -280,3 +280,47 @@ Security:
   - `password=...`
   - URL credentials like `postgresql://user:secret@host/db`
 - Structured error details are still sanitized by the shared error contract.
+
+---
+
+## Phase 4 Step 7B — Registry / Plugin Loading Structured Errors
+
+Plugin loading and capability registry registration failures are now mapped to
+the shared structured error contract.
+
+Additive behavior:
+
+- Existing `skipped_plugins[*].module` remains unchanged.
+- Existing `skipped_plugins[*].error` remains unchanged.
+- New `skipped_plugins[*].structured_error` is added when
+  `CapabilityRegistry.from_plugin_modules(..., tolerant=True)` skips a plugin.
+- Non-tolerant registry loading still raises exceptions as before.
+
+Current plugin/registry mappings:
+
+- Plugin import failure:
+  - code: `plugin.import_failed`
+  - category: `configuration_error`
+
+- Invalid plugin contract/manifest:
+  - code: `plugin.contract_invalid`
+  - category: `capability_contract_error`
+
+- Duplicate capability registration:
+  - code: `plugin.duplicate_capability`
+  - category: `configuration_error`
+
+- Registered capability without callable function:
+  - code: `plugin.capability_callable_missing`
+  - category: `capability_resolution_error`
+
+- Unexpected plugin registry failure:
+  - code: `plugin.unexpected_exception`
+  - category: `internal_error`
+
+Compatibility:
+
+- Registry behavior is unchanged.
+- Tolerant mode still skips bad plugins.
+- Non-tolerant mode still raises.
+- The plain string `error` field is kept for existing clients/tests.

@@ -211,3 +211,45 @@ def test_registry_rejects_missing_capability() -> None:
 
     with pytest.raises(ValueError, match="not registered"):
         registry.resolve("missing_capability")
+
+
+def test_capability_registry_tolerant_skipped_plugin_has_structured_error() -> None:
+    from orchestrator.capability_registry import CapabilityRegistry
+
+    registry = CapabilityRegistry.from_plugin_modules(
+        ["plugins.__definitely_missing_plugin_for_structured_error_test__"],
+        tolerant=True,
+    )
+
+    assert registry.registered_capability_names() == []
+    assert len(registry.skipped_plugins) == 1
+
+    skipped = registry.skipped_plugins[0]
+
+    assert skipped["module"] == "plugins.__definitely_missing_plugin_for_structured_error_test__"
+    assert "ModuleNotFoundError" in skipped["error"]
+    assert "structured_error" in skipped
+
+    structured_error = skipped["structured_error"]
+
+    assert structured_error["code"] == "plugin.import_failed"
+    assert structured_error["category"] == "configuration_error"
+    assert structured_error["retryable"] is False
+    assert structured_error["source"] == "capability_registry"
+    assert structured_error["details"]["module"] == (
+        "plugins.__definitely_missing_plugin_for_structured_error_test__"
+    )
+    assert structured_error["details"]["stage"] == "plugin_import_or_registration"
+    assert structured_error["details"]["exception_type"] == "ModuleNotFoundError"
+
+
+def test_capability_registry_non_tolerant_import_failure_still_raises() -> None:
+    import pytest
+
+    from orchestrator.capability_registry import CapabilityRegistry
+
+    with pytest.raises(ModuleNotFoundError):
+        CapabilityRegistry.from_plugin_modules(
+            ["plugins.__definitely_missing_plugin_for_non_tolerant_test__"],
+            tolerant=False,
+        )

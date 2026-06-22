@@ -213,7 +213,7 @@ SELECT
         'type', 'Feature',
         'geometry', {geometry_expr},
         'properties', to_jsonb(t) - %s
-    ) AS feature
+    )::text AS feature
 FROM {schema_sql}.{table_sql} AS t
 """.strip()
 
@@ -279,13 +279,62 @@ def _merge_bboxes(bboxes: list[list[float]]) -> dict[str, float] | None:
     }
 
 
-def _normalize_feature(value: Any, row_index: int) -> dict[str, Any]:
+
+def _safe_decode_database_bytes(value: object, *, label: str = "database value") -> object:
+    """
+    Decode byte-like database values without crashing on malformed sequences.
+
+    Some drivers/adapters may return json/jsonb/geometry helper values as bytes
+    or memoryview. For spatial pipelines, one malformed textual value must not
+    abort the whole query. We prefer strict UTF-8, then fall back to replacement.
+    """
+    if isinstance(value, memoryview):
+        value = value.tobytes()
+
+    if isinstance(value, bytearray):
+        value = bytes(value)
+
     if isinstance(value, bytes):
-        value = value.decode("utf-8")
+        try:
+            return value.decode("utf-8")
+        except UnicodeDecodeError:
+            return value.decode("utf-8", errors="replace")
+
+    return value
+
+
+def _safe_json_loads_database_value(value: object, *, label: str = "database json value") -> object:
+    """
+    Parse JSON-like values returned by PostGIS/psycopg safely.
+
+    Accepted:
+      - dict/list: returned as-is
+      - str: json.loads
+      - bytes/memoryview: safe decode then json.loads
+    """
+    import json
+
+    value = _safe_decode_database_bytes(value, label=label)
+
+    if isinstance(value, (dict, list)):
+        return value
 
     if isinstance(value, str):
         try:
-            value = json.loads(value)
+            return json.loads(value)
+        except Exception as exc:
+            preview = value[:300]
+            raise ValueError(f"Could not parse {label} as JSON. Preview={preview!r}. Error: {exc}") from exc
+
+    return value
+
+def _normalize_feature(value: Any, row_index: int) -> dict[str, Any]:
+    if isinstance(value, bytes):
+        value = _safe_decode_database_bytes(value, label="GeoJSON geometry")
+
+    if isinstance(value, str):
+        try:
+            value = _safe_json_loads_database_value(value, label="GeoJSON geometry")
         except json.JSONDecodeError as exc:
             raise ValueError(f"Database row {row_index} does not contain valid JSON.") from exc
 
@@ -776,7 +825,7 @@ SELECT
         'type', 'Feature',
         'geometry', {geometry_expr},
         'properties', to_jsonb(q) - %s
-    ) AS feature
+    )::text AS feature
 FROM (
 {sql}
 ) AS q

@@ -286,3 +286,84 @@ def test_execute_kernel_plan_with_capabilities_returns_structured_error() -> Non
     assert result.output_nodes == {}
     assert result.error is not None
     assert "missing_properties" in result.error
+
+
+def test_kernel_execution_to_summary_returns_public_safe_summary() -> None:
+    from orchestrator.planning.kernel_execution_bridge import kernel_execution_to_summary
+
+    dag_plan = DagPlan(
+        nodes=[
+            DagNode(
+                id="scored",
+                capability_name="score_features",
+                inputs={
+                    "features": "$inputs.properties",
+                },
+                static_params={
+                    "scoring_spec": {
+                        "output_field": "investment_score",
+                    }
+                },
+                produces="vector",
+            ),
+            DagNode(
+                id="ranked",
+                capability_name="rank_features",
+                inputs={
+                    "features": "$node.scored",
+                },
+                static_params={
+                    "score_field": "investment_score",
+                    "rank_field": "investment_rank",
+                },
+                needs=["scored"],
+                produces="vector",
+            ),
+        ],
+        output_nodes=["ranked"],
+    )
+
+    query_plan = dag_plan_to_query_plan(
+        dag_plan,
+        query_ir_id="query_ir_kernel_exec_summary",
+        plan_id="plan_kernel_exec_summary",
+    )
+
+    result = execute_kernel_plan_with_capabilities_sync(
+        query_plan,
+        capability_resolver=_capability_resolver,
+        initial_inputs={
+            "properties": [
+                {"name": "A"},
+                {"name": "B"},
+            ]
+        },
+    )
+
+    summary = kernel_execution_to_summary(result)
+
+    assert summary is not None
+    assert summary["success"] is True
+    assert summary["error"] is None
+    assert summary["artifact_count"] == 2
+    assert summary["output_artifact_count"] == 1
+    assert summary["artifact_ids"] == ["scored", "ranked"]
+    assert summary["output_artifact_ids"] == ["ranked"]
+
+    assert len(summary["artifacts"]) == 2
+    assert summary["artifacts"][0]["step_id"] == "scored"
+    assert summary["artifacts"][0]["kind"] == "vector"
+    assert summary["artifacts"][0]["has_live"] is True
+    assert summary["artifacts"][0]["capability_name"] == "score_features"
+    assert "data" in summary["artifacts"][0]["payload_keys"]
+    assert "payload" not in summary["artifacts"][0]
+
+    assert summary["output_artifacts"][0]["step_id"] == "ranked"
+    assert summary["context"]["kernel_plan_id"] == "plan_kernel_exec_summary"
+    assert summary["context"]["query_ir_id"] == "query_ir_kernel_exec_summary"
+
+
+def test_kernel_execution_to_summary_accepts_none() -> None:
+    from orchestrator.planning.kernel_execution_bridge import kernel_execution_to_summary
+
+    assert kernel_execution_to_summary(None) is None

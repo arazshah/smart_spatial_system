@@ -445,3 +445,105 @@ def execute_kernel_plan_with_capabilities_sync(
             raise_on_error=raise_on_error,
         )
     )
+
+
+def _artifact_has_live(artifact: ExecutionArtifact) -> bool:
+    try:
+        return bool(getattr(artifact, "has_live", False))
+    except Exception:
+        pass
+
+    try:
+        return artifact.get_live() is not None
+    except Exception:
+        return False
+
+
+def execution_artifact_to_summary(
+    artifact: ExecutionArtifact,
+) -> dict[str, Any]:
+    """
+    Build a compact public-safe summary for one ExecutionArtifact.
+
+    This intentionally excludes:
+      - live object
+      - full payload data
+      - large refs
+    """
+    payload = artifact.payload or {}
+    metadata = artifact.metadata or {}
+
+    summary: dict[str, Any] = {
+        "id": artifact.id,
+        "step_id": artifact.step_id,
+        "kind": artifact.kind,
+        "produced_by": artifact.produced_by,
+        "is_remote": bool(artifact.is_remote),
+        "has_live": _artifact_has_live(artifact),
+        "payload_keys": sorted(str(key) for key in payload.keys()),
+        "metadata_keys": sorted(str(key) for key in metadata.keys()),
+    }
+
+    if "summary" in payload and isinstance(payload["summary"], dict):
+        summary["payload_summary"] = payload["summary"]
+
+    for key in (
+        "source",
+        "step_type",
+        "step_name",
+        "capability_name",
+        "cache_hit",
+    ):
+        if key in metadata:
+            summary[key] = metadata[key]
+
+    if artifact.confidence is not None:
+        summary["confidence"] = artifact.confidence
+
+    if artifact.refs:
+        summary["ref_count"] = len(artifact.refs)
+
+    return summary
+
+
+def kernel_execution_to_summary(
+    result: KernelExecutionBridgeResult | None,
+) -> dict[str, Any] | None:
+    """
+    Build a compact public-safe summary for optional kernel execution.
+
+    Intended for response metadata/debug visibility.
+    """
+    if result is None:
+        return None
+
+    artifacts = result.artifacts or {}
+    output_artifacts = result.output_artifacts or {}
+
+    return {
+        "success": bool(result.success),
+        "error": result.error,
+        "artifact_count": len(artifacts),
+        "output_artifact_count": len(output_artifacts),
+        "artifact_ids": list(artifacts.keys()),
+        "output_artifact_ids": list(output_artifacts.keys()),
+        "artifacts": [
+            execution_artifact_to_summary(artifact)
+            for _, artifact in artifacts.items()
+        ],
+        "output_artifacts": [
+            execution_artifact_to_summary(artifact)
+            for _, artifact in output_artifacts.items()
+        ],
+        "context": (
+            {
+                "request_id": result.context.request_id,
+                "language": result.context.language,
+                "kernel_plan_id": result.context.metadata.get("kernel_plan_id"),
+                "query_ir_id": result.context.metadata.get("query_ir_id"),
+                "bridge": result.context.metadata.get("bridge"),
+            }
+            if result.context is not None
+            else None
+        ),
+    }

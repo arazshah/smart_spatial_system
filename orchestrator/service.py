@@ -3919,8 +3919,19 @@ class OrchestratorService:
                 fail_fast=True,
             )
 
+            from orchestrator.planning.kernel_execution_bridge import (
+                kernel_execution_to_summary,
+            )
+            from orchestrator.planning.kernel_plan_adapter import kernel_plan_to_summary
+
             layers, outputs, primary_report = self._planning_outputs_to_response_payload(
                 planning_result
+            )
+            kernel_plan_summary = kernel_plan_to_summary(
+                getattr(planning_result, "kernel_plan", None)
+            )
+            kernel_execution_summary = kernel_execution_to_summary(
+                getattr(planning_result, "kernel_execution", None)
             )
             steps = self._planning_trace_to_steps(
                 getattr(planning_result, "trace", []) or []
@@ -3965,6 +3976,8 @@ class OrchestratorService:
                 "outputs": outputs,
                 "layers": layers,
                 "artifacts": outputs.get("artifacts", []),
+                "kernel_plan": kernel_plan_summary,
+                "kernel_execution": kernel_execution_summary,
                 "steps": steps,
                 "confidence": {
                     "level": None,

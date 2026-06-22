@@ -269,3 +269,31 @@ def test_planning_runner_default_run_does_not_execute_kernel_path() -> None:
     assert result.success is True
     assert result.kernel_plan is not None
     assert result.kernel_execution is None
+
+
+def test_planning_runner_kernel_execution_summary_is_available() -> None:
+    from orchestrator.planning.kernel_execution_bridge import kernel_execution_to_summary
+
+    runner = make_static_planning_runner(
+        {
+            "score_features": score_features,
+            "rank_features": rank_features,
+        }
+    )
+
+    result = runner.run_with_kernel_execution(
+        _sample_query_spec(),
+        initial_inputs={
+            "properties": _sample_features(),
+        },
+    )
+
+    summary = kernel_execution_to_summary(result.kernel_execution)
+
+    assert summary is not None
+    assert summary["success"] is True
+    assert summary["artifact_count"] == 2
+    assert summary["output_artifact_ids"] == ["ranked"]
+    assert summary["artifacts"][0]["step_id"] == "scored"
+    assert summary["artifacts"][1]["step_id"] == "ranked"
+    assert summary["context"]["kernel_plan_id"] == result.kernel_plan.id

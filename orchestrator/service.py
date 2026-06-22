@@ -3615,12 +3615,18 @@ class OrchestratorService:
         self,
         planning_result: Any,
     ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any] | None]:
+        from orchestrator.kernel_artifacts import (
+            artifact_to_public_dict,
+            output_to_artifact,
+        )
+
         layers: list[dict[str, Any]] = []
         outputs: dict[str, Any] = {
             "files": [],
             "vectors": [],
             "tables": [],
             "rasters": [],
+            "artifacts": [],
         }
         primary_report: dict[str, Any] | None = None
 
@@ -3648,6 +3654,25 @@ class OrchestratorService:
             return None
 
         for node_id, value in (getattr(planning_result, "output_nodes", None) or {}).items():
+            try:
+                artifact = output_to_artifact(
+                    value,
+                    source_node=node_id,
+                    title=node_id,
+                    produced_by="query_spec_planning",
+                    metadata={
+                        "source": "planning.output_nodes",
+                    },
+                )
+                outputs["artifacts"].append(artifact_to_public_dict(artifact))
+            except Exception as exc:
+                outputs.setdefault("artifact_errors", []).append(
+                    {
+                        "node_id": node_id,
+                        "error": f"{type(exc).__name__}: {exc}",
+                    }
+                )
+
             feature_collection = _as_feature_collection(value)
 
             if feature_collection is not None:
@@ -3939,6 +3964,7 @@ class OrchestratorService:
                 "message": answer,
                 "outputs": outputs,
                 "layers": layers,
+                "artifacts": outputs.get("artifacts", []),
                 "steps": steps,
                 "confidence": {
                     "level": None,

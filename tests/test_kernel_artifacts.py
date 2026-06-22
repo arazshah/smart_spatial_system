@@ -107,3 +107,92 @@ def test_artifacts_to_public_list() -> None:
     assert len(public) == 2
     assert public[0]["type"] == "table"
     assert public[1]["type"] == "report"
+
+
+def test_output_to_artifact_detects_feature_dict_without_feature_collection_type() -> None:
+    value = {
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": None,
+                "properties": {"name": "A"},
+            }
+        ]
+    }
+
+    artifact = output_to_artifact(value, source_node="feature_dict")
+
+    assert artifact.kind == "features"
+    assert artifact.ref_id == "feature_dict"
+    assert artifact.payload["format"] == "geojson"
+    assert artifact.payload["data"]["type"] == "FeatureCollection"
+    assert artifact.metadata["feature_count"] == 1
+
+
+def test_output_to_artifact_detects_table_dict_with_rows() -> None:
+    value = {
+        "title": "Distances",
+        "columns": ["name", "distance_m"],
+        "rows": [
+            {"name": "A", "distance_m": 10},
+            {"name": "B", "distance_m": 20},
+        ],
+    }
+
+    artifact = output_to_artifact(value, source_node="distance_table")
+
+    assert artifact.kind == "table"
+    assert artifact.title == "Distances"
+    assert artifact.ref_id == "distance_table"
+    assert artifact.payload["rows"] == value["rows"]
+    assert artifact.payload["columns"] == value["columns"]
+    assert artifact.metadata["row_count"] == 2
+
+
+def test_output_to_artifact_detects_report_dict() -> None:
+    value = {
+        "title": "تحلیل پارک‌ها",
+        "summary": "گزارش آماده است.",
+        "sections": [
+            {
+                "title": "نتیجه",
+                "content": "ok",
+            }
+        ],
+    }
+
+    artifact = output_to_artifact(value, source_node="report_node")
+
+    assert artifact.kind == "report"
+    assert artifact.title == "تحلیل پارک‌ها"
+    assert artifact.ref_id == "report_node"
+    assert artifact.payload["format"] == "json"
+    assert artifact.payload["data"]["summary"] == "گزارش آماده است."
+
+
+def test_output_to_artifact_detects_download_dict() -> None:
+    value = {
+        "name": "report.pdf",
+        "pdf_path": "/tmp/report.pdf",
+    }
+
+    artifact = output_to_artifact(value, source_node="pdf_node")
+
+    assert artifact.kind == "download"
+    assert artifact.title == "report.pdf"
+    assert artifact.payload["format"] == "pdf"
+    assert artifact.payload["path"] == "/tmp/report.pdf"
+
+
+def test_output_to_artifact_detects_raster_reference_dict() -> None:
+    value = {
+        "name": "slope",
+        "raster_path": "/tmp/slope.tif",
+    }
+
+    artifact = output_to_artifact(value, source_node="raster_node")
+
+    assert artifact.kind == "raster_ref"
+    assert artifact.title == "slope"
+    assert artifact.payload["format"] == "geotiff"
+    assert artifact.payload["path"] == "/tmp/slope.tif"

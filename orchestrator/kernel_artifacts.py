@@ -143,6 +143,110 @@ def _feature_collection_feature_count(value: dict[str, Any]) -> int:
     return len(features) if isinstance(features, list) else 0
 
 
+def _first_non_empty_string(value: dict[str, Any], keys: tuple[str, ...]) -> str | None:
+    for key in keys:
+        item = value.get(key)
+        if isinstance(item, str) and item.strip():
+            return item.strip()
+    return None
+
+
+def _file_format_from_path(path: str) -> str:
+    lowered = path.lower()
+
+    if lowered.endswith(".pdf"):
+        return "pdf"
+    if lowered.endswith(".geojson") or lowered.endswith(".json"):
+        return "geojson" if lowered.endswith(".geojson") else "json"
+    if lowered.endswith(".tif") or lowered.endswith(".tiff"):
+        return "geotiff"
+    if lowered.endswith(".gpkg"):
+        return "gpkg"
+    if lowered.endswith(".zip"):
+        return "zip"
+    if lowered.endswith(".csv"):
+        return "csv"
+
+    return "file"
+
+
+def _looks_like_raster_path(path: str) -> bool:
+    lowered = path.lower()
+    return lowered.endswith((".tif", ".tiff", ".vrt", ".img"))
+
+
+def _as_feature_collection_dict(value: dict[str, Any]) -> dict[str, Any] | None:
+    if _is_feature_collection(value):
+        return value
+
+    geojson = value.get("geojson")
+    if _is_feature_collection(geojson):
+        return geojson
+
+    data = value.get("data")
+    if _is_feature_collection(data):
+        return data
+
+    payload = value.get("payload")
+    if isinstance(payload, dict):
+        payload_data = payload.get("data")
+        if _is_feature_collection(payload_data):
+            return payload_data
+
+    features = value.get("features")
+    if isinstance(features, list):
+        return {
+            "type": "FeatureCollection",
+            "features": features,
+        }
+
+    return None
+
+
+def _rows_from_table_dict(value: dict[str, Any]) -> list[Any] | None:
+    rows = value.get("rows")
+    if isinstance(rows, list):
+        return rows
+
+    table = value.get("table")
+    if isinstance(table, list):
+        return table
+
+    if isinstance(table, dict):
+        table_rows = table.get("rows")
+        if isinstance(table_rows, list):
+            return table_rows
+
+    data = value.get("data")
+    if isinstance(data, dict):
+        data_rows = data.get("rows")
+        if isinstance(data_rows, list):
+            return data_rows
+
+    return None
+
+
+def _looks_like_report_dict(value: dict[str, Any]) -> bool:
+    if isinstance(value.get("sections"), list):
+        return True
+
+    if isinstance(value.get("rankings"), list):
+        return True
+
+    if isinstance(value.get("report"), dict):
+        return True
+
+    if value.get("type") in {"report", "analysis_report", "summary_report"}:
+        return True
+
+    if isinstance(value.get("title"), str) and (
+        "summary" in value or "sections" in value or "findings" in value
+    ):
+        return True
+
+    return False
+
+
 def output_to_artifact(
     value: Any,
     *,
@@ -228,6 +332,113 @@ def output_to_artifact(
         )
 
     if isinstance(value, dict):
+        feature_collection = _as_feature_collection_dict(value)
+        if feature_collection is not None:
+            base_metadata.setdefault("format", "geojson")
+            base_metadata.setdefault(
+                "feature_count",
+                _feature_collection_feature_count(feature_collection),
+            )
+            base_metadata.setdefault("input_type", "dict")
+
+            return make_artifact(
+                kind=ArtifactKind.FEATURES,
+                title=title or value.get("name") or value.get("title"),
+                payload={
+                    "format": "geojson",
+                    "data": feature_collection,
+                },
+                source_node=source_node,
+                produced_by=produced_by,
+                primary=primary,
+                metadata=base_metadata,
+            )
+
+        rows = _rows_from_table_dict(value)
+        if rows is not None:
+            columns = value.get("columns") or value.get("fields")
+            if columns is not None:
+                base_metadata.setdefault("columns", columns)
+
+            base_metadata.setdefault("row_count", len(rows))
+            base_metadata.setdefault("input_type", "dict")
+
+            return make_artifact(
+                kind=ArtifactKind.TABLE,
+                title=title or value.get("name") or value.get("title"),
+                payload={
+                    "format": "json",
+                    "rows": rows,
+                    "columns": columns or [],
+                },
+                source_node=source_node,
+                produced_by=produced_by,
+                primary=primary,
+                metadata=base_metadata,
+            )
+
+        if _looks_like_report_dict(value):
+            base_metadata.setdefault("input_type", "dict")
+            base_metadata.setdefault(
+                "report_keys",
+                sorted(str(key) for key in value.keys())[:30],
+            )
+
+            return make_artifact(
+                kind=ArtifactKind.REPORT,
+                title=title or value.get("title") or value.get("name"),
+                payload={
+                    "format": "json",
+                    "data": value,
+                },
+                source_node=source_node,
+                produced_by=produced_by,
+                primary=primary,
+                metadata=base_metadata,
+            )
+
+        file_path = _first_non_empty_string(
+            value,
+            (
+                "path",
+                "file_path",
+                "output_path",
+                "pdf_path",
+                "download_path",
+                "url",
+                "download_url",
+                "raster_ref",
+                "raster_path",
+            ),
+        )
+
+        if file_path is not None:
+            file_format = _file_format_from_path(file_path)
+            artifact_kind = (
+                ArtifactKind.RASTER_REF
+                if _looks_like_raster_path(file_path)
+                or "raster_ref" in value
+                or "raster_path" in value
+                else ArtifactKind.DOWNLOAD
+            )
+
+            base_metadata.setdefault("format", file_format)
+            base_metadata.setdefault("input_type", "dict")
+
+            return make_artifact(
+                kind=artifact_kind,
+                title=title or value.get("name") or value.get("title"),
+                payload={
+                    "format": file_format,
+                    "path": file_path,
+                    "data": value,
+                },
+                source_node=source_node,
+                produced_by=produced_by,
+                primary=primary,
+                metadata=base_metadata,
+            )
+
         return make_artifact(
             kind=ArtifactKind.SCALAR,
             title=title,

@@ -7,6 +7,8 @@ if str(ROOT) not in sys.path:
 
 import pytest
 
+from geochat_kernel.models import QueryPlan
+
 from orchestrator.planning.capability_resolver import (
     CapabilityResolutionError,
     RegistryCapabilityResolver,
@@ -153,6 +155,15 @@ def test_planning_runner_executes_query_spec_end_to_end():
     assert result.success is True
     assert result.plan.output_nodes == ["ranked"]
     assert "ranked" in result.output_nodes
+
+    assert isinstance(result.kernel_plan, QueryPlan)
+    assert result.kernel_plan.metadata["output_nodes"] == ["ranked"]
+    assert [step.id for step in result.kernel_plan.steps] == ["scored", "ranked"]
+    assert result.kernel_plan.steps[0].type == "score_features"
+    assert result.kernel_plan.steps[1].type == "rank_features"
+    assert result.kernel_plan.steps[1].dependencies == ["scored"]
+    assert result.kernel_plan.steps[1].input_map == {"features": "scored"}
+    assert result.kernel_plan.validate_dag() == []
 
     ranked = result.output_nodes["ranked"]
 

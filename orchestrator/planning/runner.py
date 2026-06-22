@@ -29,8 +29,11 @@ from orchestrator.planning.capability_resolver import (
     RegistryCapabilityResolver,
     StaticCapabilityResolver,
 )
+from geochat_kernel.models import QueryPlan
+
 from orchestrator.planning.dag import DagPlan
 from orchestrator.planning.dag_executor import DagExecutionResult, DagExecutor
+from orchestrator.planning.kernel_plan_adapter import dag_plan_to_query_plan
 from orchestrator.planning.planner import DeterministicPlanner, PlannerConfig
 from orchestrator.planning.spec import QuerySpec
 
@@ -46,6 +49,10 @@ class PlanningRunResult:
     execution:
         DagExecutionResult with outputs, output_nodes, trace and error.
 
+    kernel_plan:
+        geochat_kernel QueryPlan equivalent of the current DagPlan.
+        This is used during Phase 2/3 migration and is not executed here yet.
+
     success:
         Convenience mirror of execution.success.
     """
@@ -53,6 +60,7 @@ class PlanningRunResult:
     success: bool
     plan: DagPlan
     execution: DagExecutionResult
+    kernel_plan: QueryPlan | None = None
 
     @property
     def outputs(self) -> dict[str, Any]:
@@ -103,6 +111,23 @@ class PlanningRunner:
     def build_plan(self, query_spec: QuerySpec) -> DagPlan:
         return self.planner.build(query_spec)
 
+    def build_kernel_plan(
+        self,
+        plan: DagPlan,
+        *,
+        query_ir_id: str | None = None,
+    ) -> QueryPlan:
+        """
+        Build the geochat_kernel QueryPlan equivalent of a DagPlan.
+
+        This method does not execute the kernel plan.
+        It exists to make the Phase 2 migration explicit and testable.
+        """
+        return dag_plan_to_query_plan(
+            plan,
+            query_ir_id=query_ir_id,
+        )
+
     def run(
         self,
         query_spec: QuerySpec,
@@ -111,6 +136,8 @@ class PlanningRunner:
         fail_fast: bool = True,
     ) -> PlanningRunResult:
         plan = self.build_plan(query_spec)
+        kernel_plan = self.build_kernel_plan(plan)
+
         executor = DagExecutor(self.capability_resolver)
         execution = executor.execute(
             plan,
@@ -121,6 +148,7 @@ class PlanningRunner:
             success=execution.success,
             plan=plan,
             execution=execution,
+            kernel_plan=kernel_plan,
         )
 
 

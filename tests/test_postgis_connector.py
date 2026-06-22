@@ -191,8 +191,8 @@ def test_build_select_features_sql_without_transform() -> None:
     assert 'FROM "public"."roads" AS t' in sql
     assert "ST_AsGeoJSON(t.\"geom\")" in sql
     assert "ST_Transform" not in sql
-    assert "LIMIT %s" in sql
-    assert params == ["geom", 10]
+    assert "LIMIT 10" in sql
+    assert params == []
 
 
 def test_build_select_features_sql_with_transform_and_where() -> None:
@@ -209,9 +209,9 @@ def test_build_select_features_sql_with_transform_and_where() -> None:
     )
 
     assert 'FROM "gis"."buildings" AS t' in sql
-    assert 'ST_Transform(t."geometry", %s)' in sql
+    assert 'ST_Transform(t."geometry", 4326)' in sql
     assert "WHERE height > 10" in sql
-    assert params == [4326, "geometry", 25]
+    assert params == []
 
 
 def test_geometry_bbox_point() -> None:
@@ -332,7 +332,7 @@ class FakeCursor:
     def __exit__(self, exc_type, exc, tb):
         return False
 
-    def execute(self, sql, params):
+    def execute(self, sql, params=None):
         self.executed_sql = sql
         self.executed_params = params
 

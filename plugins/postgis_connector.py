@@ -173,6 +173,14 @@ def _build_conninfo(
     ])
 
 
+
+def _sql_text_literal(value: str) -> str:
+    """Build a safe single-quoted SQL string literal for known-safe values."""
+    if not isinstance(value, str):
+        raise ValueError("SQL text literal must be a string.")
+    return "'" + value.replace("'", "''") + "'"
+
+
 def _build_select_features_sql(
     *,
     schema: str,
@@ -198,9 +206,8 @@ def _build_select_features_sql(
     if output_srid is not None:
         geometry_expr = (
             f"CASE WHEN {geom_sql} IS NULL THEN NULL "
-            f"ELSE ST_AsGeoJSON(ST_Transform({geom_sql}, %s))::jsonb END"
+            f"ELSE ST_AsGeoJSON(ST_Transform({geom_sql}, {int(output_srid)}))::jsonb END"
         )
-        params.append(output_srid)
     else:
         geometry_expr = (
             f"CASE WHEN {geom_sql} IS NULL THEN NULL "
@@ -212,20 +219,17 @@ SELECT
     jsonb_build_object(
         'type', 'Feature',
         'geometry', {geometry_expr},
-        'properties', to_jsonb(t) - %s
+        'properties', to_jsonb(t) - {_sql_text_literal(geom_col)}
     )::text AS feature
 FROM {schema_sql}.{table_sql} AS t
 """.strip()
 
-    params.append(geom_col)
-
     if where:
         sql += f"\nWHERE {where}"
 
-    sql += "\nLIMIT %s"
-    params.append(limit)
+    sql += f"\nLIMIT {int(limit)}"
 
-    return sql, params
+    return sql, []
 
 
 def _is_number(value: Any) -> bool:
@@ -375,30 +379,151 @@ def _row_to_feature(row: Any, row_index: int) -> dict[str, Any]:
     raise ValueError(f"Unsupported database row type at index {row_index}: {type(row).__name__}")
 
 
-def _execute_postgis_query(conninfo: str, sql: str, params: list[Any]) -> list[dict[str, Any]]:
-    try:
-        import psycopg
-    except ImportError as exc:
-        raise SDKDependencyError(
-            "The postgis_connector plugin requires 'psycopg'. "
-            "Install it with: pip install psycopg[binary]"
-        ) from exc
+def _escape_literal_percent_for_pyformat(sql: str) -> str:
+    """
+    Escape literal percent signs for psycopg/psycopg2 pyformat execution.
 
-    features: list[dict[str, Any]] = []
+    psycopg uses %s placeholders. Therefore literal SQL patterns such as:
+        ILIKE '%مترو%'
+        ILIKE '%metro%'
+    must be sent to cursor.execute(sql, params) as:
+        ILIKE '%%مترو%%'
+        ILIKE '%%metro%%'
 
-    try:
+    Keep real %s placeholders intact.
+    Keep already-escaped %% intact.
+    Escape every other %.
+    """
+    if "%" not in sql:
+        return sql
+
+    out: list[str] = []
+    i = 0
+
+    while i < len(sql):
+        ch = sql[i]
+
+        if ch != "%":
+            out.append(ch)
+            i += 1
+            continue
+
+        nxt = sql[i + 1] if i + 1 < len(sql) else ""
+
+        # Real positional placeholder.
+        if nxt == "s":
+            out.append("%s")
+            i += 2
+            continue
+
+        # Already escaped literal percent.
+        if nxt == "%":
+            out.append("%%")
+            i += 2
+            continue
+
+        # Any other percent is a literal percent and must be escaped for
+        # pyformat parsing. This includes Persian/UTF-8 sequences after %.
+        out.append("%%")
+        i += 1
+
+    return "".join(out)
+
+
+def _execute_postgis_query(
+    *,
+    conninfo: str,
+    sql: str,
+    params: list[Any] | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Execute a compiled read-only PostGIS query and convert feature rows.
+
+    SQL is built deterministically with all safe values inlined, so normally no
+    bound parameters are required. This avoids pyformat placeholder conflicts
+    with literal LIKE patterns such as '%مترو%' or '%subway%'.
+
+    Primary driver is psycopg v3, with a psycopg2 fallback for rare driver-level
+    decode edge cases on multilingual OSM data.
+    """
+    bound_params = list(params or [])
+
+    def rows_to_features(rows: list[Any]) -> list[dict[str, Any]]:
+        return [_row_to_feature(row, row_index) for row_index, row in enumerate(rows)]
+
+    def is_retryable_driver_error(exc: BaseException) -> bool:
+        if isinstance(exc, UnicodeDecodeError):
+            return True
+        message = str(exc).lower()
+        return (
+            "unicode" in message
+            or "utf-8" in message
+            or "codec can't decode" in message
+            or "decode byte" in message
+        )
+
+    def run_with_psycopg() -> list[dict[str, Any]]:
+        try:
+            import psycopg  # type: ignore
+        except Exception as exc:  # pragma: no cover - environment dependent
+            raise RuntimeError(
+                "The postgis_connector plugin requires 'psycopg'. "
+                "Install it with: pip install psycopg[binary]"
+            ) from exc
+
         with psycopg.connect(conninfo) as conn:
+            try:
+                conn.execute("SET client_encoding TO 'UTF8'")
+            except Exception:
+                pass
+
             with conn.cursor() as cur:
-                cur.execute(sql, params)
+                if bound_params:
+                    cur.execute(sql, bound_params)
+                else:
+                    cur.execute(sql)
                 rows = cur.fetchall()
 
-        for idx, row in enumerate(rows):
-            features.append(_row_to_feature(row, idx))
+        return rows_to_features(rows)
 
-        return features
+    def run_with_psycopg2() -> list[dict[str, Any]]:
+        import psycopg2  # type: ignore
 
+        conn = psycopg2.connect(conninfo)
+        try:
+            try:
+                conn.set_client_encoding("UTF8")
+            except Exception:
+                pass
+
+            with conn.cursor() as cur:
+                if bound_params:
+                    cur.execute(sql, bound_params)
+                else:
+                    cur.execute(sql)
+                rows = cur.fetchall()
+
+            return rows_to_features(rows)
+        finally:
+            conn.close()
+
+    primary_error: BaseException | None = None
+
+    try:
+        return run_with_psycopg()
     except Exception as exc:
-        raise RuntimeError(f"Failed to execute PostGIS query. Error: {exc}") from exc
+        primary_error = exc
+        if not is_retryable_driver_error(exc):
+            raise ValueError(f"Failed to execute PostGIS query. Error: {exc}") from exc
+
+    try:
+        return run_with_psycopg2()
+    except Exception as fallback_exc:
+        raise ValueError(
+            "Failed to execute PostGIS query. "
+            f"Primary psycopg error: {primary_error}. "
+            f"psycopg2 fallback error: {fallback_exc}"
+        ) from fallback_exc
 
 
 def _auto_detect_geom_column(
@@ -810,9 +935,8 @@ def _build_select_from_sql_query(
     if output_srid is not None:
         geometry_expr = (
             f"CASE WHEN {geom_sql} IS NULL THEN NULL "
-            f"ELSE ST_AsGeoJSON(ST_Transform({geom_sql}, %s))::jsonb END"
+            f"ELSE ST_AsGeoJSON(ST_Transform({geom_sql}, {int(output_srid)}))::jsonb END"
         )
-        params.append(output_srid)
     else:
         geometry_expr = (
             f"CASE WHEN {geom_sql} IS NULL THEN NULL "
@@ -824,19 +948,16 @@ SELECT
     jsonb_build_object(
         'type', 'Feature',
         'geometry', {geometry_expr},
-        'properties', to_jsonb(q) - %s
+        'properties', to_jsonb(q) - {_sql_text_literal(geom_col)}
     )::text AS feature
 FROM (
 {sql}
 ) AS q
 WHERE {geom_sql} IS NOT NULL
-LIMIT %s
+LIMIT {int(limit)}
 """.strip()
 
-    params.append(geom_col)
-    params.append(limit)
-
-    return wrapped_sql, params
+    return wrapped_sql, []
 
 
 @capability(

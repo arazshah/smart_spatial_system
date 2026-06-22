@@ -5,12 +5,12 @@ profiles:
     host: localhost
     port: 5433
     database: osm_tehran
-    user: osm
-    password: osm
+    user: postgres
+    password: postgres
     connect_timeout: 10
     default_schema: public
     default_geom_col: way
-    default_limit: 1000
+    default_limit: 10000
     output_srid: 4326
 
   local:
@@ -22,6 +22,6 @@ profiles:
 
     default_schema: public
     default_geom_col: geom
-    default_limit: 1000
+    default_limit: 10000
     output_srid: 4326
     connect_timeout: 10

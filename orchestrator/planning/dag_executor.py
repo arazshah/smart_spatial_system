@@ -20,6 +20,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from orchestrator.error_contract import (
+    CATEGORY_CAPABILITY_CONTRACT,
+    CATEGORY_CAPABILITY_RESOLUTION,
+    CATEGORY_INTERNAL,
+    CATEGORY_VALIDATION,
+    exception_to_error,
+)
 from orchestrator.planning.dag import DagNode, DagPlan
 
 
@@ -53,6 +60,7 @@ class DagExecutionResult:
     output_nodes: dict[str, Any] = field(default_factory=dict)
     trace: list[DagNodeTrace] = field(default_factory=list)
     error: str | None = None
+    structured_error: dict[str, Any] | None = None
 
 
 def _utc_now_iso() -> str:
@@ -91,6 +99,125 @@ def _summarize_output(value: Any) -> dict[str, Any]:
 
     return summary
 
+
+
+def _exception_chain(exc: BaseException) -> list[BaseException]:
+    chain: list[BaseException] = []
+    seen: set[int] = set()
+    current: BaseException | None = exc
+
+    while current is not None and id(current) not in seen:
+        chain.append(current)
+        seen.add(id(current))
+
+        cause = getattr(current, "__cause__", None)
+        context = getattr(current, "__context__", None)
+
+        if isinstance(cause, BaseException):
+            current = cause
+        elif isinstance(context, BaseException):
+            current = context
+        else:
+            current = None
+
+    return chain
+
+
+def _dag_exception_structured_error(
+    exc: BaseException,
+    *,
+    node: DagNode | None = None,
+    stage: str | None = None,
+    message: str | None = None,
+) -> dict[str, Any]:
+    """
+    Convert DAG/planning execution exceptions into the Phase 4 structured error
+    contract.
+
+    This is intentionally additive:
+    - legacy string errors remain unchanged
+    - structured_error is added for clients/debugging
+    """
+    chain = _exception_chain(exc)
+
+    chain_details = [
+        {
+            "type": type(item).__name__,
+            "message": str(item) or type(item).__name__,
+        }
+        for item in chain
+    ]
+
+    combined_message = " | ".join(
+        str(item) or type(item).__name__
+        for item in chain
+    ).lower()
+
+    type_names = {type(item).__name__ for item in chain}
+
+    code = "dag_execution.failed"
+    category = CATEGORY_INTERNAL
+
+    if isinstance(exc, DagValidationError) or "dependency cycle" in combined_message:
+        code = "dag.validation_failed"
+        category = CATEGORY_VALIDATION
+
+    elif isinstance(exc, DagExecutionError) or stage == "input_resolution":
+        code = "dag.reference_resolution_failed"
+        category = CATEGORY_VALIDATION
+
+    elif (
+        stage == "capability_resolution"
+        or "capability" in combined_message
+        and (
+            "not found" in combined_message
+            or "missing" in combined_message
+            or "resolve" in combined_message
+            or "resolution" in combined_message
+        )
+    ):
+        code = "capability.resolution_failed"
+        category = CATEGORY_CAPABILITY_RESOLUTION
+
+    elif (
+        "TypeError" in type_names
+        or "ValidationError" in type_names
+        or "unexpected keyword" in combined_message
+        or "got an unexpected" in combined_message
+        or "missing required" in combined_message
+        or "missing_properties" in combined_message
+        or "missing properties" in combined_message
+        or "signature" in combined_message
+        or "parameter" in combined_message
+        or "parameters" in combined_message
+    ):
+        code = "capability.contract_failed"
+        category = CATEGORY_CAPABILITY_CONTRACT
+
+    details: dict[str, Any] = {
+        "exception_chain": chain_details,
+    }
+
+    if node is not None:
+        details.update(
+            {
+                "node_id": node.id,
+                "capability_name": node.capability_name,
+            }
+        )
+
+    if stage is not None:
+        details["stage"] = stage
+
+    return exception_to_error(
+        exc,
+        code=code,
+        category=category,
+        retryable=False,
+        source="dag_executor",
+        message=message,
+        details=details,
+    ).to_dict()
 
 def _node_ids(plan: DagPlan) -> set[str]:
     return {node.id for node in plan.nodes}
@@ -239,6 +366,11 @@ class DagExecutor:
                 output_nodes={},
                 trace=[],
                 error=str(exc),
+                structured_error=_dag_exception_structured_error(
+                    exc,
+                    stage="plan_validation",
+                    message=str(exc),
+                ),
             )
 
         for node in ordered_nodes:
@@ -250,8 +382,12 @@ class DagExecutor:
                 started_at=started_at,
             )
 
+            stage = "capability_resolution"
+
             try:
                 capability_fn = self.capability_resolver(node.capability_name)
+
+                stage = "input_resolution"
                 kwargs = _build_kwargs(
                     node,
                     initial_inputs=initial_inputs,
@@ -259,6 +395,7 @@ class DagExecutor:
                 )
                 node_trace.input_keys = sorted(kwargs.keys())
 
+                stage = "capability_execution"
                 output = capability_fn(**kwargs)
                 state[node.id] = output
 
@@ -274,6 +411,7 @@ class DagExecutor:
                 trace.append(node_trace)
 
                 if fail_fast:
+                    error = f"Node {node.id} failed: {exc}"
                     return DagExecutionResult(
                         success=False,
                         outputs=state,
@@ -283,7 +421,13 @@ class DagExecutor:
                             if node_id in state
                         },
                         trace=trace,
-                        error=f"Node {node.id} failed: {exc}",
+                        error=error,
+                        structured_error=_dag_exception_structured_error(
+                            exc,
+                            node=node,
+                            stage=stage,
+                            message=error,
+                        ),
                     )
 
         output_nodes = {
@@ -298,4 +442,5 @@ class DagExecutor:
             output_nodes=output_nodes,
             trace=trace,
             error=None,
+            structured_error=None,
         )

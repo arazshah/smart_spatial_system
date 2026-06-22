@@ -87,6 +87,10 @@ class PlanningRunResult:
     def error(self) -> str | None:
         return self.execution.error
 
+    @property
+    def structured_error(self) -> dict[str, Any] | None:
+        return getattr(self.execution, "structured_error", None)
+
 
 class PlanningRunner:
     """

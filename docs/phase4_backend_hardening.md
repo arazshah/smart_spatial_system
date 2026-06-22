@@ -132,3 +132,48 @@ path unless the service explicitly allows request-level opt-in.
 
 This keeps the backend safe while preserving the Phase 3 experimental kernel
 runtime path as an explicitly controlled feature.
+
+---
+
+## Phase 4 Step 5 — DAG / Planning Structured Errors
+
+DAG execution and planning-run errors are now mapped to the Phase 4 structured
+error contract without removing legacy plain string errors.
+
+Additive behavior:
+
+- `DagExecutionResult.error` remains unchanged.
+- `DagExecutionResult.structured_error` is added.
+- `PlanningRunResult.structured_error` proxies the DAG execution structured
+  error.
+- Orchestrator planning metadata now includes:
+  - `planning_summary.structured_error`
+- Planning responses may also include top-level `structured_error`.
+
+Current mappings:
+
+- Invalid DAG plans:
+  - code: `dag.validation_failed`
+  - category: `validation_error`
+
+- Unresolved DAG input references:
+  - code: `dag.reference_resolution_failed`
+  - category: `validation_error`
+
+- Capability resolution failures:
+  - code: `capability.resolution_failed`
+  - category: `capability_resolution_error`
+
+- Capability signature/contract failures:
+  - code: `capability.contract_failed`
+  - category: `capability_contract_error`
+
+- Generic DAG execution failures:
+  - code: `dag_execution.failed`
+  - category: `internal_error`
+
+Compatibility:
+
+- Existing `error` strings remain available.
+- Existing trace behavior remains unchanged.
+- Structured errors are public-safe and sanitized by the shared error contract.

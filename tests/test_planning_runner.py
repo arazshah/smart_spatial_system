@@ -360,3 +360,60 @@ def test_planning_runner_kernel_execution_parity_summary_handles_default_run() -
     assert parity["kernel_success"] is None
     assert parity["dag_output_node_ids"] == ["ranked"]
     assert parity["kernel_output_node_ids"] == []
+
+
+
+def test_planning_run_result_exposes_structured_error_from_dag_execution() -> None:
+    from orchestrator.planning.dag import DagNode, DagPlan
+    from orchestrator.planning.runner import PlanningRunner
+    from orchestrator.planning.spec import QuerySpec
+
+    def bad_capability() -> dict:
+        return {"ok": True}
+
+    class FakePlanner:
+        def build(self, query_spec: QuerySpec) -> DagPlan:
+            return DagPlan(
+                nodes=[
+                    DagNode(
+                        id="bad_output",
+                        capability_name="bad_capability",
+                        static_params={
+                            "unexpected": True,
+                        },
+                    )
+                ],
+                output_nodes=["bad_output"],
+                query_spec=query_spec,
+            )
+
+    runner = PlanningRunner(
+        lambda name: {
+            "bad_capability": bad_capability,
+        }[name],
+        planner=FakePlanner(),
+    )
+
+    query_spec = QuerySpec(
+        raw_query="run bad capability",
+        goal="test_structured_error",
+        entities=[],
+        operations=[],
+        outputs=[],
+    )
+
+    result = runner.run(
+        query_spec,
+        initial_inputs={},
+    )
+
+    assert result.success is False
+    assert result.error is not None
+    assert result.error.startswith("Node bad_output failed:")
+    assert result.structured_error is not None
+    assert result.structured_error["code"] == "capability.contract_failed"
+    assert result.structured_error["category"] == "capability_contract_error"
+    assert result.structured_error["source"] == "dag_executor"
+    assert result.structured_error["details"]["node_id"] == "bad_output"
+    assert result.structured_error["details"]["capability_name"] == "bad_capability"
+    assert result.structured_error["details"]["stage"] == "capability_execution"

@@ -4091,6 +4091,11 @@ class OrchestratorService:
 
             success = bool(getattr(planning_result, "success", False))
             planning_error = getattr(planning_result, "error", None)
+            planning_structured_error = getattr(
+                planning_result,
+                "structured_error",
+                None,
+            )
 
             answer = (
                 "تحلیل با موفقیت انجام شد."
@@ -4119,6 +4124,7 @@ class OrchestratorService:
                 "planning_summary": {
                     "success": success,
                     "error": planning_error,
+                    "structured_error": planning_structured_error,
                     "output_nodes": sorted(
                         (getattr(planning_result, "output_nodes", None) or {}).keys()
                     ),
@@ -4140,6 +4146,7 @@ class OrchestratorService:
                 "query_hash": None,
                 "answer": answer,
                 "message": answer,
+                "structured_error": planning_structured_error,
                 "outputs": outputs,
                 "layers": layers,
                 "artifacts": outputs.get("artifacts", []),
@@ -4183,6 +4190,7 @@ class OrchestratorService:
                     "planning_result": {
                         "success": success,
                         "error": planning_error,
+                        "structured_error": _json_safe(planning_structured_error),
                         "outputs": _json_safe(getattr(planning_result, "outputs", {})),
                         "output_nodes": _json_safe(
                             getattr(planning_result, "output_nodes", {})

@@ -144,3 +144,109 @@ def test_dag_executor_rejects_cycle():
 
     assert result.success is False
     assert "cycle" in result.error.lower()
+
+
+def test_dag_executor_capability_contract_failure_has_structured_error() -> None:
+    from orchestrator.planning.dag import DagNode, DagPlan
+    from orchestrator.planning.dag_executor import DagExecutor
+
+    plan = DagPlan(
+        nodes=[
+            DagNode(
+                id="bad_node",
+                capability_name="bad_capability",
+                static_params={
+                    "unexpected": True,
+                },
+            )
+        ],
+        output_nodes=["bad_node"],
+    )
+
+    def bad_capability() -> dict:
+        return {"ok": True}
+
+    result = DagExecutor(
+        lambda name: {
+            "bad_capability": bad_capability,
+        }[name]
+    ).execute(plan)
+
+    assert result.success is False
+    assert result.error is not None
+    assert result.error.startswith("Node bad_node failed:")
+    assert result.structured_error is not None
+    assert result.structured_error["code"] == "capability.contract_failed"
+    assert result.structured_error["category"] == "capability_contract_error"
+    assert result.structured_error["source"] == "dag_executor"
+    assert result.structured_error["retryable"] is False
+    assert result.structured_error["details"]["node_id"] == "bad_node"
+    assert result.structured_error["details"]["capability_name"] == "bad_capability"
+    assert result.structured_error["details"]["stage"] == "capability_execution"
+    assert result.structured_error["details"]["exception_type"] == "TypeError"
+
+
+def test_dag_executor_unresolved_reference_has_structured_error() -> None:
+    from orchestrator.planning.dag import DagNode, DagPlan
+    from orchestrator.planning.dag_executor import DagExecutor
+
+    plan = DagPlan(
+        nodes=[
+            DagNode(
+                id="needs_input",
+                capability_name="identity",
+                inputs={
+                    "value": "$inputs.missing_value",
+                },
+            )
+        ],
+        output_nodes=["needs_input"],
+    )
+
+    def identity(value):
+        return value
+
+    result = DagExecutor(
+        lambda name: {
+            "identity": identity,
+        }[name]
+    ).execute(
+        plan,
+        initial_inputs={},
+    )
+
+    assert result.success is False
+    assert result.error is not None
+    assert "missing_value" in result.error
+    assert result.structured_error is not None
+    assert result.structured_error["code"] == "dag.reference_resolution_failed"
+    assert result.structured_error["category"] == "validation_error"
+    assert result.structured_error["source"] == "dag_executor"
+    assert result.structured_error["details"]["node_id"] == "needs_input"
+    assert result.structured_error["details"]["capability_name"] == "identity"
+    assert result.structured_error["details"]["stage"] == "input_resolution"
+
+
+def test_dag_executor_plan_validation_failure_has_structured_error() -> None:
+    from orchestrator.planning.dag import DagNode, DagPlan
+    from orchestrator.planning.dag_executor import DagExecutor
+
+    plan = DagPlan(
+        nodes=[
+            DagNode(
+                id="node_a",
+                capability_name="identity",
+            )
+        ],
+        output_nodes=["unknown_output"],
+    )
+
+    result = DagExecutor(lambda name: lambda **kwargs: kwargs).execute(plan)
+
+    assert result.success is False
+    assert result.error == "Unknown output node: unknown_output."
+    assert result.structured_error is not None
+    assert result.structured_error["code"] == "dag.validation_failed"
+    assert result.structured_error["category"] == "validation_error"
+    assert result.structured_error["source"] == "dag_executor"
+    assert result.structured_error["details"]["stage"] == "plan_validation"

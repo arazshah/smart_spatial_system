@@ -18,6 +18,15 @@ import inspect
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from orchestrator.error_contract import (
+    CATEGORY_CAPABILITY_CONTRACT,
+    CATEGORY_CAPABILITY_RESOLUTION,
+    CATEGORY_KERNEL_EXECUTION,
+    CATEGORY_VALIDATION,
+    exception_to_error,
+    make_error,
+)
+
 from geochat_kernel.models.execution_artifact import ExecutionArtifact
 from geochat_kernel.models.query_plan import PlanStep, QueryPlan
 from geochat_kernel.runtime.app_container import KernelAppContainer
@@ -53,6 +62,7 @@ class KernelExecutionBridgeResult:
     output_nodes: dict[str, Any] = field(default_factory=dict)
     context: ExecutionContext | None = None
     error: str | None = None
+    structured_error: dict[str, Any] | None = None
 
 
 def _is_json_compatible(value: Any) -> bool:
@@ -230,6 +240,131 @@ def _format_missing_external_inputs(
     )
 
 
+def _missing_external_inputs_structured_error(
+    missing: list[dict[str, str]],
+    *,
+    message: str,
+) -> dict[str, Any]:
+    """
+    Build a public-safe structured error for missing bridge/runtime inputs.
+    """
+    return make_error(
+        code="kernel_execution.missing_external_inputs",
+        message=message,
+        category=CATEGORY_VALIDATION,
+        retryable=False,
+        details={
+            "missing_external_inputs": missing,
+        },
+        source="kernel_execution_bridge",
+    ).to_dict()
+
+
+def _kernel_exception_structured_error(exc: BaseException) -> dict[str, Any]:
+    """
+    Convert kernel/capability exceptions into the Phase 4 structured error
+    contract while preserving the existing plain string error for backward
+    compatibility.
+
+    geochat_kernel may wrap capability errors, so classification uses the full
+    exception chain when available.
+    """
+    def _exception_chain(root: BaseException) -> list[BaseException]:
+        chain: list[BaseException] = []
+        seen: set[int] = set()
+        current: BaseException | None = root
+
+        while current is not None and id(current) not in seen:
+            chain.append(current)
+            seen.add(id(current))
+
+            cause = getattr(current, "__cause__", None)
+            context = getattr(current, "__context__", None)
+
+            if isinstance(cause, BaseException):
+                current = cause
+            elif isinstance(context, BaseException):
+                current = context
+            else:
+                current = None
+
+        return chain
+
+    chain = _exception_chain(exc)
+
+    chain_details = [
+        {
+            "type": type(item).__name__,
+            "message": str(item) or type(item).__name__,
+        }
+        for item in chain
+    ]
+
+    combined_message = " | ".join(
+        str(item) or type(item).__name__
+        for item in chain
+    ).lower()
+
+    type_names = {type(item).__name__ for item in chain}
+
+    code = "kernel_execution.failed"
+    category = CATEGORY_KERNEL_EXECUTION
+
+    # Best-effort classification. This is intentionally conservative and
+    # additive; it does not change exception behavior.
+    if (
+        "no handler" in combined_message
+        or "missing required capabilities" in combined_message
+        or "could not find required capabilities" in combined_message
+        or (
+            "capability" in combined_message
+            and (
+                "not found" in combined_message
+                or "missing" in combined_message
+                or "resolve" in combined_message
+                or "resolution" in combined_message
+            )
+        )
+    ):
+        code = "capability.resolution_failed"
+        category = CATEGORY_CAPABILITY_RESOLUTION
+    elif (
+        "TypeError" in type_names
+        or "ValidationError" in type_names
+        or "unexpected keyword" in combined_message
+        or "got an unexpected" in combined_message
+        or "missing required" in combined_message
+        or "missing_properties" in combined_message
+        or "missing properties" in combined_message
+        or "signature" in combined_message
+        or "parameter" in combined_message
+        or "parameters" in combined_message
+    ):
+        code = "capability.contract_failed"
+        category = CATEGORY_CAPABILITY_CONTRACT
+
+    # If a wrapped kernel error hides the actual inner exception, keep the top
+    # error generic. When the chain exposes a contract/resolution signal, the
+    # classification above will choose the more specific code.
+    primary_exception_type = (
+        type(chain[-1]).__name__
+        if len(chain) > 1 and code != "kernel_execution.failed"
+        else type(exc).__name__
+    )
+
+    return exception_to_error(
+        exc,
+        code=code,
+        category=category,
+        retryable=False,
+        source="kernel_execution_bridge",
+        details={
+            "exception_type": primary_exception_type,
+            "exception_chain": chain_details,
+        },
+    ).to_dict()
+
+
 class CapabilityStepHandler:
     """
     Kernel StepHandler adapter for existing smart_spatial_system capabilities.
@@ -371,6 +506,10 @@ async def execute_kernel_plan_with_capabilities(
             output_nodes={},
             context=context,
             error=error,
+            structured_error=_missing_external_inputs_structured_error(
+                missing_external_inputs,
+                message=error,
+            ),
         )
 
     container = make_kernel_container_for_capabilities(capability_resolver)
@@ -389,6 +528,7 @@ async def execute_kernel_plan_with_capabilities(
             output_nodes={},
             context=context,
             error=str(exc),
+            structured_error=_kernel_exception_structured_error(exc),
         )
 
     output_node_ids = [
@@ -420,6 +560,7 @@ async def execute_kernel_plan_with_capabilities(
         output_nodes=output_nodes,
         context=context,
         error=None,
+        structured_error=None,
     )
 
 
@@ -523,6 +664,7 @@ def kernel_execution_to_summary(
     return {
         "success": bool(result.success),
         "error": result.error,
+        "structured_error": result.structured_error,
         "artifact_count": len(artifacts),
         "output_artifact_count": len(output_artifacts),
         "artifact_ids": list(artifacts.keys()),

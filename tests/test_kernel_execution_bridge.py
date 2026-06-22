@@ -367,3 +367,130 @@ def test_kernel_execution_to_summary_accepts_none() -> None:
     from orchestrator.planning.kernel_execution_bridge import kernel_execution_to_summary
 
     assert kernel_execution_to_summary(None) is None
+
+
+def test_kernel_execution_missing_external_inputs_has_structured_error() -> None:
+    from geochat_kernel.models.query_plan import PlanStep, QueryPlan
+
+    from orchestrator.planning.kernel_execution_bridge import (
+        execute_kernel_plan_with_capabilities_sync,
+        kernel_execution_to_summary,
+    )
+
+    step = PlanStep(
+        id="load_layer",
+        type="load_layer",
+        name="Load Layer",
+        parameters={},
+        dependencies=[],
+        metadata={
+            "capability_name": "load_layer",
+            "external_input_map": {
+                "vector": "missing_layer",
+            },
+        },
+    )
+
+    query_plan = QueryPlan(
+        id="plan_missing_external_input",
+        query_ir_id="query_missing_external_input",
+        steps=[step],
+        metadata={
+            "output_nodes": ["load_layer"],
+            "raw_query": "test",
+            "language": "en",
+        },
+    )
+
+    def resolver(name: str):
+        raise AssertionError("resolver should not be called when inputs are missing")
+
+    result = execute_kernel_plan_with_capabilities_sync(
+        query_plan,
+        capability_resolver=resolver,
+        initial_inputs={},
+    )
+
+    assert result.success is False
+    assert result.error is not None
+    assert result.structured_error is not None
+    assert result.structured_error["code"] == "kernel_execution.missing_external_inputs"
+    assert result.structured_error["category"] == "validation_error"
+    assert result.structured_error["source"] == "kernel_execution_bridge"
+    assert result.structured_error["retryable"] is False
+    assert (
+        result.structured_error["details"]["missing_external_inputs"][0]["input_name"]
+        == "missing_layer"
+    )
+
+    summary = kernel_execution_to_summary(result)
+
+    assert summary is not None
+    assert summary["success"] is False
+    assert summary["error"] == result.error
+    assert summary["structured_error"] == result.structured_error
+
+
+def test_kernel_execution_capability_exception_has_structured_error() -> None:
+    from geochat_kernel.models.query_plan import PlanStep, QueryPlan
+
+    from orchestrator.planning.kernel_execution_bridge import (
+        execute_kernel_plan_with_capabilities_sync,
+        kernel_execution_to_summary,
+    )
+
+    step = PlanStep(
+        id="bad_step",
+        type="bad_capability",
+        name="Bad Capability",
+        parameters={
+            "unexpected": True,
+        },
+        dependencies=[],
+        metadata={
+            "capability_name": "bad_capability",
+        },
+    )
+
+    query_plan = QueryPlan(
+        id="plan_bad_capability",
+        query_ir_id="query_bad_capability",
+        steps=[step],
+        metadata={
+            "output_nodes": ["bad_step"],
+            "raw_query": "test",
+            "language": "en",
+        },
+    )
+
+    def bad_capability() -> dict:
+        return {"ok": True}
+
+    def resolver(name: str):
+        assert name == "bad_capability"
+        return bad_capability
+
+    result = execute_kernel_plan_with_capabilities_sync(
+        query_plan,
+        capability_resolver=resolver,
+        initial_inputs={},
+    )
+
+    assert result.success is False
+    assert result.error is not None
+    assert result.structured_error is not None
+    assert result.structured_error["code"] == "capability.contract_failed"
+    assert result.structured_error["category"] == "capability_contract_error"
+    assert result.structured_error["source"] == "kernel_execution_bridge"
+    assert result.structured_error["retryable"] is False
+    assert result.structured_error["details"]["exception_type"] in {
+        "TypeError",
+        "StepExecutionError",
+        "RuntimeError",
+    }
+
+    summary = kernel_execution_to_summary(result)
+
+    assert summary is not None
+    assert summary["success"] is False
+    assert summary["structured_error"] == result.structured_error

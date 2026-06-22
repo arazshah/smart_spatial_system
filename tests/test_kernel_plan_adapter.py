@@ -177,3 +177,72 @@ def test_query_spec_to_query_plan_uses_deterministic_planner() -> None:
     assert plan.steps[1].input_map == {"features": "scored"}
 
     assert plan.validate_dag() == []
+
+
+def test_kernel_plan_to_summary_returns_public_safe_plan_summary() -> None:
+    from orchestrator.planning.kernel_plan_adapter import kernel_plan_to_summary
+
+    dag_plan = DagPlan(
+        nodes=[
+            DagNode(
+                id="scored",
+                capability_name="score_features",
+                inputs={
+                    "features": "$inputs.properties",
+                },
+                static_params={
+                    "scoring_spec": {
+                        "output_field": "score",
+                    }
+                },
+                produces="vector",
+            ),
+            DagNode(
+                id="ranked",
+                capability_name="rank_features",
+                inputs={
+                    "features": "$node.scored",
+                },
+                static_params={
+                    "score_field": "score",
+                },
+                needs=["scored"],
+                produces="vector",
+            ),
+        ],
+        output_nodes=["ranked"],
+    )
+
+    plan = dag_plan_to_query_plan(
+        dag_plan,
+        query_ir_id="query_ir_summary_001",
+        plan_id="plan_summary_001",
+    )
+
+    summary = kernel_plan_to_summary(plan)
+
+    assert summary is not None
+    assert summary["id"] == "plan_summary_001"
+    assert summary["query_ir_id"] == "query_ir_summary_001"
+    assert summary["planner_name"] == "smart_spatial_system.deterministic_planner"
+    assert summary["step_count"] == 2
+    assert summary["valid"] is True
+    assert summary["problems"] == []
+    assert summary["output_nodes"] == ["ranked"]
+
+    assert summary["steps"][0]["id"] == "scored"
+    assert summary["steps"][0]["type"] == "score_features"
+    assert summary["steps"][0]["parameter_keys"] == ["scoring_spec"]
+    assert "scoring_spec" not in summary["steps"][0]
+
+    assert summary["steps"][1]["id"] == "ranked"
+    assert summary["steps"][1]["dependencies"] == ["scored"]
+    assert summary["steps"][1]["input_names"] == ["features"]
+    assert summary["steps"][1]["input_sources"] == {"features": "scored"}
+    assert summary["steps"][1]["parameter_keys"] == ["score_field"]
+
+
+def test_kernel_plan_to_summary_accepts_none() -> None:
+    from orchestrator.planning.kernel_plan_adapter import kernel_plan_to_summary
+
+    assert kernel_plan_to_summary(None) is None

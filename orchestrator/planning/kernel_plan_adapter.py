@@ -244,3 +244,48 @@ def query_spec_to_query_plan(
         query_ir_id=query_ir_id,
         plan_id=plan_id,
     )
+
+
+def kernel_plan_to_summary(plan: QueryPlan | None) -> dict[str, Any] | None:
+    """
+    Build a compact, public-safe summary of a kernel QueryPlan.
+
+    This is intended for API/metadata/debug visibility, not for execution.
+    It intentionally avoids embedding full parameters or full metadata payloads.
+    """
+    if plan is None:
+        return None
+
+    problems = plan.validate_dag()
+
+    steps: list[dict[str, Any]] = []
+    for step in plan.steps:
+        steps.append(
+            {
+                "id": step.id,
+                "type": step.type,
+                "name": step.name,
+                "dependencies": list(step.dependencies),
+                "input_names": sorted(step.input_map.keys()),
+                "input_sources": dict(step.input_map),
+                "parameter_keys": sorted(str(key) for key in step.parameters.keys()),
+                "datasource_ids": list(step.datasource_ids),
+                "remote": bool(step.remote),
+                "cacheable": bool(step.cacheable),
+                "produces": step.metadata.get("produces"),
+                "capability_name": step.metadata.get("capability_name"),
+            }
+        )
+
+    return {
+        "id": plan.id,
+        "query_ir_id": plan.query_ir_id,
+        "planner_name": plan.planner_name,
+        "step_count": len(plan.steps),
+        "parallel_execution_allowed": bool(plan.parallel_execution_allowed),
+        "cache_policy": plan.cache_policy,
+        "valid": not problems,
+        "problems": problems,
+        "output_nodes": list(plan.metadata.get("output_nodes", [])),
+        "steps": steps,
+    }

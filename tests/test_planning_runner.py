@@ -14,6 +14,7 @@ from orchestrator.planning.capability_resolver import (
     RegistryCapabilityResolver,
     StaticCapabilityResolver,
 )
+from orchestrator.planning.kernel_plan_adapter import kernel_plan_to_summary
 from orchestrator.planning.runner import (
     make_registry_planning_runner,
     make_static_planning_runner,
@@ -164,6 +165,14 @@ def test_planning_runner_executes_query_spec_end_to_end():
     assert result.kernel_plan.steps[1].dependencies == ["scored"]
     assert result.kernel_plan.steps[1].input_map == {"features": "scored"}
     assert result.kernel_plan.validate_dag() == []
+
+    kernel_plan_summary = kernel_plan_to_summary(result.kernel_plan)
+    assert kernel_plan_summary is not None
+    assert kernel_plan_summary["valid"] is True
+    assert kernel_plan_summary["step_count"] == 2
+    assert kernel_plan_summary["output_nodes"] == ["ranked"]
+    assert kernel_plan_summary["steps"][1]["id"] == "ranked"
+    assert kernel_plan_summary["steps"][1]["input_sources"] == {"features": "scored"}
 
     ranked = result.output_nodes["ranked"]
 

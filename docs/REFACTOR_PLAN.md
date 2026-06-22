@@ -1,0 +1,155 @@
+
+Refactor Plan — Architecture Stabilization
+Goal
+
+Make the system simpler, more general, more professional, and easier to control before it grows further.
+
+Primary direction:
+
+text
+QuerySpec -> DAG -> Registry -> Plugin -> Artifact -> UnifiedResponse
+
+Non-Goals for This Phase
+No frontend rewrite
+No new case-study feature
+No query-specific patch
+No source-specific shortcut
+No output-specific response branch
+Phase 0 — Documentation and Decisions
+
+Status: current phase.
+
+Create:
+
+ARCHITECTURE_CURRENT.md
+ARCHITECTURE_TARGET.md
+ADR-001-single-kernel-pipeline.md
+ADR-002-artifact-based-response.md
+ADR-003-multilingual-semantic-layer.md
+REFACTOR_PLAN.md
+
+No runtime behavior changes.
+
+Phase 1 — Artifact Contract
+
+Add:
+
+orchestrator/artifacts.py
+tests for artifact normalization
+
+Define canonical artifact types:
+
+vector_layer
+raster_layer
+table
+report
+file
+map_view
+chart
+text
+json
+Phase 2 — Unified Response Assembler
+
+Add:
+
+orchestrator/response_assembler.py
+tests for response schema
+
+The assembler should produce one response schema for:
+
+planning results
+legacy results
+direct results
+failure results
+Phase 3 — Planning Default Config
+
+Move planning flags from hidden environment-only behavior into explicit service/kernel config.
+
+Target:
+
+python
+query_spec_planning_enabled: bool = True
+llm_planning_enabled: bool = False
+
+
+Environment variables may override config, but should not be the only source of truth.
+
+Phase 4 — Migrate Vector Direct Path
+
+Use existing plugin capabilities:
+
+inspect_vector
+display_vector_layer
+summarize_vector_layer
+
+Replace direct vector display handling with a QuerySpec/DAG path.
+
+Phase 5 — Move Real Estate Logic to Plugin
+
+Move real-estate ranking from service-level code into a domain plugin/workflow.
+
+Target capability:
+
+text
+rank_real_estate_properties
+
+
+Target op:
+
+text
+real_estate_rank
+
+Phase 6 — Source Abstraction
+
+Unify source plugins:
+
+PostGIS
+local vector
+local raster
+WMS/WFS
+future sources
+
+Each source should expose capabilities and optionally semantic discovery.
+
+Phase 7 — Legacy Cleanup
+
+Mark or move legacy modules:
+
+SimpleCapabilityRouter
+legacy PlanNode / QueryPlan
+run_natural_query_with_routing_evidence
+routing-aware raster-only planner
+
+Remove only after replacement paths are tested.
+
+Testing Strategy
+
+Before each migration:
+
+add contract tests
+add golden tests when behavior may change
+keep all existing tests green
+
+Recommended command:
+
+bash
+pytest
+
+
+For targeted phases:
+
+bash
+pytest tests/test_planning_runner.py tests/test_planning_dag_executor.py
+pytest tests/test_orchestrator_service.py tests/test_orchestrator_service_integration.py
+
+Commit Strategy
+
+Use small commits:
+
+docs only
+artifact contract only
+response assembler only
+planning response migration
+vector direct migration
+config cleanup
+real-estate plugin migration 

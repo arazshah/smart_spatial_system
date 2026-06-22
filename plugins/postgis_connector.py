@@ -34,6 +34,7 @@ from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.vector import VectorOut
 from geochat_sdk.exceptions import SDKDependencyError
 
+from orchestrator.provider_error_mapping import make_provider_execution_error
 from plugins._shared.plugin_config import get_profile_config, pick_first
 
 
@@ -514,15 +515,42 @@ def _execute_postgis_query(
     except Exception as exc:
         primary_error = exc
         if not is_retryable_driver_error(exc):
-            raise ValueError(f"Failed to execute PostGIS query. Error: {exc}") from exc
+            message = f"Failed to execute PostGIS query. Error: {exc}"
+            raise make_provider_execution_error(
+                exc,
+                provider="postgis",
+                operation="execute_query",
+                source="postgis_connector",
+                message=message,
+                details={
+                    "driver": "psycopg",
+                    "sql_preview": sql[:300],
+                    "param_count": len(bound_params),
+                },
+            ) from exc
 
     try:
         return run_with_psycopg2()
     except Exception as fallback_exc:
-        raise ValueError(
+        message = (
             "Failed to execute PostGIS query. "
             f"Primary psycopg error: {primary_error}. "
             f"psycopg2 fallback error: {fallback_exc}"
+        )
+        raise make_provider_execution_error(
+            fallback_exc,
+            provider="postgis",
+            operation="execute_query",
+            source="postgis_connector",
+            message=message,
+            details={
+                "driver": "psycopg2",
+                "primary_driver_error_type": (
+                    type(primary_error).__name__ if primary_error is not None else None
+                ),
+                "sql_preview": sql[:300],
+                "param_count": len(bound_params),
+            },
         ) from fallback_exc
 
 

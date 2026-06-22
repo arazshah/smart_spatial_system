@@ -236,3 +236,47 @@ Current mappings:
 Security:
 
 - Sensitive fields in details remain redacted by the shared error contract.
+
+---
+
+## Phase 4 Step 7 — Provider / Plugin Structured Errors
+
+Provider and plugin failures now have a shared structured error mapping layer.
+
+Additions:
+
+- `orchestrator.provider_error_mapping`
+- `ProviderExecutionError`
+  - subclasses `ValueError` for backward compatibility
+  - carries `.structured_error`
+- PostGIS query execution failures now raise provider-aware errors while keeping
+  legacy ValueError compatibility.
+- DAG execution preserves nested provider structured errors when a provider
+  exception is raised from a capability.
+- Kernel execution bridge preserves nested structured errors when exposed through
+  the exception chain.
+
+Current provider mappings:
+
+- Connection/auth/availability failures:
+  - code: `provider.connection_failed`
+  - category: `provider_error`
+
+- SQL/query failures:
+  - code: `provider.query_failed`
+  - category: `provider_error`
+
+- Invalid provider configuration:
+  - code: `provider.configuration_invalid`
+  - category: `configuration_error`
+
+- Unknown provider failures:
+  - code: `provider.failed`
+  - category: `provider_error`
+
+Security:
+
+- Provider error messages redact common secret patterns such as:
+  - `password=...`
+  - URL credentials like `postgresql://user:secret@host/db`
+- Structured error details are still sanitized by the shared error contract.

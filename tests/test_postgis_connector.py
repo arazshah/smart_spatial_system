@@ -645,3 +645,41 @@ profiles:
     assert result.metadata["crs"] == "EPSG:4326"
     assert result.metadata["connection"]["host"] == "localhost"
     assert result.metadata["connection"]["database"] == "gis"
+
+
+def test_execute_postgis_query_failure_has_provider_structured_error(monkeypatch) -> None:
+    import sys
+    import types
+
+    import pytest
+
+    import plugins.postgis_connector as postgis_connector
+    from orchestrator.provider_error_mapping import ProviderExecutionError
+
+    fake_psycopg = types.ModuleType("psycopg")
+
+    def fake_connect(conninfo):
+        raise RuntimeError("connection refused password=must-not-leak")
+
+    fake_psycopg.connect = fake_connect
+    monkeypatch.setitem(sys.modules, "psycopg", fake_psycopg)
+
+    with pytest.raises(ValueError) as exc_info:
+        postgis_connector._execute_postgis_query(
+            conninfo="host=localhost password=must-not-leak",
+            sql="SELECT 1",
+            params=[],
+        )
+
+    exc = exc_info.value
+
+    assert isinstance(exc, ProviderExecutionError)
+    assert hasattr(exc, "structured_error")
+    assert exc.structured_error["code"] == "provider.connection_failed"
+    assert exc.structured_error["category"] == "provider_error"
+    assert exc.structured_error["source"] == "postgis_connector"
+    assert exc.structured_error["retryable"] is True
+    assert exc.structured_error["details"]["provider"] == "postgis"
+    assert exc.structured_error["details"]["operation"] == "execute_query"
+    assert exc.structured_error["details"]["driver"] == "psycopg"
+    assert "must-not-leak" not in exc.structured_error["message"]

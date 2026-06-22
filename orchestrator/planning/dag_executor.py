@@ -140,6 +140,22 @@ def _dag_exception_structured_error(
     """
     chain = _exception_chain(exc)
 
+    for item in chain:
+        existing_structured_error = getattr(item, "structured_error", None)
+        if isinstance(existing_structured_error, dict):
+            structured_error = dict(existing_structured_error)
+            details = dict(structured_error.get("details") or {})
+
+            if node is not None:
+                details.setdefault("node_id", node.id)
+                details.setdefault("capability_name", node.capability_name)
+
+            if stage is not None:
+                details.setdefault("stage", stage)
+
+            structured_error["details"] = details
+            return structured_error
+
     chain_details = [
         {
             "type": type(item).__name__,

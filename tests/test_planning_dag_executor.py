@@ -250,3 +250,47 @@ def test_dag_executor_plan_validation_failure_has_structured_error() -> None:
     assert result.structured_error["category"] == "validation_error"
     assert result.structured_error["source"] == "dag_executor"
     assert result.structured_error["details"]["stage"] == "plan_validation"
+
+
+def test_dag_executor_preserves_provider_structured_error() -> None:
+    from orchestrator.planning.dag import DagNode, DagPlan
+    from orchestrator.planning.dag_executor import DagExecutor
+    from orchestrator.provider_error_mapping import make_provider_execution_error
+
+    def broken_provider():
+        exc = RuntimeError("connection refused")
+        raise make_provider_execution_error(
+            exc,
+            provider="postgis",
+            operation="execute_query",
+            source="postgis_connector",
+            message="Failed to execute PostGIS query. Error: connection refused",
+        ) from exc
+
+    plan = DagPlan(
+        nodes=[
+            DagNode(
+                id="provider_node",
+                capability_name="query_database_postgis",
+            )
+        ],
+        output_nodes=["provider_node"],
+    )
+
+    result = DagExecutor(
+        lambda name: {
+            "query_database_postgis": broken_provider,
+        }[name]
+    ).execute(plan)
+
+    assert result.success is False
+    assert result.error is not None
+    assert result.structured_error is not None
+    assert result.structured_error["code"] == "provider.connection_failed"
+    assert result.structured_error["category"] == "provider_error"
+    assert result.structured_error["source"] == "postgis_connector"
+    assert result.structured_error["details"]["provider"] == "postgis"
+    assert result.structured_error["details"]["operation"] == "execute_query"
+    assert result.structured_error["details"]["node_id"] == "provider_node"
+    assert result.structured_error["details"]["capability_name"] == "query_database_postgis"
+    assert result.structured_error["details"]["stage"] == "capability_execution"

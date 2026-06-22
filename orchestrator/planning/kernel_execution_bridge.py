@@ -292,6 +292,11 @@ def _kernel_exception_structured_error(exc: BaseException) -> dict[str, Any]:
 
     chain = _exception_chain(exc)
 
+    for item in chain:
+        existing_structured_error = getattr(item, "structured_error", None)
+        if isinstance(existing_structured_error, dict):
+            return dict(existing_structured_error)
+
     chain_details = [
         {
             "type": type(item).__name__,

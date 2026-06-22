@@ -297,3 +297,66 @@ def test_planning_runner_kernel_execution_summary_is_available() -> None:
     assert summary["artifacts"][0]["step_id"] == "scored"
     assert summary["artifacts"][1]["step_id"] == "ranked"
     assert summary["context"]["kernel_plan_id"] == result.kernel_plan.id
+
+
+def test_planning_runner_kernel_execution_parity_summary_matches_dag_outputs() -> None:
+    from orchestrator.planning.kernel_execution_bridge import (
+        compare_kernel_execution_to_planning_outputs,
+    )
+
+    runner = make_static_planning_runner(
+        {
+            "score_features": score_features,
+            "rank_features": rank_features,
+        }
+    )
+
+    result = runner.run_with_kernel_execution(
+        _sample_query_spec(),
+        initial_inputs={
+            "properties": _sample_features(),
+        },
+    )
+
+    parity = compare_kernel_execution_to_planning_outputs(result)
+
+    assert parity["available"] is True
+    assert parity["success"] is True
+    assert parity["dag_success"] is True
+    assert parity["kernel_success"] is True
+    assert parity["matching_output_node_ids"] is True
+    assert parity["output_values_match"] is True
+    assert parity["dag_output_node_ids"] == ["ranked"]
+    assert parity["kernel_output_node_ids"] == ["ranked"]
+    assert parity["missing_in_kernel"] == []
+    assert parity["extra_in_kernel"] == []
+    assert parity["mismatched_outputs"] == []
+
+
+def test_planning_runner_kernel_execution_parity_summary_handles_default_run() -> None:
+    from orchestrator.planning.kernel_execution_bridge import (
+        compare_kernel_execution_to_planning_outputs,
+    )
+
+    runner = make_static_planning_runner(
+        {
+            "score_features": score_features,
+            "rank_features": rank_features,
+        }
+    )
+
+    result = runner.run(
+        _sample_query_spec(),
+        initial_inputs={
+            "properties": _sample_features(),
+        },
+    )
+
+    parity = compare_kernel_execution_to_planning_outputs(result)
+
+    assert parity["available"] is False
+    assert parity["success"] is None
+    assert parity["dag_success"] is True
+    assert parity["kernel_success"] is None
+    assert parity["dag_output_node_ids"] == ["ranked"]
+    assert parity["kernel_output_node_ids"] == []

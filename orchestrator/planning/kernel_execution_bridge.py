@@ -547,3 +547,140 @@ def kernel_execution_to_summary(
             else None
         ),
     }
+
+
+def _normalize_output_for_comparison(value: Any) -> Any:
+    """
+    Normalize common planning/kernel output objects into JSON-like structures
+    suitable for stable equality comparison.
+
+    This intentionally avoids exposing heavy/live objects in public metadata.
+    """
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        try:
+            return _normalize_output_for_comparison(model_dump())
+        except Exception:
+            pass
+
+    geojson = getattr(value, "geojson", None)
+    if isinstance(geojson, dict):
+        return _normalize_output_for_comparison(geojson)
+
+    features = getattr(value, "features", None)
+    if isinstance(features, list):
+        return {
+            "type": "FeatureCollection",
+            "features": _normalize_output_for_comparison(features),
+        }
+
+    if isinstance(value, dict):
+        return {
+            str(key): _normalize_output_for_comparison(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+
+    if isinstance(value, (list, tuple)):
+        return [_normalize_output_for_comparison(item) for item in value]
+
+    return repr(value)
+
+
+def _stable_output_fingerprint(value: Any) -> str:
+    import json
+
+    normalized = _normalize_output_for_comparison(value)
+
+    try:
+        return json.dumps(
+            normalized,
+            ensure_ascii=False,
+            sort_keys=True,
+            default=str,
+        )
+    except Exception:
+        return repr(normalized)
+
+
+def compare_kernel_execution_to_planning_outputs(
+    planning_result: Any,
+) -> dict[str, Any]:
+    """
+    Compare current DAG planning outputs with optional kernel execution outputs.
+
+    The returned summary is public/debug-safe and does not include the actual
+    payloads or live objects.
+    """
+    dag_output_nodes = getattr(planning_result, "output_nodes", None) or {}
+    kernel_execution = getattr(planning_result, "kernel_execution", None)
+
+    if kernel_execution is None:
+        return {
+            "available": False,
+            "success": None,
+            "dag_success": bool(getattr(planning_result, "success", False)),
+            "kernel_success": None,
+            "matching_output_node_ids": None,
+            "output_values_match": None,
+            "dag_output_node_ids": sorted(str(key) for key in dag_output_nodes.keys()),
+            "kernel_output_node_ids": [],
+            "missing_in_kernel": [],
+            "extra_in_kernel": [],
+            "mismatched_outputs": [],
+        }
+
+    kernel_output_nodes = getattr(kernel_execution, "output_nodes", None) or {}
+
+    dag_ids = sorted(str(key) for key in dag_output_nodes.keys())
+    kernel_ids = sorted(str(key) for key in kernel_output_nodes.keys())
+
+    dag_id_set = set(dag_ids)
+    kernel_id_set = set(kernel_ids)
+
+    missing_in_kernel = sorted(dag_id_set - kernel_id_set)
+    extra_in_kernel = sorted(kernel_id_set - dag_id_set)
+
+    mismatched_outputs: list[dict[str, Any]] = []
+
+    for node_id in sorted(dag_id_set & kernel_id_set):
+        dag_value = dag_output_nodes[node_id]
+        kernel_value = kernel_output_nodes[node_id]
+
+        dag_fingerprint = _stable_output_fingerprint(dag_value)
+        kernel_fingerprint = _stable_output_fingerprint(kernel_value)
+
+        if dag_fingerprint != kernel_fingerprint:
+            mismatched_outputs.append(
+                {
+                    "node_id": node_id,
+                    "dag_type": type(dag_value).__name__,
+                    "kernel_type": type(kernel_value).__name__,
+                }
+            )
+
+    matching_output_node_ids = not missing_in_kernel and not extra_in_kernel
+    output_values_match = not mismatched_outputs
+
+    success = (
+        bool(getattr(planning_result, "success", False))
+        and bool(getattr(kernel_execution, "success", False))
+        and matching_output_node_ids
+        and output_values_match
+    )
+
+    return {
+        "available": True,
+        "success": success,
+        "dag_success": bool(getattr(planning_result, "success", False)),
+        "kernel_success": bool(getattr(kernel_execution, "success", False)),
+        "matching_output_node_ids": matching_output_node_ids,
+        "output_values_match": output_values_match,
+        "dag_output_node_ids": dag_ids,
+        "kernel_output_node_ids": kernel_ids,
+        "missing_in_kernel": missing_in_kernel,
+        "extra_in_kernel": extra_in_kernel,
+        "mismatched_outputs": mismatched_outputs,
+    }

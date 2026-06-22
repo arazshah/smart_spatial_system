@@ -4011,6 +4011,7 @@ class OrchestratorService:
                 )
 
             from orchestrator.planning.kernel_execution_bridge import (
+                compare_kernel_execution_to_planning_outputs,
                 kernel_execution_to_summary,
             )
             from orchestrator.planning.kernel_plan_adapter import kernel_plan_to_summary
@@ -4023,6 +4024,9 @@ class OrchestratorService:
             )
             kernel_execution_summary = kernel_execution_to_summary(
                 getattr(planning_result, "kernel_execution", None)
+            )
+            kernel_execution_parity = compare_kernel_execution_to_planning_outputs(
+                planning_result
             )
             steps = self._planning_trace_to_steps(
                 getattr(planning_result, "trace", []) or []
@@ -4067,6 +4071,7 @@ class OrchestratorService:
                         if kernel_execution_summary is None
                         else bool(kernel_execution_summary.get("success"))
                     ),
+                    "kernel_execution_parity": kernel_execution_parity,
                 },
             }
 

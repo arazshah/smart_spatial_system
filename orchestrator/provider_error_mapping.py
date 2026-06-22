@@ -26,9 +26,11 @@ from orchestrator.error_contract import (
 
 
 _PASSWORD_ASSIGNMENT_RE = re.compile(
-    r"(?i)(password|passwd|pwd|token|api_key|apikey|secret)=([^\\s]+)"
+    r"(?i)(password|passwd|pwd|token|api_key|apikey|secret)=(\S+)"
 )
-_URL_CREDENTIALS_RE = re.compile(r"([a-zA-Z][a-zA-Z0-9+.-]*://)([^:/@\\s]+):([^@\\s]+)@")
+_URL_CREDENTIALS_RE = re.compile(
+    r"([a-zA-Z][a-zA-Z0-9+.-]*://)([^:/@\s]+):([^@\s]+)@"
+)
 
 
 class ProviderExecutionError(ValueError):

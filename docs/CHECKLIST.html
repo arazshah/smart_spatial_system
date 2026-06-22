@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Spatial System Backend Roadmap &amp; Checklist</title>
+<style>
+/* ── reset & base ── */
+*,
+*::before,
+*::after {
+box-sizing: border-box;
+margin: 0;
+padding: 0;
+}
+html {
+font-size: 16px;
+scroll-behavior: smooth;
+}
+body {
+font-family: 'Segoe UI', 'Vazir', system-ui, -apple-system, sans-serif;
+background: #f4f6fa;
+color: #1e293b;
+line-height: 1.6;
+padding: 0 0 3rem 0;
+}
+
+/* ── sidebar / header ── */
+.app-header {
+background: #0f172a;
+color: #f1f5f9;
+padding: 1rem 2rem;
+display: flex;
+flex-wrap: wrap;
+align-items: center;
+justify-content: space-between;
+position: sticky;
+top: 0;
+z-index: 100;
+box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+.app-header h1 {
+font-size: 1.25rem;
+font-weight: 600;
+letter-spacing: 0.02em;
+display: flex;
+align-items: center;
+gap: 0.5rem;
+}
+.app-header h1 small {
+font-weight: 400;
+font-size: 0.75rem;
+opacity: 0.7;
+margin-left: 0.5rem;
+}
+.header-controls {
+display: flex;
+align-items: center;
+gap: 1.5rem;
+flex-wrap: wrap;
+}
+.progress-badge {
+background: #1e293b;
+padding: 0.3rem 1rem;
+border-radius: 999px;
+font-size: 0.85rem;
+font-weight: 500;
+color: #e2e8f0;
+border: 1px solid #334155;
+}
+.progress-badge span {
+color: #38bdf8;
+font-weight: 700;
+}
+.btn-reset {
+background: transparent;
+border: 1px solid #ef4444;
+color: #fca5a5;
+padding: 0.3rem 1.2rem;
+border-radius: 6px;
+font-size: 0.8rem;
+font-weight: 500;
+cursor: pointer;
+transition: all 0.2s;
+}
+.btn-reset:hover {
+background: #ef4444;
+color: #fff;
+}
+.nav-links {
+display: flex;
+flex-wrap: wrap;
+gap: 0.4rem 0.8rem;
+list-style: none;
+margin-top: 0.5rem;
+width: 100%;
+border-top: 1px solid #1e293b;
+padding-top: 0.5rem;
+font-size: 0.75rem;
+}
+.nav-links a {
+color: #94a3b8;
+text-decoration: none;
+transition: color 0.2s;
+}
+.nav-links a:hover {
+color: #38bdf8;
+}
+
+/* ── main container ── */
+.container {
+max-width: 1100px;
+margin: 2rem auto;
+padding: 0 1.5rem;
+}
+
+/* ── details / summary ── */
+details.phase {
+background: #ffffff;
+border-radius: 12px;
+box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+margin-bottom: 1.25rem;
+border: 1px solid #e2e8f0;
+transition: box-shadow 0.2s;
+}
+details.phase[open] {
+box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+details.phase summary {
+padding: 1rem 1.5rem;
+cursor: pointer;
+font-weight: 600;
+font-size: 1.05rem;
+display: flex;
+align-items: center;
+gap: 0.75rem;
+background: #f8fafc;
+border-radius: 12px 12px 0 0;
+border-bottom: 1px solid #e2e8f0;
+user-select: none;
+transition: background 0.2s;
+}
+details.phase summary:hover {
+background: #f1f5f9;
+}
+details.phase summary .phase-num {
+display: inline-flex;
+align-items: center;
+justify-content: center;
+background: #0f172a;
+color: #fff;
+font-size: 0.7rem;
+font-weight: 700;
+width: 1.8rem;
+height: 1.8rem;
+border-radius: 6px;
+flex-shrink: 0;
+}
+details.phase summary .phase-title {
+flex: 1;
+}
+details.phase summary .phase-count {
+font-size: 0.7rem;
+font-weight: 400;
+color: #64748b;
+background: #e2e8f0;
+padding: 0.15rem 0.7rem;
+border-radius: 999px;
+}
+.phase-body {
+padding: 1.5rem 1.5rem 1.75rem;
+}
+
+/* ── checklist items ── */
+.checklist {
+list-style: none;
+padding: 0;
+margin: 0.5rem 0 1rem 0;
+}
+.checklist li {
+display: flex;
+align-items: flex-start;
+gap: 0.6rem;
+padding: 0.3rem 0;
+font-size: 0.92rem;
+line-height: 1.5;
+}
+.checklist li input[type="checkbox"] {
+flex-shrink: 0;
+margin-top: 0.25rem;
+width: 1.1rem;
+height: 1.1rem;
+accent-color: #0f172a;
+cursor: pointer;
+}
+.checklist li label {
+flex: 1;
+cursor: pointer;
+}
+.checklist li.checked label {
+text-decoration: line-through;
+color: #94a3b8;
+}
+.checklist li .code-inline {
+background: #f1f5f9;
+padding: 0.1rem 0.4rem;
+border-radius: 4px;
+font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+font-size: 0.82rem;
+color: #0f172a;
+border: 1px solid #e2e8f0;
+}
+.checklist li .persian {
+font-family: 'Vazir', 'Segoe UI', sans-serif;
+direction: rtl;
+display: inline-block;
+}
+
+/* ── code blocks ── */
+pre.code-block {
+background: #0f172a;
+color: #e2e8f0;
+padding: 1rem 1.2rem;
+border-radius: 8px;
+overflow-x: auto;
+font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+font-size: 0.82rem;
+line-height: 1.5;
+margin: 0.75rem 0 1rem 0;
+border: 1px solid #1e293b;
+white-space: pre;
+}
+pre.code-block .comment {
+color: #94a3b8;
+font-style: italic;
+}
+pre.code-block .keyword {
+color: #38bdf8;
+}
+pre.code-block .string {
+color: #a5d6a7;
+}
+pre.code-block .func {
+color: #fbbf24;
+}
+
+/* ── sub-headings inside phase ── */
+.phase-body h3 {
+font-size: 1rem;
+font-weight: 600;
+margin: 1.25rem 0 0.5rem 0;
+color: #0f172a;
+border-bottom: 1px solid #e2e8f0;
+padding-bottom: 0.25rem;
+}
+.phase-body h4 {
+font-size: 0.92rem;
+font-weight: 600;
+margin: 1rem 0 0.3rem 0;
+color: #1e293b;
+}
+.phase-body p {
+margin: 0.4rem 0;
+font-size: 0.92rem;
+}
+.phase-body ul,
+.phase-body ol {
+margin: 0.3rem 0 0.6rem 1.5rem;
+font-size: 0.92rem;
+}
+.phase-body li {
+margin: 0.15rem 0;
+}
+.phase-body .note {
+background: #fef9c3;
+border-left: 4px solid #facc15;
+padding: 0.5rem 1rem;
+border-radius: 4px;
+font-size: 0.85rem;
+margin: 0.75rem 0;
+}
+.phase-body .table-wrap {
+overflow-x: auto;
+margin: 0.75rem 0;
+}
+.phase-body table {
+width: 100%;
+border-collapse: collapse;
+font-size: 0.85rem;
+background: #f8fafc;
+border-radius: 8px;
+border: 1px solid #e2e8f0;
+}
+.phase-body table th {
+background: #e2e8f0;
+padding: 0.5rem 0.75rem;
+text-align: left;
+font-weight: 600;
+border-bottom: 2px solid #cbd5e1;
+}
+.phase-body table td {
+padding: 0.4rem 0.75rem;
+border-bottom: 1px solid #e2e8f0;
+}
+.phase-body table tr:last-child td {
+border-bottom: none;
+}
+
+/* ── responsive ── */
+@media (max-width: 768px) {
+.app-header {
+padding: 0.75rem 1rem;
+flex-direction: column;
+align-items: stretch;
+gap: 0.5rem;
+}
+.app-header h1 {
+font-size: 1rem;
+}
+.header-controls {
+justify-content: space-between;
+}
+.nav-links {
+font-size: 0.65rem;
+gap: 0.3rem 0.6rem;
+}
+.container {
+padding: 0 0.75rem;
+margin: 1rem auto;
+}
+details.phase summary {
+padding: 0.75rem 1rem;
+font-size: 0.95rem;
+}
+.phase-body {
+padding: 1rem 1rem 1.25rem;
+}
+.checklist li {
+font-size: 0.85rem;
+}
+pre.code-block {
+font-size: 0.7rem;
+padding: 0.75rem;
+}
+}
+@media print {
+.app-header {
+position: static;
+background: #0f172a !important;
+-webkit-print-color-adjust: exact;
+print-color-adjust: exact;
+}
+.btn-reset {
+display: none;
+}
+details.phase {
+break-inside: avoid;
+border: 1px solid #ccc;
+}
+details.phase[open] summary {
+background: #f1f5f9;
+}
+.nav-links {
+display: none;
+}
+body {
+background: #fff;
+}
+}
+
+/* ── utility ── */
+.mt-1 {
+margin-top: 0.5rem;
+}
+.mb-1 {
+margin-bottom: 0.5rem;
+}
+.text-sm {
+font-size: 0.85rem;
+}
+.text-muted {
+color: #64748b;
+}
+.flex {
+display: flex;
+gap: 0.5rem;
+align-items: center;
+}
+.gap-1 {
+gap: 1rem;
+}
+.wrap {
+flex-wrap: wrap;
+}
+</style>
+</head>
+<body>
+
+<!-- ─── HEADER ─── -->
+<header class="app-header" id="top">
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem 1.5rem;width:100%;">
+<h1>
+🧭 Smart Spatial System Backend
+<small>Roadmap &amp; Checklist</small>
+</h1>
+<div class="header-controls">
+<div class="progress-badge" id="progressDisplay">
+Progress: <span id="progressCount">0</span> / <span id="totalCount">0</span>
+</div>
+<button class="btn-reset" id="resetAllBtn">⟳ Reset All</button>
+</div>
+</div>
+<nav class="nav-links" id="navLinks">
+<!-- filled by JS -->
+</nav>
+</header>
+
+<!-- ─── MAIN ─── -->
+<div class="container" id="mainContainer">
+<!-- all phases injected by JS -->
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ─── RAW DATA ───
+// Every phase object: { id, title, html }
+// The html is the inner content of the phase body (everything after summary).
+// Checkboxes are marked with data-id and optionally data-checked="true".
+
+const phases = [{
+id: 0,
+title: 'Foundation &amp; Core Infrastructure',
+html: `
+<p><strong>Goal:</strong> Establish the bedrock for the entire backend — version control, language runtime, package management, basic project structure, and core utilities.</p>
+
+<h3>0.1 — Repository &amp; Version Control</h3>
+<ul class="checklist" data-phase="0">
+<li><input type="checkbox" id="chk_0_0" data-id="0_0" checked><label for="chk_0_0">Initialize Git repository with <span class="code-inline">git init</span></label></li>
+<li><input type="checkbox" id="chk_0_1" data-id="0_1" checked><label for="chk_0_1">Create <span class="code-inline">.gitignore</span> (Python, Rust, Node — choose primary stack)</label></li>
+<li><input type="checkbox" id="chk_0_2" data-id="0_2" checked><label for="chk_0_2">Add <span class="code-inline">README.md</span> with project overview and setup instructions</label></li>
+<li><input type="checkbox" id="chk_0_3" data-id="0_3" checked><label for="chk_0_3">Set up branching strategy: <span class="code-inline">main</span>, <span class="code-inline">develop</span>, feature branches</label></li>
+<li><input type="checkbox" id="chk_0_4" data-id="0_4" checked><label for="chk_0_4">Configure commit hooks (pre-commit linting, formatting)</label></li>
+</ul>
+
+<h3>0.2 — Language Runtime &amp; Package Management</h3>
+<ul class="checklist" data-phase="0">
+<li><input type="checkbox" id="chk_0_5" data-id="0_5" checked><label for="chk_0_5">Choose primary backend language: <span class="code-inline">Python 3.11+</span> (recommended) or <span class="code-inline">Rust</span> / <span class="code-inline">Node.js</span></label></li>
+<li><input type="checkbox" id="chk_0_6" data-id="0_6" checked><label for="chk_0_6">Set up virtual environment: <span class="code-inline">python -m venv .venv</span></label></li>
+<li><input type="checkbox" id="chk_0_7" data-id="0_7" checked><label for="chk_0_7">Create <span class="code-inline">requirements.txt</span> (or <span class="code-inline">pyproject.toml</span> / <span class="code-inline">Cargo.toml</span>)</label></li>
+<li><input type="checkbox" id="chk_0_8" data-id="0_8" checked><label for="chk_0_8">Install core dependencies: <span class="code-inline">fastapi</span>, <span class="code-inline">uvicorn</span>, <span class="code-inline">pydantic</span>, <span class="code-inline">sqlalchemy</span>, <span class="code-inline">asyncpg</span></label></li>
+<li><input type="checkbox" id="chk_0_9" data-id="0_9" checked><label for="chk_0_9">Pin versions and lock file (<span class="code-inline">pip freeze &gt; requirements.lock</span>)</label></li>
+</ul>
+
+<h3>0.3 — Project Structure</h3>
+<pre class="code-block">smart_spatial_system/
+├── backend/
+│ ├── app/
+│ │ ├── __init__.py
+│ │ ├── main.py # FastAPI entry point
+│ │ ├── config.py # Settings &amp; environment
+│ │ ├── dependencies.py # DI containers
+│ │ ├── routers/ # API routes
+│ │ ├── models/ # SQLAlchemy / Pydantic models
+│ │ ├── services/ # Business logic
+│ │ ├── kernel/ # geochat_kernel engine
+│ │ └── utils/ # Shared utilities
+│ ├── tests/
+│ ├── alembic/ # DB migrations
+│ ├── Dockerfile
+│ └── docker-compose.yml
+├── docs/
+├── scripts/
+└── .github/ # CI/CD workflows</pre>
+<ul class="checklist" data-phase="0">
+<li><input type="checkbox" id="chk_0_10" data-id="0_10" checked><label for="chk_0_10">Create directory structure as above</label></li>
+<li><input type="checkbox" id="chk_0_11" data-id="0_11" checked><label for="chk_0_11">Add <span class="code-inline">__init__.py</span> files to all Python packages</label></li>
+<li><input type="checkbox" id="chk_0_12" data-id="0_12" checked><label for="chk_0_12">Set up <span class="code-inline">config.py</span> with <span class="code-inline">pydantic-settings</span></label></li>
+<li><input type="checkbox" id="chk_0_13" data-id="0_13" checked><label for="chk_0_13">Configure logging (structured JSON logs)</label></li>
+</ul>
+
+<h3>0.4 — Core Utilities</h3>
+<ul class="checklist" data-phase="0">
+<li><input type="checkbox" id="chk_0_14" data-id="0_14" checked><label for="chk_0_14">Implement <span class="code-inline">utils/retry.py</span> — async retry with exponential backoff</label></li>
+<li><input type="checkbox" id="chk_0_15" data-id="0_15" checked><label for="chk_0_15">Implement <span class="code-inline">utils/cache.py</span> — in-memory + Redis cache abstraction</label></li>
+<li><input type="checkbox" id="chk_0_16" data-id="0_16" checked><label for="chk_0_16">Implement <span class="code-inline">utils/metrics.py</span> — Prometheus metrics hooks</label></li>
+<li><input type="checkbox" id="chk_0_17" data-id="0_17" checked><label for="chk_0_17">Implement <span class="code-inline">utils/validators.py</span> — spatial data validators</label></li>
+<li><input type="checkbox" id="chk_0_18" data-id="0_18" checked><label for="chk_0_18">Add <span class="code-inline">utils/exceptions.py</span> — custom exception hierarchy</label></li>
+</ul>
+
+<h3>0.5 — Containerization &amp; Local Dev</h3>
+<ul class="checklist" data-phase="0">
+<li><input type="checkbox" id="chk_0_19" data-id="0_19" checked><label for="chk_0_19">Create <span class="code-inline">Dockerfile</span> (multi-stage, slim image)</label></li>
+<li><input type="checkbox" id="chk_0_20" data-id="0_20" checked><label for="chk_0_20">Create <span class="code-inline">docker-compose.yml</span> (app + postgres + redis + minio)</label></li>
+<li><input type="checkbox" id="chk_0_21" data-id="0_21" checked><label for="chk_0_21">Add <span class="code-inline">.env.example</span> with all required variables</label></li>
+<li><input type="checkbox" id="chk_0_22" data-id="0_22" checked><label for="chk_0_22">Verify <span class="code-inline">docker-compose up</span> starts all services</label></li>
+</ul>
+<div class="note">✅ Phase 0 is foundational — all items should be completed before moving to Phase 1.</div>
+`
+}, {
+id: 1,
+title: 'Spatial Data Pipeline &amp; Storage',
+html: `
+<p><strong>Goal:</strong> Build the data ingestion, storage, and retrieval pipeline for spatial datasets (GeoJSON, Shapefile, raster, point clouds, etc.).</p>
+
+<h3>1.1 — Storage Backend</h3>
+<ul class="checklist" data-phase="1">
+<li><input type="checkbox" id="chk_1_0" data-id="1_0" checked><label for="chk_1_0">Set up PostgreSQL + PostGIS (<span class="code-inline">postgres:15</span> with <span class="code-inline">postgis</span> extension)</label></li>
+<li><input type="checkbox" id="chk_1_1" data-id="1_1" checked><label for="chk_1_1">Configure MinIO (S3-compatible) for raster/point-cloud blob storage</label></li>
+<li><input type="checkbox" id="chk_1_2" data-id="1_2" checked><label for="chk_1_2">Create Alembic migrations for initial schema</label></li>
+<li><input type="checkbox" id="chk_1_3" data-id="1_3" checked><label for="chk_1_3">Implement <span class="code-inline">SpatialDataset</span> model (id, name, crs, bbox, file_type, metadata JSON)</label></li>
+<li><input type="checkbox" id="chk_1_4" data-id="1_4" checked><label for="chk_1_4">Implement <span class="code-inline">SpatialFeature</span> model (id, dataset_id, geometry, properties, h3_index)</label></li>
+</ul>
+
+<h3>1.2 — Ingestion Pipeline</h3>
+<ul class="checklist" data-phase="1">
+<li><input type="checkbox" id="chk_1_5" data-id="1_5" checked><label for="chk_1_5">Build <span class="code-inline">GeoJSON</span> parser/validator</label></li>
+<li><input type="checkbox" id="chk_1_6" data-id="1_6" checked><label for="chk_1_6">Build <span class="code-inline">Shapefile</span> reader (via <span class="code-inline">fiona</span> / <span class="code-inline">geopandas</span>)</label></li>
+<li><input type="checkbox" id="chk_1_7" data-id="1_7" checked><label for="chk_1_7">Build <span class="code-inline">Raster</span> ingestion (GeoTIFF via <span class="code-inline">rasterio</span>)</label></li>
+<li><input type="checkbox" id="chk_1_8" data-id="1_8" checked><label for="chk_1_8">Build <span class="code-inline">Point Cloud</span> ingestion (LAS/LAZ via <span class="code-inline">laspy</span>)</label></li>
+<li><input type="checkbox" id="chk_1_9" data-id="1_9" checked><label for="chk_1_9">Implement chunked upload for large files (&gt;100 MB)</label></li>
+<li><input type="checkbox" id="chk_1_10" data-id="1_10" checked><label for="chk_1_10">Add background task queue (Celery / <span class="code-inline">fastapi-background-tasks</span>)</label></li>
+</ul>
+
+<h3>1.3 — Spatial Indexing</h3>
+<ul class="checklist" data-phase="1">
+<li><input type="checkbox" id="chk_1_11" data-id="1_11" checked><label for="chk_1_11">Create PostGIS spatial indexes (GIST on geometry columns)</label></li>
+<li><input type="checkbox" id="chk_1_12" data-id="1_12" checked><label for="chk_1_12">Implement H3 hexagon indexing (<span class="code-inline">h3</span> library) at resolutions 6–10</label></li>
+<li><input type="checkbox" id="chk_1_13" data-id="1_13" checked><label for="chk_1_13">Build <span class="code-inline">SpatialIndex</span> service for nearest-neighbor and containment queries</label></li>
+<li><input type="checkbox" id="chk_1_14" data-id="1_14" checked><label for="chk_1_14">Add <span class="code-inline">geohash</span> fallback indexing for fast bounding-box filters</label></li>
+</ul>
+
+<h3>1.4 — Data Export &amp; Transformation</h3>
+<ul class="checklist" data-phase="1">
+<li><input type="checkbox" id="chk_1_15" data-id="1_15" checked><label for="chk_1_15">Implement export to GeoJSON, Shapefile, CSV, Parquet</label></li>
+<li><input type="checkbox" id="chk_1_16" data-id="1_16" checked><label for="chk_1_16">Build CRS reprojection utility (via <span class="code-inline">pyproj</span>)</label></li>
+<li><input type="checkbox" id="chk_1_17" data-id="1_17" checked><label for="chk_1_17">Add attribute filtering and SQL-style query on features</label></li>
+<li><input type="checkbox" id="chk_1_18" data-id="1_18" checked><label for="chk_1_18">Implement tiling pipeline (MBTiles / PMTiles for raster/vector tiles)</label></li>
+</ul>
+<div class="note">📌 Ensure all ingestion paths are idempotent and support incremental updates.</div>
+`
+}, {
+id: 2,
+title: 'geochat_kernel — Core Chat Engine',
+html: `
+<p><strong>Goal:</strong> Build the conversational AI engine that understands spatial context and drives the chat interface.</p>
+
+<h3>2.1 — LLM Integration</h3>
+<ul class="checklist" data-phase="2">
+<li><input type="checkbox" id="chk_2_0" data-id="2_0" checked><label for="chk_2_0">Integrate OpenAI API (<span class="code-inline">gpt-4</span> / <span class="code-inline">gpt-3.5-turbo</span>)</label></li>
+<li><input type="checkbox" id="chk_2_1" data-id="2_1" checked><label for="chk_2_1">Add fallback to local LLM (<span class="code-inline">llama.cpp</span> / <span class="code-inline">vLLM</span>)</label></li>
+<li><input type="checkbox" id="chk_2_2" data-id="2_2" checked><label for="chk_2_2">Implement token management and rate limiting</label></li>
+<li><input type="checkbox" id="chk_2_3" data-id="2_3" checked><label for="chk_2_3">Build streaming response handler (SSE / WebSocket)</label></li>
+<li><input type="checkbox" id="chk_2_4" data-id="2_4" checked><label for="chk_2_4">Add conversation history truncation (sliding window)</label></li>
+</ul>
+
+<h3>2.2 — Session &amp; Conversation Management</h3>
+<ul class="checklist" data-phase="2">
+<li><input type="checkbox" id="chk_2_5" data-id="2_5" checked><label for="chk_2_5">Create <span class="code-inline">ConversationSession</span> model (id, user_id, created_at, metadata)</label></li>
+<li><input type="checkbox" id="chk_2_6" data-id="2_6" checked><label for="chk_2_6">Implement session CRUD API (<span class="code-inline">POST /sessions</span>, <span class="code-inline">GET /sessions/{id}</span>, <span class="code-inline">DELETE</span>)</label></li>
+<li><input type="checkbox" id="chk_2_7" data-id="2_7" checked><label for="chk_2_7">Store messages in <span class="code-inline">Message</span> table (role, content, timestamp, tokens)</label></li>
+<li><input type="checkbox" id="chk_2_8" data-id="2_8" checked><label for="chk_2_8">Add session-level context injection (system prompt builder)</label></li>
+<li><input type="checkbox" id="chk_2_9" data-id="2_9" checked><label for="chk_2_9">Implement conversation branching / fork for alternative queries</label></li>
+</ul>
+
+<h3>2.3 — Prompt Engineering &amp; Templates</h3>
+<ul class="checklist" data-phase="2">
+<li><input type="checkbox" id="chk_2_10" data-id="2_10" checked><label for="chk_2_10">Create <span class="code-inline">prompts/</span> directory with Jinja2 templates</label></li>
+<li><input type="checkbox" id="chk_2_11" data-id="2_11" checked><label for="chk_2_11">Build system prompt for spatial reasoning (aware of CRS, geometry, H3)</label></li>
+<li><input type="checkbox" id="chk_2_12" data-id="2_12" checked><label for="chk_2_12">Add few-shot examples for spatial queries</label></li>
+<li><input type="checkbox" id="chk_2_13" data-id="2_13" checked><label for="chk_2_13">Implement dynamic context injection (current map view, selected features)</label></li>
+<li><input type="checkbox" id="chk_2_14" data-id="2_14" checked><label for="chk_2_14">Add safety guardrails (content filtering, topic restrictions)</label></li>
+</ul>
+
+<h3>2.4 — Chat API Endpoints</h3>
+<ul class="checklist" data-phase="2">
+<li><input type="checkbox" id="chk_2_15" data-id="2_15" checked><label for="chk_2_15"><span class="code-inline">POST /chat/completions</span> — standard chat</label></li>
+<li><input type="checkbox" id="chk_2_16" data-id="2_16" checked><label for="chk_2_16"><span class="code-inline">POST /chat/stream</span> — streaming response</label></li>
+<li><input type="checkbox" id="chk_2_17" data-id="2_17" checked><label for="chk_2_17"><span class="code-inline">POST /chat/with-spatial-context</span> — inject map state</label></li>
+<li><input type="checkbox" id="chk_2_18" data-id="2_18" checked><label for="chk_2_18">Add <span class="code-inline">GET /chat/history</span> with pagination</label></li>
+<li><input type="checkbox" id="chk_2_19" data-id="2_19" checked><label for="chk_2_19">Implement feedback endpoint (<span class="code-inline">POST /chat/feedback</span>)</label></li>
+</ul>
+`
+}, {
+id: 3,
+title: 'geochat_kernel — Context &amp; Memory Management',
+html: `
+<p><strong>Goal:</strong> Give the kernel persistent memory, user preferences, and spatial context awareness across sessions.</p>
+
+<h3>3.1 — Short-term Memory (Session)</h3>
+<ul class="checklist" data-phase="3">
+<li><input type="checkbox" id="chk_3_0" data-id="3_0" checked><label for="chk_3_0">Implement in-memory cache for active sessions (Redis)</label></li>
+<li><input type="checkbox" id="chk_3_1" data-id="3_1" checked><label for="chk_3_1">Store last N interactions per session (configurable)</label></li>
+<li><input type="checkbox" id="chk_3_2" data-id="3_2" checked><label for="chk_3_2">Add session expiry (TTL) with cleanup job</label></li>
+</ul>
+
+<h3>3.2 — Long-term Memory (User Profile)</h3>
+<ul class="checklist" data-phase="3">
+<li><input type="checkbox" id="chk_3_3" data-id="3_3" checked><label for="chk_3_3">Create <span class="code-inline">UserProfile</span> model (preferences, saved places, query history)</label></li>
+<li><input type="checkbox" id="chk_3_4" data-id="3_4" checked><label for="chk_3_4">Build <span class="code-inline">MemoryStore</span> service for vector memory (via <span class="code-inline">pgvector</span> / <span class="code-inline">qdrant</span>)</label></li>
+<li><input type="checkbox" id="chk_3_5" data-id="3_5" checked><label for="chk_3_5">Implement memory consolidation (summarize past conversations)</label></li>
+<li><input type="checkbox" id="chk_3_6" data-id="3_6" checked><label for="chk_3_6">Add user-specific spatial bookmarks</label></li>
+</ul>
+
+<h3>3.3 — Spatial Context Resolver</h3>
+<ul class="checklist" data-phase="3">
+<li><input type="checkbox" id="chk_3_7" data-id="3_7" checked><label for="chk_3_7">Build <span class="code-inline">SpatialContextResolver</span> that extracts location entities from text</label></li>
+<li><input type="checkbox" id="chk_3_8" data-id="3_8" checked><label for="chk_3_8">Integrate geocoding (Nominatim / Google Geocoding API)</label></li>
+<li><input type="checkbox" id="chk_3_9" data-id="3_9" checked><label for="chk_3_9">Add reverse geocoding for coordinate-to-place</label></li>
+<li><input type="checkbox" id="chk_3_10" data-id="3_10" checked><label for="chk_3_10">Implement spatial disambiguation ("Paris, France" vs "Paris, Texas")</label></li>
+</ul>
+
+<h3>3.4 — Context Injection Pipeline</h3>
+<ul class="checklist" data-phase="3">
+<li><input type="checkbox" id="chk_3_11" data-id="3_11" checked><label for="chk_3_11">Build pipeline: user query → context retrieval → prompt augmentation</label></li>
+<li><input type="checkbox" id="chk_3_12" data-id="3_12" checked><label for="chk_3_12">Add relevance scoring for retrieved context chunks</label></li>
+<li><input type="checkbox" id="chk_3_13" data-id="3_13" checked><label for="chk_3_13">Implement context window budget management (token-aware)</label></li>
+<li><input type="checkbox" id="chk_3_14" data-id="3_14" checked><label for="chk_3_14">Support multi-modal context (map screenshot, feature list)</label></li>
+</ul>
+`
+}, {
+id: 4,
+title: 'geochat_kernel — Spatial Reasoning &amp; Query Engine',
+html: `
+<p><strong>Goal:</strong> Enable the kernel to understand, generate, and execute spatial queries (natural language → SQL/SPaQL).</p>
+
+<h3>4.1 — Natural Language to Spatial Query (NL2SQ)</h3>
+<ul class="checklist" data-phase="4">
+<li><input type="checkbox" id="chk_4_0" data-id="4_0" checked><label for="chk_4_0">Define <span class="code-inline">QuerySpec</span> Pydantic model (select, from, where, spatial_filter, order_by, limit)</label></li>
+<li><input type="checkbox" id="chk_4_1" data-id="4_1" checked><label for="chk_4_1">Build NL2SQ translator using LLM + few-shot prompts</label></li>
+<li><input type="checkbox" id="chk_4_2" data-id="4_2" checked><label for="chk_4_2">Add spatial filter types: <span class="code-inline">within</span>, <span class="code-inline">contains</span>, <span class="code-inline">intersects</span>, <span class="code-inline">near</span>, <span class="code-inline">bbox</span></label></li>
+<li><input type="checkbox" id="chk_4_3" data-id="4_3" checked><label for="chk_4_3">Implement query validation and sanitization</label></li>
+<li><input type="checkbox" id="chk_4_4" data-id="4_4" checked><label for="chk_4_4">Add support for aggregations (count, sum, avg by region)</label></li>
+</ul>
+
+<h3>4.2 — Query Execution Engine</h3>
+<ul class="checklist" data-phase="4">
+<li><input type="checkbox" id="chk_4_5" data-id="4_5" checked><label for="chk_4_5">Build <span class="code-inline">QueryExecutor</span> that translates <span class="code-inline">QuerySpec</span> to SQL/PostGIS</label></li>
+<li><input type="checkbox" id="chk_4_6" data-id="4_6" checked><label for="chk_4_6">Add support for <span class="code-inline">DagPlan</span> — directed acyclic graph of query steps</label></li>
+<li><input type="checkbox" id="chk_4_7" data-id="4_7" checked><label for="chk_4_7">Implement query result caching (Redis, TTL based on data freshness)</label></li>
+<li><input type="checkbox" id="chk_4_8" data-id="4_8" checked><label for="chk_4_8">Add query timeout and resource limits</label></li>
+<li><input type="checkbox" id="chk_4_9" data-id="4_9" checked><label for="chk_4_9">Build explain/visualize endpoint for query plans</label></li>
+</ul>
+
+<h3>4.3 — Spatial Reasoning Operators</h3>
+<ul class="checklist" data-phase="4">
+<li><input type="checkbox" id="chk_4_10" data-id="4_10" checked><label for="chk_4_10">Distance &amp; buffer operations</label></li>
+<li><input type="checkbox" id="chk_4_11" data-id="4_11" checked><label for="chk_4_11">Union, intersection, difference (polygon operations)</label></li>
+<li><input type="checkbox" id="chk_4_12" data-id="4_12" checked><label for="chk_4_12">K-nearest-neighbor (KNN) search</label></li>
+<li><input type="checkbox" id="chk_4_13" data-id="4_13" checked><label for="chk_4_13">Spatial clustering (DBSCAN, H3 aggregation)</label></li>
+<li><input type="checkbox" id="chk_4_14" data-id="4_14" checked><label for="chk_4_14">Route &amp; network analysis (via pgRouting)</label></li>
+</ul>
+
+<h3>4.4 — Result Formatting &amp; Visualization</h3>
+<ul class="checklist" data-phase="4">
+<li><input type="checkbox" id="chk_4_15" data-id="4_15" checked><label for="chk_4_15">Format query results as GeoJSON, HTML table, or natural language</label></li>
+<li><input type="checkbox" id="chk_4_16" data-id="4_16" checked><label for="chk_4_16">Generate simple map visualizations (static PNG via Matplotlib / Kepler.gl)</label></li>
+<li><input type="checkbox" id="chk_4_17" data-id="4_17" checked><label for="chk_4_17">Add support for <span class="code-inline">OGC</span> standard outputs (WFS, WMS)</label></li>
+<li><input type="checkbox" id="chk_4_18" data-id="4_18" checked><label for="chk_4_18">Build dashboard widget data endpoints</label></li>
+</ul>
+`
+}, {
+id: 5,
+title: 'geochat_kernel — Plugin &amp; Tool System',
+html: `
+<p><strong>Goal:</strong> Create an extensible plugin architecture so third-party developers can add tools and data sources.</p>
+
+<h3>5.1 — Plugin Registry</h3>
+<ul class="checklist" data-phase="5">
+<li><input type="checkbox" id="chk_5_0" data-id="5_0" checked><label for="chk_5_0">Define <span class="code-inline">PluginManifest</span> schema (name, version, hooks, permissions)</label></li>
+<li><input type="checkbox" id="chk_5_1" data-id="5_1" checked><label for="chk_5_1">Build plugin loader (scan <span class="code-inline">plugins/</span> directory, load <span class="code-inline">plugin.py</span>)</label></li>
+<li><input type="checkbox" id="chk_5_2" data-id="5_2" checked><label for="chk_5_2">Implement sandboxed execution (subprocess / container per plugin)</label></li>
+<li><input type="checkbox" id="chk_5_3" data-id="5_3" checked><label for="chk_5_3">Add plugin lifecycle hooks: <span class="code-inline">on_install</span>, <span class="code-inline">on_uninstall</span>, <span class="code-inline">on_query</span></label></li>
+<li><input type="checkbox" id="chk_5_4" data-id="5_4" checked><label for="chk_5_4">Create plugin marketplace API (<span class="code-inline">GET /plugins</span>, <span class="code-inline">POST /plugins/install</span>)</label></li>
+</ul>
+
+<h3>5.2 — Tool Definitions</h3>
+<ul class="checklist" data-phase="5">
+<li><input type="checkbox" id="chk_5_5" data-id="5_5" checked><label for="chk_5_5">Define <span class="code-inline">ToolSpec</span> model (name, description, parameters, output_type)</label></li>
+<li><input type="checkbox" id="chk_5_6" data-id="5_6" checked><label for="chk_5_6">Build tool registry with JSON Schema parameter validation</label></li>
+<li><input type="checkbox" id="chk_5_7" data-id="5_7" checked><label for="chk_5_7">Implement built-in tools: <span class="code-inline">geocode</span>, <span class="code-inline">reverse_geocode</span>, <span class="code-inline">distance_matrix</span>, <span class="code-inline">isochrone</span></label></li>
+<li><input type="checkbox" id="chk_5_8" data-id="5_8" checked><label for="chk_5_8">Add tool chaining (output of one tool feeds into another)</label></li>
+<li><input type="checkbox" id="chk_5_9" data-id="5_9" checked><label for="chk_5_9">Implement tool usage analytics</label></li>
+</ul>
+
+<h3>5.3 — Plugin SDK</h3>
+<ul class="checklist" data-phase="5">
+<li><input type="checkbox" id="chk_5_10" data-id="5_10" checked><label for="chk_5_10">Create <span class="code-inline">plugin_sdk</span> Python package with base classes</label></li>
+<li><input type="checkbox" id="chk_5_11" data-id="5_11" checked><label for="chk_5_11">Document plugin API with OpenAPI examples</label></li>
+<li><input type="checkbox" id="chk_5_12" data-id="5_12" checked><label for="chk_5_12">Add plugin testing harness (mock kernel, mock DB)</label></li>
+<li><input type="checkbox" id="chk_5_13" data-id="5_13" checked><label for="chk_5_13">Provide sample plugin: <span class="code-inline">weather_overlay</span></label></li>
+</ul>
+`
+}, {
+id: 6,
+title: 'geochat_kernel — Multi-Modal Support',
+html: `
+<p><strong>Goal:</strong> Enable the kernel to process and generate not just text but also images, maps, and structured spatial data.</p>
+
+<h3>6.1 — Image Input Processing</h3>
+<ul class="checklist" data-phase="6">
+<li><input type="checkbox" id="chk_6_0" data-id="6_0" checked><label for="chk_6_0">Accept image uploads (PNG, JPEG, GeoTIFF) via multipart</label></li>
+<li><input type="checkbox" id="chk_6_1" data-id="6_1" checked><label for="chk_6_1">Integrate vision model (GPT-4V / CLIP) for image understanding</label></li>
+<li><input type="checkbox" id="chk_6_2" data-id="6_2" checked><label for="chk_6_2">Extract geotags from image EXIF / XMP metadata</label></li>
+<li><input type="checkbox" id="chk_6_3" data-id="6_3" checked><label for="chk_6_3">Build map screenshot parser (detect layers, extent, features)</label></li>
+</ul>
+
+<h3>6.2 — Map Generation</h3>
+<ul class="checklist" data-phase="6">
+<li><input type="checkbox" id="chk_6_4" data-id="6_4" checked><label for="chk_6_4">Generate static map images from query results (Matplotlib / Folium)</label></li>
+<li><input type="checkbox" id="chk_6_5" data-id="6_5" checked><label for="chk_6_5">Create interactive map HTML snippets (Leaflet / MapLibre)</label></li>
+<li><input type="checkbox" id="chk_6_6" data-id="6_6" checked><label for="chk_6_6">Add support for custom basemaps (Satellite, OSM, terrain)</label></li>
+<li><input type="checkbox" id="chk_6_7" data-id="6_7" checked><label for="chk_6_7">Implement map style editor API</label></li>
+</ul>
+
+<h3>6.3 — Structured Data I/O</h3>
+<ul class="checklist" data-phase="6">
+<li><input type="checkbox" id="chk_6_8" data-id="6_8" checked><label for="chk_6_8">Accept GeoJSON, CSV, KML as input</label></li>
+<li><input type="checkbox" id="chk_6_9" data-id="6_9" checked><label for="chk_6_9">Return structured data with <span class="code-inline">Content-Type</span> negotiation</label></li>
+<li><input type="checkbox" id="chk_6_10" data-id="6_10" checked><label for="chk_6_10">Build <span class="code-inline">SpatialDataFrame</span> abstraction (similar to Pandas/GeoPandas)</label></li>
+<li><input type="checkbox" id="chk_6_11" data-id="6_11" checked><label for="chk_6_11">Add data diff / change detection for versioned datasets</label></li>
+</ul>
+`
+}, {
+id: 7,
+title: 'geochat_kernel — Security, Governance &amp; Compliance',
+html: `
+<p><strong>Goal:</strong> Ensure the kernel is secure, auditable, and compliant with data regulations (GDPR, CCPA, etc.).</p>
+
+<h3>7.1 — Authentication &amp; Authorization</h3>
+<ul class="checklist" data-phase="7">
+<li><input type="checkbox" id="chk_7_0" data-id="7_0" checked><label for="chk_7_0">Implement OAuth2 / JWT authentication (FastAPI <span class="code-inline">OAuth2PasswordBearer</span>)</label></li>
+<li><input type="checkbox" id="chk_7_1" data-id="7_1" checked><label for="chk_7_1">Add role-based access control (RBAC): admin, editor, viewer</label></li>
+<li><input type="checkbox" id="chk_7_2" data-id="7_2" checked><label for="chk_7_2">Build permission system for datasets and plugins</label></li>
+<li><input type="checkbox" id="chk_7_3" data-id="7_3" checked><label for="chk_7_3">Implement API key management for external integrations</label></li>
+<li><input type="checkbox" id="chk_7_4" data-id="7_4" checked><label for="chk_7_4">Add session revocation and token blacklisting</label></li>
+</ul>
+
+<h3>7.2 — Data Privacy &amp; Compliance</h3>
+<ul class="checklist" data-phase="7">
+<li><input type="checkbox" id="chk_7_5" data-id="7_5" checked><label for="chk_7_5">Implement data anonymization for PII in spatial datasets</label></li>
+<li><input type="checkbox" id="chk_7_6" data-id="7_6" checked><label for="chk_7_6">Add audit logging (who queried what, when)</label></li>
+<li><input type="checkbox" id="chk_7_7" data-id="7_7" checked><label for="chk_7_7">Build data retention and purge policies</label></li>
+<li><input type="checkbox" id="chk_7_8" data-id="7_8" checked><label for="chk_7_8">Support data residency (EU, US, etc.) via configurable storage backends</label></li>
+<li><input type="checkbox" id="chk_7_9" data-id="7_9" checked><label for="chk_7_9">Add consent management for user data usage</label></li>
+</ul>
+
+<h3>7.3 — Input Validation &amp; Sanitization</h3>
+<ul class="checklist" data-phase="7">
+<li><input type="checkbox" id="chk_7_10" data-id="7_10" checked><label for="chk_7_10">Validate all spatial inputs against OGC standards</label></li>
+<li><input type="checkbox" id="chk_7_11" data-id="7_11" checked><label for="chk_7_11">Sanitize LLM outputs (remove hallucinated coordinates, SQL injection)</label></li>
+<li><input type="checkbox" id="chk_7_12" data-id="7_12" checked><label for="chk_7_12">Add rate limiting per user/IP (token bucket algorithm)</label></li>
+<li><input type="checkbox" id="chk_7_13" data-id="7_13" checked><label for="chk_7_13">Implement request size limits and file type restrictions</label></li>
+</ul>
+
+<h3>7.4 — Audit &amp; Observability for Security</h3>
+<ul class="checklist" data-phase="7">
+<li><input type="checkbox" id="chk_7_14" data-id="7_14" checked><label for="chk_7_14">Log all authentication events (login, logout, failure)</label></li>
+<li><input type="checkbox" id="chk_7_15" data-id="7_15" checked><label for="chk_7_15">Log all data access and query execution</label></li>
+<li><input type="checkbox" id="chk_7_16" data-id="7_16" checked><label for="chk_7_16">Build security dashboard (failed attempts, active sessions)</label></li>
+<li><input type="checkbox" id="chk_7_17" data-id="7_17" checked><label for="chk_7_17">Integrate with SIEM systems (Splunk, ELK) via structured logs</label></li>
+</ul>
+`
+}, {
+id: 8,
+title: 'geochat_kernel — Performance, Scalability &amp; Observability',
+html: `
+<p><strong>Goal:</strong> Make the kernel fast, scalable, and fully observable in production.</p>
+
+<h3>8.1 — Performance Optimization</h3>
+<ul class="checklist" data-phase="8">
+<li><input type="checkbox" id="chk_8_0" data-id="8_0" checked><label for="chk_8_0">Implement query result caching (Redis, multi-level)</label></li>
+<li><input type="checkbox" id="chk_8_1" data-id="8_1" checked><label for="chk_8_1">Add database connection pooling (PgBouncer / asyncpg pool)</label></li>
+<li><input type="checkbox" id="chk_8_2" data-id="8_2" checked><label for="chk_8_2">Optimize spatial queries with materialized views</label></li>
+<li><input type="checkbox" id="chk_8_3" data-id="8_3" checked><label for="chk_8_3">Implement request coalescing for duplicate queries</label></li>
+<li><input type="checkbox" id="chk_8_4" data-id="8_4" checked><label for="chk_8_4">Add response compression (gzip, brotli)</label></li>
+</ul>
+
+<h3>8.2 — Scalability</h3>
+<ul class="checklist" data-phase="8">
+<li><input type="checkbox" id="chk_8_5" data-id="8_5" checked><label for="chk_8_5">Design stateless API servers (horizontal scaling)</label></li>
+<li><input type="checkbox" id="chk_8_6" data-id="8_6" checked><label for="chk_8_6">Add Redis pub/sub for cross-instance messaging</label></li>
+<li><input type="checkbox" id="chk_8_7" data-id="8_7" checked><label for="chk_8_7">Implement task queue (Celery / Redis Streams) for heavy jobs</label></li>
+<li><input type="checkbox" id="chk_8_8" data-id="8_8" checked><label for="chk_8_8">Configure auto-scaling (K8s HPA / AWS ECS Service Auto Scaling)</label></li>
+<li><input type="checkbox" id="chk_8_9" data-id="8_9" checked><label for="chk_8_9">Add read replicas for PostGIS (load balancing)</label></li>
+</ul>
+
+<h3>8.3 — Monitoring &amp; Observability</h3>
+<ul class="checklist" data-phase="8">
+<li><input type="checkbox" id="chk_8_10" data-id="8_10" checked><label for="chk_8_10">Integrate Prometheus metrics (request count, latency, errors, memory)</label></li>
+<li><input type="checkbox" id="chk_8_11" data-id="8_11" checked><label for="chk_8_11">Add structured logging with <span class="code-inline">structlog</span> / <span class="code-inline">loguru</span></label></li>
+<li><input type="checkbox" id="chk_8_12" data-id="8_12" checked><label for="chk_8_12">Build Grafana dashboards (API, DB, Queue, LLM usage)</label></li>
+<li><input type="checkbox" id="chk_8_13" data-id="8_13" checked><label for="chk_8_13">Implement distributed tracing (OpenTelemetry + Jaeger)</label></li>
+<li><input type="checkbox" id="chk_8_14" data-id="8_14" checked><label for="chk_8_14">Set up alerting (Prometheus AlertManager / PagerDuty)</label></li>
+</ul>
+
+<h3>8.4 — Chaos Engineering &amp; Resilience</h3>
+<ul class="checklist" data-phase="8">
+<li><input type="checkbox" id="chk_8_15" data-id="8_15" checked><label for="chk_8_15">Add circuit breakers for external API calls (LLM, geocoding)</label></li>
+<li><input type="checkbox" id="chk_8_16" data-id="8_16" checked><label for="chk_8_16">Implement bulkhead pattern for resource isolation</label></li>
+<li><input type="checkbox" id="chk_8_17" data-id="8_17" checked><label for="chk_8_17">Run chaos experiments (network latency, pod failure, DB failover)</label></li>
+<li><input type="checkbox" id="chk_8_18" data-id="8_18" checked><label for="chk_8_18">Document disaster recovery plan</label></li>
+</ul>
+`
+}, {
+id: 9,
+title: 'geochat_kernel — Testing, CI/CD &amp; Quality Assurance',
+html: `
+<p><strong>Goal:</strong> Ensure the kernel is thoroughly tested and continuously integrated/deployed.</p>
+
+<h3>9.1 — Unit &amp; Integration Tests</h3>
+<ul class="checklist" data-phase="9">
+<li><input type="checkbox" id="chk_9_0" data-id="9_0" checked><label for="chk_9_0">Set up pytest with <span class="code-inline">pytest-asyncio</span> for async tests</label></li>
+<li><input type="checkbox" id="chk_9_1" data-id="9_1" checked><label for="chk_9_1">Write tests for all <span class="code-inline">QuerySpec</span> → SQL translations</label></li>
+<li><input type="checkbox" id="chk_9_2" data-id="9_2" checked><label for="chk_9_2">Test spatial operators (buffer, intersect, KNN) with known fixtures</label></li>
+<li><input type="checkbox" id="chk_9_3" data-id="9_3" checked><label for="chk_9_3">Add integration tests with real PostGIS + Redis containers</label></li>
+<li><input type="checkbox" id="chk_9_4" data-id="9_4" checked><label for="chk_9_4">Achieve &gt;85% code coverage (enforced in CI)</label></li>
+</ul>
+
+<h3>9.2 — LLM-Specific Testing</h3>
+<ul class="checklist" data-phase="9">
+<li><input type="checkbox" id="chk_9_5" data-id="9_5" checked><label for="chk_9_5">Build evaluation harness for NL2SQ accuracy</label></li>
+<li><input type="checkbox" id="chk_9_6" data-id="9_6" checked><label for="chk_9_6">Add regression test suite for prompt templates</label></li>
+<li><input type="checkbox" id="chk_9_7" data-id="9_7" checked><label for="chk_9_7">Implement toxicity and bias checks on LLM outputs</label></li>
+<li><input type="checkbox" id="chk_9_8" data-id="9_8" checked><label for="chk_9_8">Test streaming responses for consistency</label></li>
+</ul>
+
+<h3>9.3 — CI/CD Pipeline</h3>
+<ul class="checklist" data-phase="9">
+<li><input type="checkbox" id="chk_9_9" data-id="9_9" checked><label for="chk_9_9">GitHub Actions: lint, type-check, test on PR</label></li>
+<li><input type="checkbox" id="chk_9_10" data-id="9_10" checked><label for="chk_9_10">Add Docker image build and push to registry</label></li>
+<li><input type="checkbox" id="chk_9_11" data-id="9_11" checked><label for="chk_9_11">Deploy to staging environment on merge to <span class="code-inline">develop</span></label></li>
+<li><input type="checkbox" id="chk_9_12" data-id="9_12" checked><label for="chk_9_12">Deploy to production on release tag</label></li>
+<li><input type="checkbox" id="chk_9_13" data-id="9_13" checked><label for="chk_9_13">Add smoke tests and health checks in pipeline</label></li>
+</ul>
+
+<h3>9.4 — Quality Gates</h3>
+<ul class="checklist" data-phase="9">
+<li><input type="checkbox" id="chk_9_14" data-id="9_14" checked><label for="chk_9_14">Enforce code formatting (Black / Ruff / Prettier)</label></li>
+<li><input type="checkbox" id="chk_9_15" data-id="9_15" checked><label for="chk_9_15">Add type checking (mypy / pyright)</label></li>
+<li><input type="checkbox" id="chk_9_16" data-id="9_16" checked><label for="chk_9_16">Run security scanning (Bandit / Snyk / Trivy)</label></li>
+<li><input type="checkbox" id="chk_9_17" data-id="9_17" checked><label for="chk_9_17">Check dependency licenses (FOSSA / License Finder)</label></li>
+<li><input type="checkbox" id="chk_9_18" data-id="9_18" checked><label for="chk_9_18">Performance regression benchmarks (locust / k6)</label></li>
+</ul>
+`
+}, {
+id: 10,
+title: 'Spatial Fusion Service',
+html: `
+<p><strong>Goal:</strong> Build a service that fuses multiple spatial data sources into unified, coherent layers.</p>
+
+<h3>10.1 — Fusion Engine</h3>
+<ul class="checklist" data-phase="10">
+<li><input type="checkbox" id="chk_10_0" data-id="10_0" checked><label for="chk_10_0">Define <span class="code-inline">FusionRecipe</span> model (source_datasets, join_key, spatial_tolerance, output_schema)</label></li>
+<li><input type="checkbox" id="chk_10_1" data-id="10_1" checked><label for="chk_10_1">Build attribute join engine (exact match, fuzzy match)</label></li>
+<li><input type="checkbox" id="chk_10_2" data-id="10_2" checked><label for="chk_10_2">Build spatial join engine (within, intersects, nearest)</label></li>
+<li><input type="checkbox" id="chk_10_3" data-id="10_3" checked><label for="chk_10_3">Implement temporal fusion (time-series alignment)</label></li>
+<li><input type="checkbox" id="chk_10_4" data-id="10_4" checked><label for="chk_10_4">Add confidence scoring for fused results</label></li>
+</ul>
+
+<h3>10.2 — Fusion API</h3>
+<ul class="checklist" data-phase="10">
+<li><input type="checkbox" id="chk_10_5" data-id="10_5" checked><label for="chk_10_5"><span class="code-inline">POST /fusion/recipes</span> — create fusion recipe</label></li>
+<li><input type="checkbox" id="chk_10_6" data-id="10_6" checked><label for="chk_10_6"><span class="code-inline">POST /fusion/execute/{recipe_id}</span> — run fusion job</label></li>
+<li><input type="checkbox" id="chk_10_7" data-id="10_7" checked><label for="chk_10_7"><span class="code-inline">GET /fusion/layers</span> — list fused layers</label></li>
+<li><input type="checkbox" id="chk_10_8" data-id="10_8" checked><label for="chk_10_8">Add incremental fusion (only process new/changed data)</label></li>
+<li><input type="checkbox" id="chk_10_9" data-id="10_9" checked><label for="chk_10_9">Support fusion rollback / versioning</label></li>
+</ul>
+
+<h3>10.3 — Quality &amp; Validation</h3>
+<ul class="checklist" data-phase="10">
+<li><input type="checkbox" id="chk_10_10" data-id="10_10" checked><label for="chk_10_10">Validate fused output against source schemas</label></li>
+<li><input type="checkbox" id="chk_10_11" data-id="10_11" checked><label for="chk_10_11">Detect and report fusion conflicts (overlapping geometries, mismatched attributes)</label></li>
+<li><input type="checkbox" id="chk_10_12" data-id="10_12" checked><label for="chk_10_12">Add data lineage tracking (provenance per feature)</label></li>
+<li><input type="checkbox" id="chk_10_13" data-id="10_13" checked><label for="chk_10_13">Build fusion quality dashboard</label></li>
+</ul>
+`
+}, {
+id: 11,
+title: 'Spatial Sync &amp; Replication Service',
+html: `
+<p><strong>Goal:</strong> Keep spatial data in sync across multiple environments, regions, or organizations.</p>
+
+<h3>11.1 — Sync Engine</h3>
+<ul class="checklist" data-phase="11">
+<li><input type="checkbox" id="chk_11_0" data-id="11_0" checked><label for="chk_11_0">Define <span class="code-inline">SyncConfig</span> model (source, target, strategy, schedule)</label></li>
+<li><input type="checkbox" id="chk_11_1" data-id="11_1" checked><label for="chk_11_1">Implement full sync (truncate &amp; reload)</label></li>
+<li><input type="checkbox" id="chk_11_2" data-id="11_2" checked><label for="chk_11_2">Implement incremental sync (change data capture via WAL or timestamps)</label></li>
+<li><input type="checkbox" id="chk_11_3" data-id="11_3" checked><label for="chk_11_3">Add conflict resolution strategies (last-write-wins, merge, manual)</label></li>
+<li><input type="checkbox" id="chk_11_4" data-id="11_4" checked><label for="chk_11_4">Support bidirectional sync with conflict detection</label></li>
+</ul>
+
+<h3>11.2 — Replication API</h3>
+<ul class="checklist" data-phase="11">
+<li><input type="checkbox" id="chk_11_5" data-id="11_5" checked><label for="chk_11_5"><span class="code-inline">POST /sync/configs</span> — create sync configuration</label></li>
+<li><input type="checkbox" id="chk_11_6" data-id="11_6" checked><label for="chk_11_6"><span class="code-inline">POST /sync/trigger/{config_id}</span> — trigger sync job</label></li>
+<li><input type="checkbox" id="chk_11_7" data-id="11_7" checked><label for="chk_11_7"><span class="code-inline">GET /sync/status/{job_id}</span> — check sync progress</label></li>
+<li><input type="checkbox" id="chk_11_8" data-id="11_8" checked><label for="chk_11_8">Add webhook notifications on sync completion/failure</label></li>
+<li><input type="checkbox" id="chk_11_9" data-id="11_9" checked><label for="chk_11_9">Build sync history and audit log</label></li>
+</ul>
+
+<h3>11.3 — Offline &amp; Edge Sync</h3>
+<ul class="checklist" data-phase="11">
+<li><input type="checkbox" id="chk_11_10" data-id="11_10" checked><label for="chk_11_10">Support sync with mobile/edge devices (compact delta format)</label></li>
+<li><input type="checkbox" id="chk_11_11" data-id="11_11" checked><label for="chk_11_11">Implement data compression for transfer (vector tiles, delta encoding)</label></li>
+<li><input type="checkbox" id="chk_11_12" data-id="11_12" checked><label for="chk_11_12">Add resume capability for interrupted syncs</label></li>
+<li><input type="checkbox" id="chk_11_13" data-id="11_13" checked><label for="chk_11_13">Test with low-bandwidth / high-latency networks</label></li>
+</ul>
+`
+}, {
+id: 12,
+title: 'Spatial Analytics &amp; Insights Service',
+html: `
+<p><strong>Goal:</strong> Provide analytical capabilities — spatial statistics, heatmaps, trend detection, and reporting.</p>
+
+<h3>12.1 — Analytical Engine</h3>
+<ul class="checklist" data-phase="12">
+<li><input type="checkbox" id="chk_12_0" data-id="12_0" checked><label for="chk_12_0">Build spatial statistics module (mean center, standard distance, Moran's I)</label></li>
+<li><input type="checkbox" id="chk_12_1" data-id="12_1" checked><label for="chk_12_1">Implement heatmap generation (kernel density estimation)</label></li>
+<li><input type="checkbox" id="chk_12_2" data-id="12_2" checked><label for="chk_12_2">Add hot-spot analysis (Getis-Ord Gi*)</label></li>
+<li><input type="checkbox" id="chk_12_3" data-id="12_3" checked><label for="chk_12_3">Build time-series spatial trend detection</label></li>
+<li><input type="checkbox" id="chk_12_4" data-id="12_4" checked><label for="chk_12_4">Implement spatial interpolation (IDW, Kriging)</label></li>
+</ul>
+
+<h3>12.2 — Reporting &amp; Dashboards</h3>
+<ul class="checklist" data-phase="12">
+<li><input type="checkbox" id="chk_12_5" data-id="12_5" checked><label for="chk_12_5">Generate PDF/HTML reports from analytical results</label></li>
+<li><input type="checkbox" id="chk_12_6" data-id="12_6" checked><label for="chk_12_6">Build dashboard API (<span class="code-inline">GET /analytics/dashboard/{id}</span>)</label></li>
+<li><input type="checkbox" id="chk_12_7" data-id="12_7" checked><label for="chk_12_7">Add scheduled report delivery (email, Slack, S3)</label></li>
+<li><input type="checkbox" id="chk_12_8" data-id="12_8" checked><label for="chk_12_8">Support custom metric definitions (formula builder)</label></li>
+<li><input type="checkbox" id="chk_12_9" data-id="12_9" checked><label for="chk_12_9">Export analytics to CSV, GeoJSON, Excel</label></li>
+</ul>
+
+<h3>12.3 — ML-Enhanced Insights</h3>
+<ul class="checklist" data-phase="12">
+<li><input type="checkbox" id="chk_12_10" data-id="12_10" checked><label for="chk_12_10">Integrate clustering algorithms (DBSCAN, HDBSCAN, K-means)</label></li>
+<li><input type="checkbox" id="chk_12_11" data-id="12_11" checked><label for="chk_12_11">Add anomaly detection for spatial outliers</label></li>
+<li><input type="checkbox" id="chk_12_12" data-id="12_12" checked><label for="chk_12_12">Build prediction models (land-use change, traffic flow)</label></li>
+<li><input type="checkbox" id="chk_12_13" data-id="12_13" checked><label for="chk_12_13">Provide model training API with versioning</label></li>
+<li><input type="checkbox" id="chk_12_14" data-id="12_14" checked><label for="chk_12_14">Add explainability (SHAP / LIME for spatial features)</label></li>
+</ul>
+`
+}, {
+id: 13,
+title: 'Developer API &amp; SDK Layer',
+html: `
+<p><strong>Goal:</strong> Expose the platform's capabilities via clean REST/GraphQL APIs and client SDKs.</p>
+
+<h3>13.1 — REST API Design</h3>
+<ul class="checklist" data-phase="13">
+<li><input type="checkbox" id="chk_13_0" data-id="13_0" checked><label for="chk_13_0">Design consistent RESTful endpoints (<span class="code-inline">/api/v1/...</span>)</label></li>
+<li><input type="checkbox" id="chk_13_1" data-id="13_1" checked><label for="chk_13_1">Implement pagination, filtering, sorting standards</label></li>
+<li><input type="checkbox" id="chk_13_2" data-id="13_2" checked><label for="chk_13_2">Add OpenAPI/Swagger documentation (auto-generated)</label></li>
+<li><input type="checkbox" id="chk_13_3" data-id="13_3" checked><label for="chk_13_3">Support JSON, GeoJSON, MessagePack, and Protobuf serialization</label></li>
+<li><input type="checkbox" id="chk_13_4" data-id="13_4" checked><label for="chk_13_4">Implement API versioning (URL path / header)</label></li>
+</ul>
+
+<h3>13.2 — GraphQL API</h3>
+<ul class="checklist" data-phase="13">
+<li><input type="checkbox" id="chk_13_5" data-id="13_5" checked><label for="chk_13_5">Set up Strawberry / Graphene GraphQL schema</label></li>
+<li><input type="checkbox" id="chk_13_6" data-id="13_6" checked><label for="chk_13_6">Define spatial query types (Feature, Geometry, Dataset)</label></li>
+<li><input type="checkbox" id="chk_13_7" data-id="13_7" checked><label for="chk_13_7">Add real-time subscriptions for data changes</label></li>
+<li><input type="checkbox" id="chk_13_8" data-id="13_8" checked><label for="chk_13_8">Implement query complexity limits and depth limiting</label></li>
+</ul>
+
+<h3>13.3 — Client SDKs</h3>
+<ul class="checklist" data-phase="13">
+<li><input type="checkbox" id="chk_13_9" data-id="13_9" checked><label for="chk_13_9">Python SDK (<span class="code-inline">pip install smart-spatial-sdk</span>)</label></li>
+<li><input type="checkbox" id="chk_13_10" data-id="13_10" checked><label for="chk_13_10">JavaScript/TypeScript SDK (<span class="code-inline">npm install @smart-spatial/sdk</span>)</label></li>
+<li><input type="checkbox" id="chk_13_11" data-id="13_11" checked><label for="chk_13_11">REST client examples (curl, Postman collection)</label></li>
+<li><input type="checkbox" id="chk_13_12" data-id="13_12" checked><label for="chk_13_12">Add SDK authentication helpers (API key, OAuth)</label></li>
+<li><input type="checkbox" id="chk_13_13" data-id="13_13" checked><label for="chk_13_13">Publish SDK to package registries (PyPI, npm)</label></li>
+</ul>
+
+<h3>13.4 — API Gateway &amp; Developer Portal</h3>
+<ul class="checklist" data-phase="13">
+<li><input type="checkbox" id="chk_13_14" data-id="13_14" checked><label for="chk_13_14">Set up API Gateway (Kong / Tyk / AWS API Gateway)</label></li>
+<li><input type="checkbox" id="chk_13_15" data-id="13_15" checked><label for="chk_13_15">Build developer portal with interactive API explorer</label></li>
+<li><input type="checkbox" id="chk_13_16" data-id="13_16" checked><label for="chk_13_16">Add API usage analytics and quota management</label></li>
+<li><input type="checkbox" id="chk_13_17" data-id="13_17" checked><label for="chk_13_17">Implement API key rotation and revocation</label></li>
+</ul>
+`
+}, {
+id: 14,
+title: 'DevOps, Infrastructure &amp; Deployment',
+html: `
+<p><strong>Goal:</strong> Production-grade infrastructure with automation, monitoring, and reliability.</p>
+
+<h3>14.1 — Infrastructure as Code</h3>
+<ul class="checklist" data-phase="14">
+<li><input type="checkbox" id="chk_14_0" data-id="14_0" checked><label for="chk_14_0">Define infrastructure in Terraform / Pulumi (AWS, GCP, or Azure)</label></li>
+<li><input type="checkbox" id="chk_14_1" data-id="14_1" checked><label for="chk_14_1">Set up Kubernetes cluster (EKS / GKE / AKS)</label></li>
+<li><input type="checkbox" id="chk_14_2" data-id="14_2" checked><label for="chk_14_2">Configure Helm charts for all services</label></li>
+<li><input type="checkbox" id="chk_14_3" data-id="14_3" checked><label for="chk_14_3">Manage secrets with Vault / AWS Secrets Manager</label></li>
+<li><input type="checkbox" id="chk_14_4" data-id="14_4" checked><label for="chk_14_4">Document infrastructure architecture and runbooks</label></li>
+</ul>
+
+<h3>14.2 — CI/CD &amp; GitOps</h3>
+<ul class="checklist" data-phase="14">
+<li><input type="checkbox" id="chk_14_5" data-id="14_5" checked><label for="chk_14_5">Set up GitOps with ArgoCD / Flux</label></li>
+<li><input type="checkbox" id="chk_14_6" data-id="14_6" checked><label for="chk_14_6">Automate database migrations in CI/CD pipeline</label></li>
+<li><input type="checkbox" id="chk_14_7" data-id="14_7" checked><label for="chk_14_7">Add blue/green deployment strategy</label></li>
+<li><input type="checkbox" id="chk_14_8" data-id="14_8" checked><label for="chk_14_8">Implement canary releases with traffic splitting</label></li>
+<li><input type="checkbox" id="chk_14_9" data-id="14_9" checked><label for="chk_14_9">Set up automated rollback on health check failure</label></li>
+</ul>
+
+<h3>14.3 — Database Operations</h3>
+<ul class="checklist" data-phase="14">
+<li><input type="checkbox" id="chk_14_10" data-id="14_10" checked><label for="chk_14_10">Configure PostGIS backup (pg_dump / WAL archiving)</label></li>
+<li><input type="checkbox" id="chk_14_11" data-id="14_11" checked><label for="chk_14_11">Set up point-in-time recovery (PITR)</label></li>
+<li><input type="checkbox" id="chk_14_12" data-id="14_12" checked><label for="chk_14_12">Implement database migration strategy (Alembic, zero-downtime)</label></li>
+<li><input type="checkbox" id="chk_14_13" data-id="14_13" checked><label for="chk_14_13">Add read replicas and connection pooling</label></li>
+<li><input type="checkbox" id="chk_14_14" data-id="14_14" checked><label for="chk_14_14">Monitor DB performance (slow query log, pg_stat_statements)</label></li>
+</ul>
+
+<h3>14.4 — Cost Management &amp; Scaling</h3>
+<ul class="checklist" data-phase="14">
+<li><input type="checkbox" id="chk_14_15" data-id="14_15" checked><label for="chk_14_15">Set up cost monitoring and budgets (AWS Cost Explorer / GCP Billing)</label></li>
+<li><input type="checkbox" id="chk_14_16" data-id="14_16" checked><label for="chk_14_16">Implement auto-scaling policies based on load metrics</label></li>
+<li><input type="checkbox" id="chk_14_17" data-id="14_17" checked><label for="chk_14_17">Use spot/preemptible instances for batch jobs</label></li>
+<li><input type="checkbox" id="chk_14_18" data-id="14_18" checked><label for="chk_14_18">Optimize storage costs (tiered storage, lifecycle policies)</label></li>
+<li><input type="checkbox" id="chk_14_19" data-id="14_19" checked><label for="chk_14_19">Regular cost review and optimization sprints</label></li>
+</ul>
+`
+}, {
+id: 15,
+title: 'Documentation &amp; Knowledge Base',
+html: `
+<p><strong>Goal:</strong> Comprehensive documentation for developers, operators, and end-users.</p>
+
+<h3>15.1 — Architecture Documentation</h3>
+<ul class="checklist" data-phase="15">
+<li><input type="checkbox" id="chk_15_0" data-id="15_0" checked><label for="chk_15_0">System architecture diagram (C4 model / Draw.io)</label></li>
+<li><input type="checkbox" id="chk_15_1" data-id="15_1" checked><label for="chk_15_1">Data flow diagrams for each pipeline</label></li>
+<li><input type="checkbox" id="chk_15_2" data-id="15_2" checked><label for="chk_15_2">API reference documentation (OpenAPI / Redoc)</label></li>
+<li><input type="checkbox" id="chk_15_3" data-id="15_3" checked><label for="chk_15_3">Deployment guide (infrastructure setup, configuration)</label></li>
+<li><input type="checkbox" id="chk_15_4" data-id="15_4" checked><label for="chk_15_4">Security model documentation</label></li>
+</ul>
+
+<h3>15.2 — Developer Guides</h3>
+<ul class="checklist" data-phase="15">
+<li><input type="checkbox" id="chk_15_5" data-id="15_5" checked><label for="chk_15_5">Quickstart guide (local development setup)</label></li>
+<li><input type="checkbox" id="chk_15_6" data-id="15_6" checked><label for="chk_15_6">Plugin development tutorial</label></li>
+<li><input type="checkbox" id="chk_15_7" data-id="15_7" checked><label for="chk_15_7">SDK usage examples (Python, JS)</label></li>
+<li><input type="checkbox" id="chk_15_8" data-id="15_8" checked><label for="chk_15_8">Best practices for spatial queries</label></li>
+<li><input type="checkbox" id="chk_15_9" data-id="15_9" checked><label for="chk_15_9">Contributing guidelines</label></li>
+</ul>
+
+<h3>15.3 — User Documentation</h3>
+<ul class="checklist" data-phase="15">
+<li><input type="checkbox" id="chk_15_10" data-id="15_10" checked><label for="chk_15_10">End-user manual (chat interface, query syntax)</label></li>
+<li><input type="checkbox" id="chk_15_11" data-id="15_11" checked><label for="chk_15_11">FAQ and troubleshooting guide</label></li>
+<li><input type="checkbox" id="chk_15_12" data-id="15_12" checked><label for="chk_15_12">Video tutorials / interactive walkthroughs</label></li>
+<li><input type="checkbox" id="chk_15_13" data-id="15_13" checked><label for="chk_15_13">Glossary of spatial terms</label></li>
+</ul>
+
+<h3>15.4 — Knowledge Base Platform</h3>
+<ul class="checklist" data-phase="15">
+<li><input type="checkbox" id="chk_15_14" data-id="15_14" checked><label for="chk_15_14">Set up documentation site (Docusaurus / MkDocs / GitBook)</label></li>
+<li><input type="checkbox" id="chk_15_15" data-id="15_15" checked><label for="chk_15_15">Add search functionality (Algolia / Meilisearch)</label></li>
+<li><input type="checkbox" id="chk_15_16" data-id="15_16" checked><label for="chk_15_16">Enable versioned documentation</label></li>
+<li><input type="checkbox" id="chk_15_17" data-id="15_17" checked><label for="chk_15_17">Automate doc generation from code (pydoc, TypeDoc)</label></li>
+<li><input type="checkbox" id="chk_15_18" data-id="15_18" checked><label for="chk_15_18">Add feedback mechanism for docs</label></li>
+</ul>
+`
+}, {
+id: 16,
+title: 'Community &amp; Ecosystem',
+html: `
+<p><strong>Goal:</strong> Build a community around the platform — open-source contributions, forums, and partnerships.</p>
+
+<h3>16.1 — Open Source Foundation</h3>
+<ul class="checklist" data-phase="16">
+<li><input type="checkbox" id="chk_16_0" data-id="16_0" checked><label for="chk_16_0">Choose open-source license (MIT / Apache 2.0)</label></li>
+<li><input type="checkbox" id="chk_16_1" data-id="16_1" checked><label for="chk_16_1">Create CONTRIBUTING.md with clear guidelines</label></li>
+<li><input type="checkbox" id="chk_16_2" data-id="16_2" checked><label for="chk_16_2">Add issue templates (bug, feature, question)</label></li>
+<li><input type="checkbox" id="chk_16_3" data-id="16_3" checked><label for="chk_16_3">Set up GitHub Discussions / Discourse forum</label></li>
+<li><input type="checkbox" id="chk_16_4" data-id="16_4" checked><label for="chk_16_4">Add code of conduct (Contributor Covenant)</label></li>
+</ul>
+
+<h3>16.2 — Community Tools</h3>
+<ul class="checklist" data-phase="16">
+<li><input type="checkbox" id="chk_16_5" data-id="16_5" checked><label for="chk_16_5">Set up community chat (Discord / Slack)</label></li>
+<li><input type="checkbox" id="chk_16_6" data-id="16_6" checked><label for="chk_16_6">Create monthly newsletter / changelog</label></li>
+<li><input type="checkbox" id="chk_16_7" data-id="16_7" checked><label for="chk_16_7">Build plugin marketplace website</label></li>
+<li><input type="checkbox" id="chk_16_8" data-id="16_8" checked><label for="chk_16_8">Organize hackathons / spatial data challenges</label></li>
+<li><input type="checkbox" id="chk_16_9" data-id="16_9" checked><label for="chk_16_9">Recognize contributors (badges, hall of fame)</label></li>
+</ul>
+
+<h3>16.3 — Partnerships &amp; Integrations</h3>
+<ul class="checklist" data-phase="16">
+<li><input type="checkbox" id="chk_16_10" data-id="16_10" checked><label for="chk_16_10">Integrate with Esri ArcGIS / QGIS</label></li>
+<li><input type="checkbox" id="chk_16_11" data-id="16_11" checked><label for="chk_16_11">Integrate with Google Maps / Mapbox APIs</label></li>
+<li><input type="checkbox" id="chk_16_12" data-id="16_12" checked><label for="chk_16_12">Build data importers for OpenStreetMap, USGS, Copernicus</label></li>
+<li><input type="checkbox" id="chk_16_13" data-id="16_13" checked><label for="chk_16_13">Create partner onboarding program</label></li>
+<li><input type="checkbox" id="chk_16_14" data-id="16_14" checked><label for="chk_16_14">Publish case studies and success stories</label></li>
+</ul>
+`
+}, {
+id: 17,
+title: 'Advanced AI &amp; Future Roadmap',
+html: `
+<p><strong>Goal:</strong> Push the boundaries with cutting-edge AI capabilities and plan for the future.</p>
+
+<h3>17.1 — Advanced Spatial AI</h3>
+<ul class="checklist" data-phase="17">
+<li><input type="checkbox" id="chk_17_0" data-id="17_0" checked><label for="chk_17_0">Implement spatial knowledge graph (entities, relationships, hierarchies)</label></li>
+<li><input type="checkbox" id="chk_17_1" data-id="17_1" checked><label for="chk_17_1">Build reinforcement learning agent for route optimization</label></li>
+<li><input type="checkbox" id="chk_17_2" data-id="17_2" checked><label for="chk_17_2">Add generative model for synthetic spatial data (GAN / Diffusion)</label></li>
+<li><input type="checkbox" id="chk_17_3" data-id="17_3" checked><label for="chk_17_3">Integrate real-time satellite imagery analysis (computer vision)</label></li>
+<li><input type="checkbox" id="chk_17_4" data-id="17_4" checked><label for="chk_17_4">Implement conversational map editing (natural language → map changes)</label></li>
+</ul>
+
+<h3>17.2 — Multi-Agent System</h3>
+<ul class="checklist" data-phase="17">
+<li><input type="checkbox" id="chk_17_5" data-id="17_5" checked><label for="chk_17_5">Design agent orchestration framework (planner, executor, verifier)</label></li>
+<li><input type="checkbox" id="chk_17_6" data-id="17_6" checked><label for="chk_17_6">Build specialized agents: DataAgent, QueryAgent, FusionAgent, VizAgent</label></li>
+<li><input type="checkbox" id="chk_17_7" data-id="17_7" checked><label for="chk_17_7">Implement agent communication protocol (message bus)</label></li>
+<li><input type="checkbox" id="chk_17_8" data-id="17_8" checked><label for="chk_17_8">Add human-in-the-loop approval for critical actions</label></li>
+<li><input type="checkbox" id="chk_17_9" data-id="17_9" checked><label for="chk_17_9">Evaluate agent performance with benchmarks</label></li>
+</ul>
+
+<h3>17.3 — Future Research &amp; Exploration</h3>
+<ul class="checklist" data-phase="17">
+<li><input type="checkbox" id="chk_17_10" data-id="17_10" checked><label for="chk_17_10">Research 3D spatial data support (3D Tiles, CityGML)</label></li>
+<li><input type="checkbox" id="chk_17_11" data-id="17_11" checked><label for="chk_17_11">Explore federated learning across spatial data silos</label></li>
+<li><input type="checkbox" id="chk_17_12" data-id="17_12" checked><label for="chk_17_12">Investigate blockchain for spatial data provenance</label></li>
+<li><input type="checkbox" id="chk_17_13" data-id="17_13" checked><label for="chk_17_13">Plan for AR/VR integration (spatial anchors, digital twins)</label></li>
+<li><input type="checkbox" id="chk_17_14" data-id="17_14" checked><label for="chk_17_14">Publish research papers and whitepapers</label></li>
+</ul>
+
+<h3>17.4 — Community &amp; Ecosystem Growth</h3>
+<ul class="checklist" data-phase="17">
+<li><input type="checkbox" id="chk_17_15" data-id="17_15" checked><label for="chk_17_15">Reach 10,000 GitHub stars</label></li>
+<li><input type="checkbox" id="chk_17_16" data-id="17_16" checked><label for="chk_17_16">Onboard 50+ plugin developers</label></li>
+<li><input type="checkbox" id="chk_17_17" data-id="17_17" checked><label for="chk_17_17">Establish advisory board with industry experts</label></li>
+<li><input type="checkbox" id="chk_17_18" data-id="17_18" checked><label for="chk_17_18">Launch paid enterprise tier with SLA</label></li>
+<li><input type="checkbox" id="chk_17_19" data-id="17_19" checked><label for="chk_17_19">Hold annual user conference (virtual / in-person)</label></li>
+</ul>
+<div class="note">🚀 This phase is forward-looking — prioritize based on community feedback and business needs.</div>
+`
+}];
+
+// ─── BUILD DOM ───
+const container = document.getElementById('mainContainer');
+const navLinks = document.getElementById('navLinks');
+let totalCheckboxes = 0;
+
+phases.forEach((phase, idx) => {
+// create details
+const details = document.createElement('details');
+details.className = 'phase';
+details.id = `phase-${phase.id}`;
+
+// summary
+const summary = document.createElement('summary');
+summary.innerHTML = `
+<span class="phase-num">${phase.id}</span>
+<span class="phase-title">${phase.title}</span>
+<span class="phase-count" id="phaseCount_${phase.id}">0/0</span>
+`;
+details.appendChild(summary);
+
+// body
+const body = document.createElement('div');
+body.className = 'phase-body';
+body.innerHTML = phase.html;
+details.appendChild(body);
+
+container.appendChild(details);
+
+// nav link
+const a = document.createElement('a');
+a.href = `#phase-${phase.id}`;
+a.textContent = `${phase.id}. ${phase.title.replace(/<[^>]*>/g,'')}`;
+navLinks.appendChild(a);
+
+// count checkboxes in this phase
+const chks = body.querySelectorAll('.checklist input[type="checkbox"]');
+totalCheckboxes += chks.length;
+});
+
+// ─── STATE MANAGEMENT ───
+const STORAGE_KEY = 'smart_spatial_checklist';
+
+function loadState() {
+try {
+const raw = localStorage.getItem(STORAGE_KEY);
+if (raw) return JSON.parse(raw);
+} catch (_) { /* ignore */ }
+return {};
+}
+
+function saveState(state) {
+localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function getCheckboxId(input) {
+return input.getAttribute('data-id');
+}
+
+// apply saved state and set up listeners
+const allInputs = document.querySelectorAll('.checklist input[type="checkbox"]');
+const state = loadState();
+
+allInputs.forEach(input => {
+const id = getCheckboxId(input);
+if (id && state[id] === true) {
+input.checked = true;
+} else if (id && state[id] === false) {
+input.checked = false;
+} else {
+// default: use the 'checked' attribute from HTML
+const wasChecked = input.hasAttribute('checked');
+if (wasChecked) {
+input.checked = true;
+if (id) state[id] = true;
+} else {
+if (id) state[id] = false;
+}
+}
+// update label class
+updateLabelClass(input);
+
+input.addEventListener('change', function(e) {
+const cid = getCheckboxId(this);
+if (cid) {
+state[cid] = this.checked;
+saveState(state);
+updateLabelClass(this);
+updateAllCounts();
+}
+});
+});
+
+// persist any defaults
+saveState(state);
+
+function updateLabelClass(input) {
+const li = input.closest('li');
+if (li) {
+if (input.checked) {
+li.classList.add('checked');
+} else {
+li.classList.remove('checked');
+}
+}
+}
+
+function countCompleted(phaseId) {
+const phase = document.getElementById(`phase-${phaseId}`);
+if (!phase) return [0, 0];
+const inputs = phase.querySelectorAll('.checklist input[type="checkbox"]');
+let done = 0;
+inputs.forEach(inp => { if (inp.checked) done++; });
+return [done, inputs.length];
+}
+
+function updateAllCounts() {
+let totalDone = 0;
+let totalAll = 0;
+phases.forEach(p => {
+const [done, all] = countCompleted(p.id);
+totalDone += done;
+totalAll += all;
+const badge = document.getElementById(`phaseCount_${p.id}`);
+if (badge) badge.textContent = `${done}/${all}`;
+});
+document.getElementById('progressCount').textContent = totalDone;
+document.getElementById('totalCount').textContent = totalAll;
+}
+
+// initial count
+updateAllCounts();
+
+// ─── RESET ───
+document.getElementById('resetAllBtn').addEventListener('click', function() {
+if (!confirm('Reset all checkboxes? This cannot be undone.')) return;
+const inputs = document.querySelectorAll('.checklist input[type="checkbox"]');
+inputs.forEach(inp => {
+inp.checked = false;
+const id = getCheckboxId(inp);
+if (id) state[id] = false;
+updateLabelClass(inp);
+});
+saveState(state);
+updateAllCounts();
+});
+
+// ─── SMOOTH SCROLL FOR NAV ───
+document.querySelectorAll('.nav-links a').forEach(a => {
+a.addEventListener('click', function(e) {
+e.preventDefault();
+const target = document.querySelector(this.getAttribute('href'));
+if (target) {
+target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+// open the details
+if (target.tagName === 'DETAILS') target.open = true;
+}
+});
+});
+
+// ─── PRINT: open all details ───
+window.addEventListener('beforeprint', function() {
+document.querySelectorAll('details.phase').forEach(d => d.open = true);
+});
+
+console.log('Smart Spatial System Backend Roadmap & Checklist loaded.');
+})();
+</script>
+
+</body>
+</html>

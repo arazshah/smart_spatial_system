@@ -141,16 +141,16 @@ text
 [x] Audit production response
 [x] Create kernel/sdk/product alignment document
 [x] Commit alignment document
-[ ] Create backend roadmap checklist document
-[ ] Create backup of current project state
+[x] Create backend roadmap checklist document
+[x] Create backup of current project state
 
 
 Exit criteria:
 
 text
-[ ] Roadmap checklist exists
-[ ] Backup exists
-[ ] git working tree status is known
+[x] Roadmap checklist exists
+[x] Backup exists
+[x] git working tree status is known
 
 5. Phase 1 - Artifact and Response Alignment
 
@@ -178,14 +178,14 @@ planning_result.output_nodes
 Checklist:
 
 text
-[ ] Audit orchestrator/kernel_artifacts.py
-[ ] Audit tests related to artifacts/output handling
-[ ] Identify current planning response shape
-[ ] Add artifacts to planning response without removing existing outputs/layers
-[ ] Preserve frontend-compatible response fields
-[ ] Add/adjust tests
-[ ] Run targeted tests
-[ ] Commit Phase 1 step
+[x] Audit orchestrator/kernel_artifacts.py
+[x] Audit tests related to artifacts/output handling
+[x] Identify current planning response shape
+[x] Add artifacts to planning response without removing existing outputs/layers
+[x] Preserve frontend-compatible response fields
+[x] Add/adjust tests
+[x] Run targeted tests
+[x] Commit Phase 1 step
 
 
 Exit criteria:

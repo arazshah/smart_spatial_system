@@ -1,0 +1,134 @@
+
+---
+
+## Initial Audit Findings
+
+This section records the first Phase 4 audit findings after Phase 3 completion.
+These findings are not immediate blockers. They define the hardening backlog.
+
+### Backup / Migration Artifacts
+
+The repository currently contains multiple backup and migration files, including:
+
+- `*.bak`
+- `*.before-*.bak`
+- `*.bak.phase*`
+- frontend backup files
+- service/planning/plugin backup files
+
+Decision:
+
+- Do not delete these files in Step 1.
+- Add a dedicated cleanup step in Phase 4.
+- Use git history as the preferred long-term backup mechanism.
+- Remove obsolete backup files only after review.
+
+### Provider-Specific Logic in Core Areas
+
+The audit found PostGIS-specific logic in core-adjacent modules such as:
+
+- `orchestrator/service.py`
+- `orchestrator/planning/llm_spec_generator.py`
+- `orchestrator/planning/query_spec_contract.py`
+- `orchestrator/planning/postgis_semantic_resolver.py`
+
+This is acceptable as migration debt, but it should not become the long-term core architecture.
+
+Target architecture:
+
+- Core remains datasource-agnostic.
+- Provider-specific schema discovery and semantic resolution move behind provider/plugin boundaries.
+- Logical operations such as `query_database` remain provider-neutral.
+- PostGIS remains one provider, not the core model.
+
+### OSM/Table-Specific Hints
+
+Some provider-specific semantic logic currently includes OSM-style table preferences such as:
+
+- `planet_osm_point`
+- `planet_osm_polygon`
+- `planet_osm_line`
+- `planet_osm_roads`
+
+Decision:
+
+- These hints should be treated as provider-specific heuristics.
+- They should not leak into the generic core contract.
+- Future hardening should isolate them behind provider configuration or provider plugins.
+
+### Query Database Contract Scope
+
+`query_spec_contract.py` currently focuses on `query_database/PostGIS`.
+
+Decision:
+
+- This is acceptable for the current provider-backed implementation.
+- Phase 4 should introduce or prepare a provider-neutral query database contract layer.
+- PostGIS-specific contract validation should be delegated to the PostGIS provider/adapter where possible.
+
+### Fallbacks
+
+The audit found multiple fallback mechanisms:
+
+- deterministic fallback for LLM planning/routing
+- JSON/adaptive loader fallback
+- HTML fallback for PDF rendering
+- geometry engine fallbacks
+- database driver fallback
+- experimental kernel execution fallback/default DAG path
+
+Decision:
+
+- Keep intentional fallbacks.
+- Document whether each fallback is stable product behavior or migration-only behavior.
+- Remove or constrain migration-only fallbacks in later hardening steps.
+
+### Async Runtime Risk
+
+The only direct event-loop risk found in the audit is:
+
+- `execute_kernel_plan_with_capabilities_sync(...)` uses `asyncio.run(...)`
+
+Decision:
+
+- Keep the sync wrapper for tests/scripts/synchronous callers.
+- Add async/runtime hardening in Phase 4 before using this path inside async web endpoints.
+- Avoid calling the sync wrapper from an already-running event loop.
+
+### Core Principle Risk Assessment
+
+Current risk level after Phase 3:
+
+- Case-study dependency: low to medium
+- Language dependency: low
+- Data-source dependency: medium
+- Output-format dependency: low to medium
+- UI dependency: low
+
+Main concern:
+
+- PostGIS/OSM-specific semantic planning exists in core-adjacent modules and should be isolated during Phase 4.
+
+
+---
+
+## Phase 4 Step 2 — Kernel Execution Configuration Policy
+
+Kernel execution activation is hardened as part of Phase 4.
+
+Current policy:
+
+1. Kernel execution is disabled by default.
+2. `OrchestratorServiceConfig.enable_kernel_execution=True` enables it globally.
+3. Request metadata may always disable kernel execution for a request.
+4. Request metadata may enable kernel execution only when
+   `OrchestratorServiceConfig.allow_request_kernel_execution=True`.
+5. Environment variables are treated as deployment-level overrides:
+   - `SMART_SPATIAL_ENABLE_KERNEL_EXECUTION`
+   - `ENABLE_KERNEL_EXECUTION`
+
+This prevents arbitrary callers from enabling the experimental kernel execution
+path unless the service explicitly allows request-level opt-in.
+
+This keeps the backend safe while preserving the Phase 3 experimental kernel
+runtime path as an explicitly controlled feature.

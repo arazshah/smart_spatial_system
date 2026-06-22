@@ -681,6 +681,13 @@ class OrchestratorServiceConfig:
     # geochat_kernel execution bridge in addition to the current DAG path.
     # Default is False to keep production behavior unchanged.
     enable_kernel_execution: bool = False
+
+    # Phase 4 hardening:
+    # When False (default), request-level metadata may DISABLE kernel execution
+    # but may NOT enable it. This prevents arbitrary callers from turning on the
+    # experimental kernel path. When True, request metadata may also enable it.
+    allow_request_kernel_execution: bool = False
+
     include_response_debug: bool = False
 
     keep_history: bool = True
@@ -3814,8 +3821,22 @@ class OrchestratorService:
         Return whether experimental kernel execution should be enabled for
         QuerySpec planning.
 
-        This is intentionally opt-in. The default production path remains the
-        existing DAG executor.
+        Phase 4 hardening precedence:
+
+          1. If a request explicitly DISABLES kernel execution, it is disabled.
+             A request may always disable it for safety.
+
+          2. If a request explicitly ENABLES kernel execution, it is enabled
+             ONLY when the service allows request-level enabling
+             (config.allow_request_kernel_execution is True). Otherwise the
+             request enable flag is ignored.
+
+          3. Otherwise, a deployment-level environment variable is honored.
+
+          4. Otherwise, the service config default
+             (config.enable_kernel_execution) is used.
+
+          5. Otherwise it defaults to False.
 
         Accepted truthy values:
           true, 1, yes, y, on, enabled
@@ -3847,30 +3868,55 @@ class OrchestratorService:
 
             return None
 
-        for source in (metadata, final_metadata):
-            if not isinstance(source, dict):
-                continue
+        def _request_flag() -> bool | None:
+            for source in (metadata, final_metadata):
+                if not isinstance(source, dict):
+                    continue
 
-            for key in (
-                "enable_kernel_execution",
-                "kernel_execution",
-                "use_kernel_execution",
-            ):
-                parsed = _coerce(source.get(key))
-                if parsed is not None:
-                    return parsed
-
-            planning_options = source.get("planning")
-            if isinstance(planning_options, dict):
                 for key in (
                     "enable_kernel_execution",
                     "kernel_execution",
                     "use_kernel_execution",
                 ):
-                    parsed = _coerce(planning_options.get(key))
+                    parsed = _coerce(source.get(key))
                     if parsed is not None:
                         return parsed
 
+                planning_options = source.get("planning")
+                if isinstance(planning_options, dict):
+                    for key in (
+                        "enable_kernel_execution",
+                        "kernel_execution",
+                        "use_kernel_execution",
+                    ):
+                        parsed = _coerce(planning_options.get(key))
+                        if parsed is not None:
+                            return parsed
+
+            return None
+
+        config = getattr(self, "config", None)
+        allow_request_enable = bool(
+            getattr(config, "allow_request_kernel_execution", False)
+        )
+
+        request_flag = _request_flag()
+
+        # Request-level override policy.
+        if request_flag is not None:
+            if request_flag is False:
+                # A request may always disable kernel execution.
+                return False
+
+            # request_flag is True.
+            if allow_request_enable:
+                return True
+
+            # Request tried to enable but is not allowed to.
+            # Ignore the enable request and fall through to deployment/config
+            # defaults.
+
+        # Deployment-level environment override.
         for env_name in (
             "SMART_SPATIAL_ENABLE_KERNEL_EXECUTION",
             "ENABLE_KERNEL_EXECUTION",
@@ -3879,11 +3925,12 @@ class OrchestratorService:
             if parsed is not None:
                 return parsed
 
-        config = getattr(self, "config", None)
+        # Service config default.
         parsed = _coerce(getattr(config, "enable_kernel_execution", None))
         if parsed is not None:
             return parsed
 
+        # Safe default.
         return False
 
 

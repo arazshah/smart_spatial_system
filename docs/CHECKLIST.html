@@ -1,600 +1,678 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Smart Spatial System Backend Roadmap & Checklist</title>
+<title>Smart Spatial System — Target Architecture</title>
 <style>
+:root {
+--primary: #1e3a5f;
+--primary-light: #2a4f7a;
+--accent: #4f7eb3;
+--accent-light: #6b9fd4;
+--indigo: #3f51b5;
+--indigo-light: #7986cb;
+--bg: #f5f7fc;
+--card: #ffffff;
+--text: #1a2332;
+--text-light: #4a5568;
+--border: #dce3ef;
+--code-bg: #1e293b;
+--code-text: #e2e8f0;
+--success: #2e7d32;
+--warning: #f57c00;
+--shadow: 0 2px 12px rgba(30, 58, 95, 0.08);
+--radius: 12px;
+}
+
 * {
 margin: 0;
 padding: 0;
 box-sizing: border-box;
 }
+
 body {
-background: #1a1a2e;
-color: #e0e0e0;
-font-family: 'Segoe UI', 'Tahoma', 'Vazirmatn', 'IRANSans', sans-serif;
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+background: var(--bg);
+color: var(--text);
 line-height: 1.7;
-padding: 20px;
-direction: rtl;
+padding: 0;
 }
-.container {
-max-width: 1000px;
-margin: 0 auto;
-background: #16213e;
-border-radius: 20px;
-padding: 30px;
-box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-}
-h1 {
-font-size: 2rem;
-color: #f5c842;
+
+/* Dark header */
+.header {
+background: linear-gradient(135deg, #0f1a2e 0%, #1a2d4a 50%, #1e3a5f 100%);
+color: #f0f4ff;
+padding: 3rem 2rem;
 text-align: center;
-margin-bottom: 10px;
+border-bottom: 4px solid var(--accent-light);
+}
+
+.header h1 {
+font-size: 2.4rem;
 font-weight: 700;
-letter-spacing: 1px;
+letter-spacing: -0.02em;
+margin-bottom: 0.5rem;
+background: linear-gradient(90deg, #a8c8ff, #d4e4ff);
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+background-clip: text;
 }
-.header-meta {
-text-align: center;
-margin-bottom: 25px;
-color: #aaa;
-}
-.progress-container {
-background: #0f3460;
-border-radius: 30px;
-padding: 15px 25px;
-display: flex;
-justify-content: space-between;
-align-items: center;
-flex-wrap: wrap;
-gap: 15px;
-margin-bottom: 25px;
-border: 1px solid #1a4a7a;
-}
-.progress-text {
+
+.header .subtitle {
 font-size: 1.1rem;
-font-weight: 600;
-color: #f5c842;
+color: #b0c8e8;
+font-weight: 400;
 }
-.progress-bar-wrapper {
-flex: 1;
-min-width: 200px;
-background: #1a1a2e;
-border-radius: 20px;
-height: 12px;
-overflow: hidden;
+
+.container {
+max-width: 1100px;
+margin: 0 auto;
+padding: 2rem 1.5rem 4rem;
 }
-.progress-bar {
-height: 100%;
-width: 0%;
-background: linear-gradient(90deg, #f5c842, #e8a838);
-border-radius: 20px;
-transition: width 0.3s ease;
+
+/* Section styling */
+.section {
+background: var(--card);
+border-radius: var(--radius);
+box-shadow: var(--shadow);
+padding: 2rem 2rem 1.8rem;
+margin-bottom: 2rem;
+border: 1px solid var(--border);
+transition: box-shadow 0.2s;
 }
-.reset-btn {
-background: #e74c3c;
-color: white;
-border: none;
-padding: 8px 20px;
-border-radius: 30px;
-font-weight: 600;
-cursor: pointer;
-transition: 0.2s;
-font-size: 0.9rem;
+
+.section:hover {
+box-shadow: 0 4px 20px rgba(30, 58, 95, 0.12);
 }
-.reset-btn:hover {
-background: #c0392b;
-transform: scale(1.02);
-}
-details {
-background: #1a1a2e;
-border-radius: 12px;
-margin-bottom: 12px;
-border: 1px solid #2a2a4a;
-transition: 0.2s;
-}
-details[open] {
-border-color: #f5c842;
-}
-summary {
-padding: 15px 20px;
+
+.section h2 {
+font-size: 1.6rem;
 font-weight: 700;
-font-size: 1.15rem;
-color: #f5c842;
-cursor: pointer;
-background: #0f3460;
-border-radius: 12px;
-list-style: none;
+color: var(--primary);
+margin-bottom: 1.2rem;
+padding-bottom: 0.6rem;
+border-bottom: 3px solid var(--indigo-light);
 display: flex;
 align-items: center;
-gap: 10px;
-user-select: none;
+gap: 0.5rem;
 }
-summary::-webkit-details-marker {
-display: none;
+
+.section h2::before {
+content: '';
+display: inline-block;
+width: 6px;
+height: 28px;
+background: var(--indigo);
+border-radius: 3px;
 }
-summary::before {
-content: "▶";
-font-size: 0.8rem;
-transition: 0.2s;
-color: #f5c842;
-}
-details[open] summary::before {
-content: "▼";
-}
-.phase-content {
-padding: 20px;
-}
-.phase-content h2, .phase-content h3 {
-color: #f5c842;
-margin: 15px 0 10px;
+
+.section h3 {
 font-size: 1.2rem;
+font-weight: 600;
+color: var(--primary-light);
+margin: 1.5rem 0 0.8rem;
+padding-left: 0.5rem;
+border-left: 3px solid var(--accent);
 }
-.phase-content h4 {
-color: #e0a800;
-margin: 10px 0 5px;
+
+.section h4 {
+font-size: 1.05rem;
+font-weight: 600;
+color: var(--text);
+margin: 1.2rem 0 0.5rem;
 }
-.phase-content p {
-margin: 8px 0;
+
+.section p {
+margin-bottom: 0.8rem;
+color: var(--text-light);
 }
-.phase-content ul, .phase-content ol {
-margin: 8px 0 8px 20px;
+
+.section ul, .section ol {
+margin: 0.6rem 0 1rem 1.5rem;
+color: var(--text-light);
 }
-.phase-content li {
-margin: 5px 0;
+
+.section li {
+margin-bottom: 0.4rem;
 }
-.checkbox-item {
-display: flex;
-align-items: flex-start;
-gap: 10px;
-margin: 6px 0;
-padding: 4px 0;
-}
-.checkbox-item input[type="checkbox"] {
-margin-top: 5px;
-accent-color: #f5c842;
-width: 18px;
-height: 18px;
-cursor: pointer;
-flex-shrink: 0;
-}
-.checkbox-item label {
-cursor: pointer;
-flex: 1;
-}
-.checkbox-item.checked label {
-text-decoration: line-through;
-opacity: 0.7;
-}
-code {
-background: #2a2a4a;
-padding: 2px 8px;
-border-radius: 5px;
-font-family: 'Consolas', 'Courier New', monospace;
-font-size: 0.9em;
-color: #f5c842;
-}
+
+/* Code blocks */
 pre {
-background: #0d0d1a;
-padding: 15px;
-border-radius: 10px;
+background: var(--code-bg);
+color: var(--code-text);
+border-radius: 8px;
+padding: 1.2rem 1.5rem;
 overflow-x: auto;
-border: 1px solid #2a2a4a;
-margin: 10px 0;
-direction: ltr;
-text-align: left;
+font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+font-size: 0.9rem;
+line-height: 1.6;
+margin: 1rem 0 1.2rem;
+border: 1px solid #2d3a4e;
+position: relative;
 }
+
+code {
+font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+background: #eef2f8;
+padding: 0.15rem 0.4rem;
+border-radius: 4px;
+font-size: 0.9em;
+color: #1e3a5f;
+}
+
 pre code {
 background: transparent;
 padding: 0;
-color: #e0e0e0;
+color: inherit;
+font-size: 0.9rem;
 }
-table {
+
+/* JSON syntax highlight */
+.json-key { color: #7dd3fc; }
+.json-string { color: #a5d6a7; }
+.json-number { color: #ffcc80; }
+.json-boolean { color: #f48fb1; }
+.json-null { color: #b0bec5; }
+
+/* Tables */
+.styled-table {
 width: 100%;
 border-collapse: collapse;
-margin: 10px 0;
-background: #1a1a2e;
-border-radius: 10px;
+margin: 1rem 0 1.2rem;
+font-size: 0.95rem;
+border-radius: 8px;
 overflow: hidden;
+box-shadow: 0 1px 6px rgba(0,0,0,0.04);
 }
-th, td {
-padding: 10px 15px;
-border: 1px solid #2a2a4a;
-text-align: right;
+
+.styled-table thead {
+background: var(--primary);
+color: #f0f4ff;
 }
-th {
-background: #0f3460;
-color: #f5c842;
+
+.styled-table th {
+padding: 0.8rem 1rem;
+text-align: left;
 font-weight: 600;
+font-size: 0.9rem;
+letter-spacing: 0.02em;
 }
-.sub-section {
-background: #1a1a2e;
-border-radius: 10px;
-padding: 15px;
-margin: 10px 0;
-border-right: 3px solid #f5c842;
+
+.styled-table td {
+padding: 0.7rem 1rem;
+border-bottom: 1px solid var(--border);
+color: var(--text-light);
 }
-.sub-section h3 {
-margin-top: 0;
+
+.styled-table tbody tr:nth-child(even) {
+background: #f8faff;
 }
-hr {
-border: none;
-border-top: 1px solid #2a2a4a;
-margin: 20px 0;
+
+.styled-table tbody tr:hover {
+background: #eef4ff;
 }
-@media (max-width: 600px) {
-.container {
-padding: 15px;
+
+/* Pipeline steps */
+.pipeline {
+display: flex;
+flex-wrap: wrap;
+gap: 0.4rem 0.6rem;
+margin: 1rem 0 1.2rem;
+padding: 0.8rem 0;
 }
-h1 {
-font-size: 1.4rem;
+
+.pipeline-step {
+background: var(--primary);
+color: #f0f4ff;
+padding: 0.4rem 1rem;
+border-radius: 20px;
+font-size: 0.85rem;
+font-weight: 500;
+white-space: nowrap;
+display: inline-flex;
+align-items: center;
+gap: 0.3rem;
 }
-.progress-container {
-flex-direction: column;
-align-items: stretch;
+
+.pipeline-step .step-num {
+background: rgba(255,255,255,0.2);
+border-radius: 50%;
+width: 20px;
+height: 20px;
+display: inline-flex;
+align-items: center;
+justify-content: center;
+font-size: 0.75rem;
+font-weight: 700;
 }
-.phase-content {
-padding: 15px;
+
+.pipeline-arrow {
+color: var(--accent);
+font-size: 1.2rem;
+font-weight: 700;
+display: inline-flex;
+align-items: center;
 }
+
+/* Numbered list override for pipeline */
+.numbered-pipeline {
+list-style: none;
+counter-reset: step-counter;
+margin: 1rem 0 1.2rem;
+padding: 0;
+}
+
+.numbered-pipeline li {
+counter-increment: step-counter;
+padding: 0.5rem 0 0.5rem 2.8rem;
+position: relative;
+margin-bottom: 0.3rem;
+color: var(--text-light);
+border-left: 2px solid var(--border);
+padding-left: 3rem;
+}
+
+.numbered-pipeline li::before {
+content: counter(step-counter);
+background: var(--indigo);
+color: white;
+font-weight: 700;
+font-size: 0.8rem;
+width: 26px;
+height: 26px;
+border-radius: 50%;
+display: inline-flex;
+align-items: center;
+justify-content: center;
+position: absolute;
+left: -13px;
+top: 0.5rem;
+border: 2px solid white;
+box-shadow: 0 2px 6px rgba(63, 81, 181, 0.3);
+}
+
+/* Card grid for plugins */
+.plugin-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+gap: 1rem;
+margin: 1rem 0;
+}
+
+.plugin-card {
+background: #f8faff;
+border: 1px solid var(--border);
+border-radius: 8px;
+padding: 1rem 1.2rem;
+transition: border-color 0.2s, background 0.2s;
+}
+
+.plugin-card:hover {
+border-color: var(--accent-light);
+background: #f0f6ff;
+}
+
+.plugin-card h4 {
+font-size: 0.95rem;
+color: var(--primary);
+margin-bottom: 0.3rem;
+}
+
+.plugin-card p {
+font-size: 0.85rem;
+color: var(--text-light);
+margin: 0;
+}
+
+/* Badge */
+.badge {
+display: inline-block;
+background: var(--indigo-light);
+color: white;
+font-size: 0.7rem;
+font-weight: 600;
+padding: 0.15rem 0.6rem;
+border-radius: 12px;
+letter-spacing: 0.03em;
+text-transform: uppercase;
+}
+
+.badge-success {
+background: var(--success);
+}
+
+.badge-warning {
+background: var(--warning);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+.header h1 { font-size: 1.8rem; }
+.container { padding: 1rem; }
+.section { padding: 1.2rem; }
+.pipeline-step { font-size: 0.75rem; padding: 0.3rem 0.7rem; }
+.plugin-grid { grid-template-columns: 1fr; }
+.styled-table { font-size: 0.85rem; }
+}
+
+@media (max-width: 480px) {
+.header { padding: 2rem 1rem; }
+.header h1 { font-size: 1.5rem; }
+.section h2 { font-size: 1.3rem; }
+pre { padding: 0.8rem 1rem; font-size: 0.8rem; }
 }
 </style>
 </head>
 <body>
+
+<div class="header">
+<h1>Smart Spatial System</h1>
+<div class="subtitle">Target Architecture — Plugin-Based Geospatial Intelligence Kernel</div>
+</div>
+
 <div class="container">
-<h1>Smart Spatial System Backend Roadmap & Checklist</h1>
-<div class="header-meta">مسیر توسعه و چک‌لیست سیستم فضایی هوشمند</div>
 
-<div class="progress-container">
-<span class="progress-text" id="progressText">0 of 0 completed</span>
-<div class="progress-bar-wrapper">
-<div class="progress-bar" id="progressBar"></div>
-</div>
-<button class="reset-btn" id="resetBtn">🔄 Reset All</button>
-</div>
+<!-- Target Identity -->
+<div class="section">
+<h2>Target Identity</h2>
+<p>Smart Spatial System is a product/API built on top of a general plugin-based geospatial intelligence kernel. The target separation is:</p>
 
-<!-- Phase 0 -->
-<details open>
-<summary>Phase 0: Foundation &amp; Planning</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase0-item0"><label for="phase0-item0">Define system architecture and technology stack</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase0-item1"><label for="phase0-item1">Set up project repository and CI/CD pipeline</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase0-item2"><label for="phase0-item2">Create database schema design documents</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase0-item3"><label for="phase0-item3">Establish coding standards and conventions</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase0-item4"><label for="phase0-item4">Prepare development environment (Docker, etc.)</label></div>
-<p><strong>Deliverables:</strong> Architecture docs, repo, CI/CD config, dev environment.</p>
-</div>
-</details>
-
-<!-- Phase 1 -->
-<details open>
-<summary>Phase 1: Core Backend Services</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase1-item0"><label for="phase1-item0">Implement user authentication and authorization (JWT/OAuth)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase1-item1"><label for="phase1-item1">Build RESTful API for spatial data CRUD operations</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase1-item2"><label for="phase1-item2">Integrate PostgreSQL with PostGIS extension</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase1-item3"><label for="phase1-item3">Develop logging and monitoring middleware</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase1-item4"><label for="phase1-item4">Create API documentation (Swagger/OpenAPI)</label></div>
-<p><strong>Deliverables:</strong> Auth system, spatial API, database integration, logging, docs.</p>
-</div>
-</details>
-
-<!-- Phase 2 -->
-<details open>
-<summary>Phase 2: Spatial Data Processing</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase2-item0"><label for="phase2-item0">Implement spatial indexing (R-tree, Geohash)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase2-item1"><label for="phase2-item1">Build proximity search and geofencing endpoints</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase2-item2"><label for="phase2-item2">Develop data ingestion pipeline for GPS/GeoJSON</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase2-item3"><label for="phase2-item3">Add support for coordinate transformation (EPSG)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase2-item4"><label for="phase2-item4">Implement spatial data validation and cleaning</label></div>
-<p><strong>Deliverables:</strong> Spatial indexes, search API, ingestion pipeline, transformation module.</p>
-</div>
-</details>
-
-<!-- Phase 3 -->
-<details open>
-<summary>Phase 3: Current Status &amp; Findings</summary>
-<div class="phase-content">
-<div class="sub-section">
-<h3>✅ Completed</h3>
-<div class="checkbox-item"><input type="checkbox" id="phase3-item0" checked><label for="phase3-item0">Initial architecture design reviewed</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase3-item1" checked><label for="phase3-item1">Database schema v1.0 finalized</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase3-item2" checked><label for="phase3-item2">Authentication module implemented and tested</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase3-item3"><label for="phase3-item3">Spatial indexing prototype completed</label></div>
-</div>
-<div class="sub-section">
-<h3>🔍 Important Findings</h3>
+<h3>geochat_sdk</h3>
+<p>Defines plugin authoring primitives:</p>
 <ul>
-<li>PostGIS performance degrades with large datasets without proper indexing</li>
-<li>JWT token refresh mechanism needs optimization for mobile clients</li>
-<li>Coordinate transformation library (Proj4) requires additional memory</li>
-<li>API rate limiting must be implemented to prevent abuse</li>
+<li><code>@capability</code></li>
+<li><code>auto_collect</code></li>
+<li>plugin manifest</li>
+<li>typed outputs such as <code>VectorOut</code> / <code>RasterOut</code></li>
+</ul>
+
+<h3>geochat_kernel</h3>
+<p>Executes intelligent geospatial workflows:</p>
+<ul>
+<li>request context</li>
+<li>semantic context</li>
+<li>QuerySpec</li>
+<li>planning</li>
+<li>DAG execution</li>
+<li>capability registry</li>
+<li>artifact normalization</li>
+<li>response assembly</li>
+</ul>
+
+<h3>smart_spatial_system</h3>
+<p>Product/API layer:</p>
+<ul>
+<li>FastAPI endpoints</li>
+<li>project / upload / history / persistence</li>
+<li>UI integration</li>
+<li>deployment config</li>
 </ul>
 </div>
-</div>
-</details>
 
-<!-- Phase 4 -->
-<details>
-<summary>Phase 4: Real-time Data Streaming</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase4-item0"><label for="phase4-item0">Set up WebSocket server for live location updates</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase4-item1"><label for="phase4-item1">Implement event-driven architecture (Kafka/RabbitMQ)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase4-item2"><label for="phase4-item2">Build real-time geofence alerting system</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase4-item3"><label for="phase4-item3">Develop data serialization (Avro/Protobuf)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase4-item4"><label for="phase4-item4">Create dashboard for live stream monitoring</label></div>
-<p><strong>Deliverables:</strong> WebSocket server, event broker, alerting, serialization.</p>
-</div>
-</details>
-
-<!-- Phase 5 -->
-<details>
-<summary>Phase 5: Advanced Analytics &amp; ML</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase5-item0"><label for="phase5-item0">Implement trajectory analysis and pattern detection</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase5-item1"><label for="phase5-item1">Build predictive models for spatial movement</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase5-item2"><label for="phase5-item2">Develop clustering algorithms (DBSCAN, K-means)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase5-item3"><label for="phase5-item3">Integrate with ML pipeline (TensorFlow/PyTorch)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase5-item4"><label for="phase5-item4">Create analytics API for aggregated insights</label></div>
-<p><strong>Deliverables:</strong> Trajectory analysis, prediction models, clustering, ML integration.</p>
-</div>
-</details>
-
-<!-- Phase 6 -->
-<details>
-<summary>Phase 6: Security &amp; Compliance</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase6-item0"><label for="phase6-item0">Implement data encryption at rest and in transit</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase6-item1"><label for="phase6-item1">Add role-based access control (RBAC)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase6-item2"><label for="phase6-item2">Conduct security audit and penetration testing</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase6-item3"><label for="phase6-item3">Ensure GDPR/CCPA compliance for location data</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase6-item4"><label for="phase6-item4">Set up audit logging and anomaly detection</label></div>
-<p><strong>Deliverables:</strong> Encryption, RBAC, audit report, compliance docs.</p>
-</div>
-</details>
-
-<!-- Phase 7 -->
-<details>
-<summary>Phase 7: Performance Optimization</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase7-item0"><label for="phase7-item0">Profile and optimize database queries</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase7-item1"><label for="phase7-item1">Implement caching layer (Redis)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase7-item2"><label for="phase7-item2">Optimize spatial index parameters</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase7-item3"><label for="phase7-item3">Load testing and benchmarking</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase7-item4"><label for="phase7-item4">Implement connection pooling and async processing</label></div>
-<p><strong>Deliverables:</strong> Optimized queries, Redis cache, load test results.</p>
-</div>
-</details>
-
-<!-- Phase 8 -->
-<details>
-<summary>Phase 8: Integration &amp; API Gateway</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase8-item0"><label for="phase8-item0">Set up API gateway (Kong/Nginx)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase8-item1"><label for="phase8-item1">Implement service mesh for microservices</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase8-item2"><label for="phase8-item2">Build third-party integration adapters</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase8-item3"><label for="phase8-item3">Create unified API versioning strategy</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase8-item4"><label for="phase8-item4">Develop SDK for external developers</label></div>
-<p><strong>Deliverables:</strong> API gateway, service mesh, adapters, SDK.</p>
-</div>
-</details>
-
-<!-- Phase 9 -->
-<details>
-<summary>Phase 9: DevOps &amp; Infrastructure</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase9-item0"><label for="phase9-item0">Containerize all services (Docker Compose/K8s)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase9-item1"><label for="phase9-item1">Set up auto-scaling and load balancing</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase9-item2"><label for="phase9-item2">Implement blue-green deployment strategy</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase9-item3"><label for="phase9-item3">Configure centralized logging (ELK stack)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase9-item4"><label for="phase9-item4">Set up monitoring and alerting (Prometheus/Grafana)</label></div>
-<p><strong>Deliverables:</strong> K8s manifests, CI/CD pipelines, monitoring stack.</p>
-</div>
-</details>
-
-<!-- Phase 10 -->
-<details>
-<summary>Phase 10: Data Management &amp; Governance</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase10-item0"><label for="phase10-item0">Implement data lifecycle management (retention, archival)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase10-item1"><label for="phase10-item1">Build data quality monitoring dashboards</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase10-item2"><label for="phase10-item2">Create data catalog and metadata management</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase10-item3"><label for="phase10-item3">Set up backup and disaster recovery procedures</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase10-item4"><label for="phase10-item4">Implement data anonymization for sensitive spatial data</label></div>
-<p><strong>Deliverables:</strong> Data lifecycle policy, quality dashboards, backup plan.</p>
-</div>
-</details>
-
-<!-- Phase 11 -->
-<details>
-<summary>Phase 11: Mobile &amp; Edge Support</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase11-item0"><label for="phase11-item0">Build lightweight API for mobile clients</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase11-item1"><label for="phase11-item1">Implement offline data sync and conflict resolution</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase11-item2"><label for="phase11-item2">Develop edge computing capabilities for low-latency</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase11-item3"><label for="phase11-item3">Optimize payload size (compression, batching)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase11-item4"><label for="phase11-item4">Create mobile SDK documentation</label></div>
-<p><strong>Deliverables:</strong> Mobile API, sync module, edge nodes, SDK.</p>
-</div>
-</details>
-
-<!-- Phase 12 -->
-<details>
-<summary>Phase 12: Testing &amp; Quality Assurance</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase12-item0"><label for="phase12-item0">Write unit tests for core services (coverage &gt;80%)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase12-item1"><label for="phase12-item1">Implement integration tests for spatial queries</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase12-item2"><label for="phase12-item2">Perform end-to-end testing with real GPS data</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase12-item3"><label for="phase12-item3">Set up automated regression testing</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase12-item4"><label for="phase12-item4">Conduct performance and stress testing</label></div>
-<p><strong>Deliverables:</strong> Test reports, coverage metrics, automated test suite.</p>
-</div>
-</details>
-
-<!-- Phase 13 -->
-<details>
-<summary>Phase 13: Documentation &amp; Training</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase13-item0"><label for="phase13-item0">Write comprehensive API reference documentation</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase13-item1"><label for="phase13-item1">Create developer onboarding guide</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase13-item2"><label for="phase13-item2">Build interactive API playground (Swagger UI)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase13-item3"><label for="phase13-item3">Record video tutorials for key features</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase13-item4"><label for="phase13-item4">Prepare system architecture diagrams</label></div>
-<p><strong>Deliverables:</strong> API docs, onboarding guide, tutorials, diagrams.</p>
-</div>
-</details>
-
-<!-- Phase 14 -->
-<details>
-<summary>Phase 14: Monitoring &amp; Observability</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase14-item0"><label for="phase14-item0">Implement distributed tracing (Jaeger/Zipkin)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase14-item1"><label for="phase14-item1">Set up custom metrics and dashboards</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase14-item2"><label for="phase14-item2">Create alerting rules for critical thresholds</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase14-item3"><label for="phase14-item3">Build health check endpoints and status page</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase14-item4"><label for="phase14-item4">Implement log aggregation and analysis</label></div>
-<p><strong>Deliverables:</strong> Tracing setup, dashboards, alerting, health checks.</p>
-</div>
-</details>
-
-<!-- Phase 15 -->
-<details>
-<summary>Phase 15: Scalability &amp; High Availability</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase15-item0"><label for="phase15-item0">Design for horizontal scaling (stateless services)</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase15-item1"><label for="phase15-item1">Implement database sharding and replication</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase15-item2"><label for="phase15-item2">Set up multi-region deployment</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase15-item3"><label for="phase15-item3">Configure CDN for static spatial assets</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase15-item4"><label for="phase15-item4">Perform chaos engineering experiments</label></div>
-<p><strong>Deliverables:</strong> Scaling plan, sharding config, multi-region setup.</p>
-</div>
-</details>
-
-<!-- Phase 16 -->
-<details>
-<summary>Phase 16: User Feedback &amp; Iteration</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase16-item0"><label for="phase16-item0">Collect user feedback through surveys and analytics</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase16-item1"><label for="phase16-item1">Prioritize feature requests and bug fixes</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase16-item2"><label for="phase16-item2">Implement A/B testing for new features</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase16-item3"><label for="phase16-item3">Release iterative updates based on feedback</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase16-item4"><label for="phase16-item4">Maintain changelog and release notes</label></div>
-<p><strong>Deliverables:</strong> Feedback reports, prioritized backlog, release notes.</p>
-</div>
-</details>
-
-<!-- Phase 17 -->
-<details>
-<summary>Phase 17: Future Enhancements</summary>
-<div class="phase-content">
-<div class="checkbox-item"><input type="checkbox" id="phase17-item0"><label for="phase17-item0">Explore integration with AR/VR spatial platforms</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase17-item1"><label for="phase17-item1">Investigate blockchain for spatial data provenance</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase17-item2"><label for="phase17-item2">Research quantum-resistant encryption for location data</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase17-item3"><label for="phase17-item3">Plan for 5G and IoT sensor integration</label></div>
-<div class="checkbox-item"><input type="checkbox" id="phase17-item4"><label for="phase17-item4">Develop autonomous spatial decision-making engine</label></div>
-<p><strong>Deliverables:</strong> Research papers, prototypes, roadmap updates.</p>
-</div>
-</details>
-
+<!-- Core Principle -->
+<div class="section">
+<h2>Core Principle</h2>
+<p>The core must not depend on:</p>
+<ul>
+<li>a specific case study</li>
+<li>a specific language</li>
+<li>a specific data source</li>
+<li>a specific output format</li>
+<li>a specific UI</li>
+</ul>
+<p>The core only knows:</p>
+<ul>
+<li>request</li>
+<li>context</li>
+<li>semantic concepts</li>
+<li>QuerySpec</li>
+<li>operations</li>
+<li>DAG</li>
+<li>capability</li>
+<li>artifact</li>
+<li>response envelope</li>
+</ul>
 </div>
 
-<script>
-(function() {
-const STORAGE_KEY = 'roadmap_checklist_state';
+<!-- Official Kernel Pipeline -->
+<div class="section">
+<h2>Official Kernel Pipeline</h2>
+<p>The target pipeline is:</p>
+<div class="pipeline">
+<span class="pipeline-step"><span class="step-num">1</span> KernelRequest</span>
+<span class="pipeline-arrow">→</span>
+<span class="pipeline-step"><span class="step-num">2</span> QueryContext</span>
+<span class="pipeline-arrow">→</span>
+<span class="pipeline-step"><span class="step-num">3</span> InputResolver / SourceResolver</span>
+<span class="pipeline-arrow">→</span>
+<span class="pipeline-step"><span class="step-num">4</span> SemanticContext</span>
+<span class="pipeline-arrow">→</span>
+<span class="pipeline-step"><span class="step-num">5</span> QuerySpec</span>
+<span class="pipeline-arrow">→</span>
+<span class="pipeline-step"><span class="step-num">6</span> DeterministicPlanner</span>
+<span class="pipeline-arrow">→</span>
+<span class="pipeline-step"><span class="step-num">7</span> DagPlan</span>
+<span class="pipeline-arrow">→</span>
+<span class="pipeline-step"><span class="step-num">8</span> DagExecutor</span>
+<span class="pipeline-arrow">→</span>
+<span class="pipeline-step"><span class="step-num">9</span> CapabilityRegistry</span>
+<span class="pipeline-arrow">→</span>
+<span class="pipeline-step"><span class="step-num">10</span> Plugin Execution</span>
+<span class="pipeline-arrow">→</span>
+<span class="pipeline-step"><span class="step-num">11</span> ArtifactNormalizer</span>
+<span class="pipeline-arrow">→</span>
+<span class="pipeline-step"><span class="step-num">12</span> UnifiedResponseAssembler</span>
+<span class="pipeline-arrow">→</span>
+<span class="pipeline-step"><span class="step-num">13</span> Persistence / History / Project Attach</span>
+</div>
+</div>
 
-// Collect all checkboxes
-const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-const totalCheckboxes = checkboxes.length;
+<!-- QuerySpec as the Main Intent Contract -->
+<div class="section">
+<h2>QuerySpec as the Main Intent Contract</h2>
+<p>QuerySpec should represent <strong>what</strong> the user wants, not <strong>how</strong> to execute it. It must remain declarative and safe.</p>
+<p>The LLM may produce or help produce QuerySpec, but it must not:</p>
+<ul>
+<li>execute code</li>
+<li>directly call plugins</li>
+<li>generate unsafe raw SQL</li>
+<li>invent table names</li>
+<li>invent column names</li>
+<li>invent runtime credentials</li>
+</ul>
+</div>
 
-// Restore state from localStorage
-function restoreState() {
-const saved = localStorage.getItem(STORAGE_KEY);
-if (saved) {
-try {
-const state = JSON.parse(saved);
-checkboxes.forEach(cb => {
-const id = cb.id;
-if (state[id] !== undefined) {
-cb.checked = state[id];
-}
-});
-} catch (e) {
-console.warn('Failed to restore state:', e);
-}
-}
-// Apply checked class to parent
-checkboxes.forEach(cb => {
-const parent = cb.closest('.checkbox-item');
-if (parent) {
-if (cb.checked) {
-parent.classList.add('checked');
-} else {
-parent.classList.remove('checked');
-}
-}
-});
-updateProgress();
-}
+<!-- OP_CATALOG as the Bridge -->
+<div class="section">
+<h2>OP_CATALOG as the Bridge</h2>
+<p>OP_CATALOG maps logical operations to real capabilities. This is a central control point and should become versioned and documented.</p>
 
-// Save state to localStorage
-function saveState() {
-const state = {};
-checkboxes.forEach(cb => {
-state[cb.id] = cb.checked;
-});
-localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
+<table class="styled-table">
+<thead>
+<tr>
+<th>Logical Operation</th>
+<th>Capability</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>spatial_nearest</code></td>
+<td><code>find_nearest_neighbors</code></td>
+</tr>
+<tr>
+<td><code>query_database</code></td>
+<td><code>query_database_postgis</code></td>
+</tr>
+<tr>
+<td><code>display_vector</code></td>
+<td><code>display_vector_layer</code></td>
+</tr>
+<tr>
+<td><code>summarize_vector</code></td>
+<td><code>summarize_vector_layer</code></td>
+</tr>
+</tbody>
+</table>
+</div>
 
-// Update progress display
-function updateProgress() {
-let completed = 0;
-checkboxes.forEach(cb => {
-if (cb.checked) completed++;
-});
-const total = checkboxes.length;
-const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-document.getElementById('progressText').textContent = `${completed} of ${total} completed`;
-document.getElementById('progressBar').style.width = percent + '%';
-}
+<!-- Plugins -->
+<div class="section">
+<h2>Plugins</h2>
+<p>Everything domain-specific, source-specific, analysis-specific, and output-specific should be represented as a capability/plugin.</p>
 
-// Handle checkbox change
-function handleCheckboxChange(e) {
-const cb = e.target;
-const parent = cb.closest('.checkbox-item');
-if (parent) {
-if (cb.checked) {
-parent.classList.add('checked');
-} else {
-parent.classList.remove('checked');
-}
-}
-saveState();
-updateProgress();
-}
+<h3>Source Plugins</h3>
+<div class="plugin-grid">
+<div class="plugin-card"><h4>postgis_connector</h4><p>PostGIS database connector</p></div>
+<div class="plugin-card"><h4>local_vector_loader</h4><p>Load local vector files</p></div>
+<div class="plugin-card"><h4>local_raster_loader</h4><p>Load local raster files</p></div>
+<div class="plugin-card"><h4>wms_wfs_fetcher</h4><p>Fetch WMS/WFS services</p></div>
+</div>
 
-// Reset all
-function resetAll() {
-if (confirm('Are you sure you want to reset all checkboxes? This action cannot be undone.')) {
-checkboxes.forEach(cb => {
-cb.checked = false;
-const parent = cb.closest('.checkbox-item');
-if (parent) parent.classList.remove('checked');
-});
-localStorage.removeItem(STORAGE_KEY);
-updateProgress();
-}
-}
+<h3>Analysis Plugins</h3>
+<div class="plugin-grid">
+<div class="plugin-card"><h4>nearest_neighbor</h4><p>Find nearest neighbors</p></div>
+<div class="plugin-card"><h4>buffer_analysis</h4><p>Buffer zone analysis</p></div>
+<div class="plugin-card"><h4>spatial_join</h4><p>Spatial join operations</p></div>
+<div class="plugin-card"><h4>distance_calculator</h4><p>Calculate distances</p></div>
+<div class="plugin-card"><h4>feature_scoring</h4><p>Score features</p></div>
+</div>
 
-// Attach event listeners
-checkboxes.forEach(cb => {
-cb.addEventListener('change', handleCheckboxChange);
-});
+<h3>Output Plugins</h3>
+<div class="plugin-grid">
+<div class="plugin-card"><h4>report_builder</h4><p>Build reports</p></div>
+<div class="plugin-card"><h4>pdf_renderer</h4><p>Render PDF output</p></div>
+<div class="plugin-card"><h4>data_writer_exporter</h4><p>Export data</p></div>
+<div class="plugin-card"><h4>display_vector_layer</h4><p>Display vector layers</p></div>
+</div>
 
-document.getElementById('resetBtn').addEventListener('click', resetAll);
+<h3>Domain Plugins</h3>
+<div class="plugin-grid">
+<div class="plugin-card"><h4>real_estate_ranking</h4><p>Real estate ranking workflows</p></div>
+<div class="plugin-card"><h4>future_domain_workflows</h4><p>Extensible domain workflows</p></div>
+</div>
+</div>
 
-// Restore on page load
-restoreState();
-})();
-</script>
+<!-- Artifact-Based Output Model -->
+<div class="section">
+<h2>Artifact-Based Output Model</h2>
+<p>All outputs should be normalized into artifacts. Map, table, PDF, GeoJSON, and report are not separate execution paths — they are artifacts produced by capabilities.</p>
+
+<h3>Artifact Types</h3>
+<ul>
+<li>vector_layer</li>
+<li>raster_layer</li>
+<li>table</li>
+<li>report</li>
+<li>file</li>
+<li>map_view</li>
+<li>chart</li>
+<li>text</li>
+<li>json</li>
+</ul>
+</div>
+
+<!-- Unified Response -->
+<div class="section">
+<h2>Unified Response</h2>
+<p>The response should have one stable schema. Recommended public response shape:</p>
+
+<pre><code>{
+<span class="json-key">"schema_version"</span>: <span class="json-string">"1.0"</span>,
+<span class="json-key">"status"</span>: <span class="json-string">"success"</span>,
+<span class="json-key">"success"</span>: <span class="json-boolean">true</span>,
+<span class="json-key">"request_id"</span>: <span class="json-string">"string"</span>,
+<span class="json-key">"answer"</span>: <span class="json-string">"string"</span>,
+<span class="json-key">"artifacts"</span>: [],
+<span class="json-key">"layers"</span>: [],
+<span class="json-key">"outputs"</span>: {
+<span class="json-key">"files"</span>: [],
+<span class="json-key">"vectors"</span>: [],
+<span class="json-key">"tables"</span>: [],
+<span class="json-key">"rasters"</span>: []
+},
+<span class="json-key">"report"</span>: <span class="json-null">null</span>,
+<span class="json-key">"steps"</span>: [],
+<span class="json-key">"warnings"</span>: [],
+<span class="json-key">"next_actions"</span>: [],
+<span class="json-key">"metadata"</span>: {}
+}</code></pre>
+
+<p><code>artifacts</code> should be the canonical output model. <code>layers</code> and <code>outputs</code> may remain as compatibility projections for the current frontend/API.</p>
+</div>
+
+<!-- Multilingual Semantic Target -->
+<div class="section">
+<h2>Multilingual Semantic Target</h2>
+<p>Internal concept IDs should be English/canonical:</p>
+<ul>
+<li>metro_station</li>
+<li>shopping_center</li>
+<li>park</li>
+<li>hospital</li>
+<li>school</li>
+<li>road</li>
+<li>building</li>
+<li>property</li>
+<li>risk_zone</li>
+</ul>
+
+<p>Language-specific aliases should be externalized. Example:</p>
+
+<pre><code><span class="json-key">"metro_station"</span>: {
+<span class="json-key">"en"</span>: [
+<span class="json-string">"metro station"</span>,
+<span class="json-string">"subway station"</span>
+],
+<span class="json-key">"fa"</span>: [
+<span class="json-string">"ایستگاه مترو"</span>,
+<span class="json-string">"مترو"</span>
+]
+}</code></pre>
+
+<p>This allows the system to support Persian today and English/product-level usage later.</p>
+</div>
+
+<!-- Target State for service.py -->
+<div class="section">
+<h2>Target State for service.py</h2>
+<p><code>orchestrator/service.py</code> should become a thin adapter:</p>
+<ol class="numbered-pipeline">
+<li>validate request</li>
+<li>build context</li>
+<li>call kernel</li>
+<li>persist result</li>
+<li>return response</li>
+</ol>
+
+<p>It should <strong>not</strong> contain:</p>
+<ul>
+<li>domain-specific scoring logic</li>
+<li>direct vector display logic</li>
+<li>source-specific execution logic</li>
+<li>output-specific response branches</li>
+<li>LLM-specific execution decisions mixed with business logic</li>
+</ul>
+</div>
+
+<!-- Migration Strategy -->
+<div class="section">
+<h2>Migration Strategy</h2>
+<p>Do not rewrite everything at once. Use gradual migration:</p>
+<ol class="numbered-pipeline">
+<li>Document architecture decisions.</li>
+<li>Add artifact contract.</li>
+<li>Add unified response assembler.</li>
+<li>Route planning response through the assembler.</li>
+<li>Move direct vector display into QuerySpec/DAG.</li>
+<li>Move real-estate logic into plugin/workflow.</li>
+<li>Make QuerySpec planning the default path.</li>
+<li>Deprecate legacy natural-query routing.</li>
+<li>Split service responsibilities.</li>
+</ol>
+</div>
+
+</div>
+
 </body>
 </html>

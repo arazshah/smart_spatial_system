@@ -279,7 +279,9 @@ def test_service_history_can_be_disabled(tmp_path: Path) -> None:
 
 
 def test_orchestrator_service_kernel_execution_flag_is_opt_in(monkeypatch) -> None:
-    service = OrchestratorService()
+    service = OrchestratorService(
+        OrchestratorServiceConfig(allow_request_kernel_execution=True)
+    )
 
     monkeypatch.delenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", raising=False)
     monkeypatch.delenv("ENABLE_KERNEL_EXECUTION", raising=False)
@@ -310,7 +312,7 @@ def test_orchestrator_service_kernel_execution_flag_is_opt_in(monkeypatch) -> No
 
 
 def test_orchestrator_service_kernel_execution_flag_is_opt_in(tmp_path: Path, monkeypatch) -> None:
-    service = _make_service(tmp_path)
+    service = _make_service(tmp_path, allow_request_kernel_execution=True)
 
     monkeypatch.delenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", raising=False)
     monkeypatch.delenv("ENABLE_KERNEL_EXECUTION", raising=False)
@@ -352,7 +354,10 @@ def test_service_planning_opt_in_kernel_execution_metadata_includes_summary_and_
     from orchestrator.planning.spec import EntitySpec, OperationSpec, OutputSpec, QuerySpec
     from plugins.feature_scoring import rank_features, score_features
 
-    service = _make_service(tmp_path)
+    service = _make_service(
+        tmp_path,
+        allow_request_kernel_execution=True,
+    )
 
     monkeypatch.setattr(service, "_query_spec_planning_enabled", lambda: True)
 
@@ -813,3 +818,139 @@ def test_service_planning_uses_config_kernel_execution_flag(
     assert metadata["kernel_execution_enabled"] is True
     assert metadata["execution_mode"] == "query_spec_planning_kernel_execution"
     assert metadata["planning_summary"]["kernel_execution_enabled"] is True
+
+
+def test_kernel_execution_default_is_disabled(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", raising=False)
+    monkeypatch.delenv("ENABLE_KERNEL_EXECUTION", raising=False)
+
+    service = _make_service(tmp_path)
+
+    assert service.config.enable_kernel_execution is False
+    assert service.config.allow_request_kernel_execution is False
+    assert service._kernel_execution_enabled() is False
+
+
+def test_request_cannot_enable_kernel_execution_without_permission(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", raising=False)
+    monkeypatch.delenv("ENABLE_KERNEL_EXECUTION", raising=False)
+
+    service = _make_service(tmp_path)
+
+    assert service.config.allow_request_kernel_execution is False
+
+    assert service._kernel_execution_enabled(
+        metadata={"enable_kernel_execution": True}
+    ) is False
+
+    assert service._kernel_execution_enabled(
+        metadata={"enable_kernel_execution": "true"}
+    ) is False
+
+    assert service._kernel_execution_enabled(
+        metadata={"planning": {"kernel_execution": "on"}}
+    ) is False
+
+    assert service._kernel_execution_enabled(
+        final_metadata={"use_kernel_execution": "yes"}
+    ) is False
+
+
+def test_request_can_enable_kernel_execution_when_permission_granted(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", raising=False)
+    monkeypatch.delenv("ENABLE_KERNEL_EXECUTION", raising=False)
+
+    service = _make_service(
+        tmp_path,
+        allow_request_kernel_execution=True,
+    )
+
+    assert service.config.enable_kernel_execution is False
+    assert service.config.allow_request_kernel_execution is True
+
+    assert service._kernel_execution_enabled() is False
+
+    assert service._kernel_execution_enabled(
+        metadata={"enable_kernel_execution": True}
+    ) is True
+
+    assert service._kernel_execution_enabled(
+        metadata={"planning": {"kernel_execution": "on"}}
+    ) is True
+
+    assert service._kernel_execution_enabled(
+        final_metadata={"use_kernel_execution": "yes"}
+    ) is True
+
+
+def test_request_can_always_disable_kernel_execution(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", raising=False)
+    monkeypatch.delenv("ENABLE_KERNEL_EXECUTION", raising=False)
+
+    service = _make_service(tmp_path, enable_kernel_execution=True)
+
+    assert service.config.enable_kernel_execution is True
+    assert service._kernel_execution_enabled() is True
+
+    assert service._kernel_execution_enabled(
+        metadata={"enable_kernel_execution": False}
+    ) is False
+
+    assert service._kernel_execution_enabled(
+        metadata={"planning": {"kernel_execution": "off"}}
+    ) is False
+
+
+def test_kernel_execution_config_default_enables_globally(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", raising=False)
+    monkeypatch.delenv("ENABLE_KERNEL_EXECUTION", raising=False)
+
+    service = _make_service(tmp_path, enable_kernel_execution=True)
+
+    assert service._kernel_execution_enabled() is True
+
+
+def test_kernel_execution_env_override(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", raising=False)
+    monkeypatch.delenv("ENABLE_KERNEL_EXECUTION", raising=False)
+
+    service = _make_service(tmp_path)
+
+    assert service._kernel_execution_enabled() is False
+
+    monkeypatch.setenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", "1")
+    assert service._kernel_execution_enabled() is True
+
+    monkeypatch.setenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", "0")
+    assert service._kernel_execution_enabled() is False
+
+
+def test_request_disable_takes_priority_over_env_enable(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", raising=False)
+    monkeypatch.delenv("ENABLE_KERNEL_EXECUTION", raising=False)
+
+    service = _make_service(tmp_path)
+
+    monkeypatch.setenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", "1")
+
+    assert service._kernel_execution_enabled(
+        metadata={"enable_kernel_execution": False}
+    ) is False

@@ -3799,6 +3799,84 @@ class OrchestratorService:
                 params.setdefault("geom_col", "geom")
 
 
+    def _kernel_execution_enabled(
+        self,
+        *,
+        metadata: dict[str, Any] | None = None,
+        final_metadata: dict[str, Any] | None = None,
+    ) -> bool:
+        """
+        Return whether experimental kernel execution should be enabled for
+        QuerySpec planning.
+
+        This is intentionally opt-in. The default production path remains the
+        existing DAG executor.
+
+        Accepted truthy values:
+          true, 1, yes, y, on, enabled
+
+        Accepted falsy values:
+          false, 0, no, n, off, disabled
+        """
+        import os
+
+        truthy = {"true", "1", "yes", "y", "on", "enabled"}
+        falsy = {"false", "0", "no", "n", "off", "disabled", ""}
+
+        def _coerce(value: Any) -> bool | None:
+            if isinstance(value, bool):
+                return value
+
+            if value is None:
+                return None
+
+            if isinstance(value, (int, float)):
+                return bool(value)
+
+            if isinstance(value, str):
+                normalized = value.strip().lower()
+                if normalized in truthy:
+                    return True
+                if normalized in falsy:
+                    return False
+
+            return None
+
+        for source in (metadata, final_metadata):
+            if not isinstance(source, dict):
+                continue
+
+            for key in (
+                "enable_kernel_execution",
+                "kernel_execution",
+                "use_kernel_execution",
+            ):
+                parsed = _coerce(source.get(key))
+                if parsed is not None:
+                    return parsed
+
+            planning_options = source.get("planning")
+            if isinstance(planning_options, dict):
+                for key in (
+                    "enable_kernel_execution",
+                    "kernel_execution",
+                    "use_kernel_execution",
+                ):
+                    parsed = _coerce(planning_options.get(key))
+                    if parsed is not None:
+                        return parsed
+
+        for env_name in (
+            "SMART_SPATIAL_ENABLE_KERNEL_EXECUTION",
+            "ENABLE_KERNEL_EXECUTION",
+        ):
+            parsed = _coerce(os.getenv(env_name))
+            if parsed is not None:
+                return parsed
+
+        return False
+
+
     def _try_handle_query_with_planning(
         self,
         *,
@@ -3913,11 +3991,24 @@ class OrchestratorService:
             validate_query_spec_contract(query_spec)
 
             runner = make_registry_planning_runner(self.registry)
-            planning_result = runner.run(
-                query_spec,
-                initial_inputs=resolved_inputs,
-                fail_fast=True,
+            kernel_execution_enabled = self._kernel_execution_enabled(
+                metadata=metadata,
+                final_metadata=final_metadata,
             )
+            final_metadata["kernel_execution_enabled"] = kernel_execution_enabled
+
+            if kernel_execution_enabled:
+                planning_result = runner.run_with_kernel_execution(
+                    query_spec,
+                    initial_inputs=resolved_inputs,
+                    fail_fast=True,
+                )
+            else:
+                planning_result = runner.run(
+                    query_spec,
+                    initial_inputs=resolved_inputs,
+                    fail_fast=True,
+                )
 
             from orchestrator.planning.kernel_execution_bridge import (
                 kernel_execution_to_summary,
@@ -3957,12 +4048,24 @@ class OrchestratorService:
                 "query_spec_planning_enabled": True,
                 "planning_attempted": True,
                 "planner_type": "deterministic_query_spec",
+                "execution_mode": (
+                    "query_spec_planning_kernel_execution"
+                    if kernel_execution_enabled
+                    else "query_spec_planning"
+                ),
+                "kernel_execution_enabled": kernel_execution_enabled,
                 "query_spec": _redact_sensitive_json(query_spec_to_dict(query_spec)),
                 "planning_summary": {
                     "success": success,
                     "error": planning_error,
                     "output_nodes": sorted(
                         (getattr(planning_result, "output_nodes", None) or {}).keys()
+                    ),
+                    "kernel_execution_enabled": kernel_execution_enabled,
+                    "kernel_execution_success": (
+                        None
+                        if kernel_execution_summary is None
+                        else bool(kernel_execution_summary.get("success"))
                     ),
                 },
             }

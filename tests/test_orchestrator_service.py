@@ -276,3 +276,69 @@ def test_service_history_can_be_disabled(tmp_path: Path) -> None:
 
     assert payload["status"] == "success"
     assert service.get_request("req-service-no-history") is None
+
+
+def test_orchestrator_service_kernel_execution_flag_is_opt_in(monkeypatch) -> None:
+    service = OrchestratorService()
+
+    monkeypatch.delenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", raising=False)
+    monkeypatch.delenv("ENABLE_KERNEL_EXECUTION", raising=False)
+
+    assert service._kernel_execution_enabled() is False
+
+    assert service._kernel_execution_enabled(
+        metadata={"enable_kernel_execution": True}
+    ) is True
+
+    assert service._kernel_execution_enabled(
+        metadata={"enable_kernel_execution": "true"}
+    ) is True
+
+    assert service._kernel_execution_enabled(
+        metadata={"planning": {"kernel_execution": "on"}}
+    ) is True
+
+    assert service._kernel_execution_enabled(
+        metadata={"enable_kernel_execution": "false"}
+    ) is False
+
+    monkeypatch.setenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", "1")
+    assert service._kernel_execution_enabled() is True
+
+    monkeypatch.setenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", "0")
+    assert service._kernel_execution_enabled() is False
+
+
+def test_orchestrator_service_kernel_execution_flag_is_opt_in(tmp_path: Path, monkeypatch) -> None:
+    service = _make_service(tmp_path)
+
+    monkeypatch.delenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", raising=False)
+    monkeypatch.delenv("ENABLE_KERNEL_EXECUTION", raising=False)
+
+    assert service._kernel_execution_enabled() is False
+
+    assert service._kernel_execution_enabled(
+        metadata={"enable_kernel_execution": True}
+    ) is True
+
+    assert service._kernel_execution_enabled(
+        metadata={"enable_kernel_execution": "true"}
+    ) is True
+
+    assert service._kernel_execution_enabled(
+        metadata={"planning": {"kernel_execution": "on"}}
+    ) is True
+
+    assert service._kernel_execution_enabled(
+        metadata={"enable_kernel_execution": "false"}
+    ) is False
+
+    assert service._kernel_execution_enabled(
+        final_metadata={"use_kernel_execution": "yes"}
+    ) is True
+
+    monkeypatch.setenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", "1")
+    assert service._kernel_execution_enabled() is True
+
+    monkeypatch.setenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", "0")
+    assert service._kernel_execution_enabled() is False

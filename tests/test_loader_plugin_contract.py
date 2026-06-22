@@ -184,3 +184,92 @@ def test_contract_normalizes_wrapped_outputs() -> None:
 
     assert vector["type"] == "FeatureCollection"
     assert len(vector["features"]) == 1
+
+
+def test_loader_contract_import_failure_has_structured_error() -> None:
+    with pytest.raises(LoaderPluginContractError) as exc_info:
+        load_with_loader_contract(
+            module_name="__missing_loader_plugin_for_structured_error_test__",
+            kind="raster",
+            file_path="/tmp/image.tif",
+        )
+
+    exc = exc_info.value
+
+    assert hasattr(exc, "structured_error")
+    assert exc.structured_error["code"] == "loader.plugin_import_failed"
+    assert exc.structured_error["category"] == "configuration_error"
+    assert exc.structured_error["source"] == "loader_plugin_contract"
+    assert exc.structured_error["details"]["module"] == (
+        "__missing_loader_plugin_for_structured_error_test__"
+    )
+    assert exc.structured_error["details"]["kind"] == "raster"
+    assert exc.structured_error["details"]["stage"] == "plugin_import"
+
+
+def test_loader_contract_missing_callable_has_structured_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = types.ModuleType("fake_missing_callable_loader")
+    monkeypatch.setitem(sys.modules, "fake_missing_callable_loader", module)
+
+    with pytest.raises(LoaderPluginContractError) as exc_info:
+        load_with_loader_contract(
+            module_name="fake_missing_callable_loader",
+            kind="vector",
+            file_path="/tmp/layer.geojson",
+        )
+
+    exc = exc_info.value
+
+    assert exc.structured_error["code"] == "loader.contract_invalid"
+    assert exc.structured_error["category"] == "capability_contract_error"
+    assert exc.structured_error["details"]["module"] == "fake_missing_callable_loader"
+    assert exc.structured_error["details"]["kind"] == "vector"
+    assert exc.structured_error["details"]["function_name"] == "load_local_vector"
+
+
+def test_loader_contract_invalid_output_has_structured_error() -> None:
+    with pytest.raises(LoaderPluginContractError) as exc_info:
+        normalize_raster_loader_output(
+            {
+                "metadata": {},
+            },
+            source_module="fake_invalid_output_loader",
+            source_path="/tmp/image.tif",
+        )
+
+    exc = exc_info.value
+
+    assert exc.structured_error["code"] == "loader.output_invalid"
+    assert exc.structured_error["category"] == "capability_contract_error"
+    assert exc.structured_error["details"]["module"] == "fake_invalid_output_loader"
+    assert exc.structured_error["details"]["kind"] == "raster"
+    assert exc.structured_error["details"]["stage"] == "normalize_output"
+
+
+def test_loader_execution_failure_has_structured_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = types.ModuleType("fake_failing_loader")
+
+    def load_local_raster(path: str, options: dict | None = None) -> dict:
+        raise RuntimeError("boom")
+
+    module.load_local_raster = load_local_raster
+    monkeypatch.setitem(sys.modules, "fake_failing_loader", module)
+
+    with pytest.raises(LoaderPluginContractError) as exc_info:
+        load_with_loader_contract(
+            module_name="fake_failing_loader",
+            kind="raster",
+            file_path="/tmp/image.tif",
+        )
+
+    exc = exc_info.value
+
+    assert exc.structured_error["code"] == "loader.execution_failed"
+    assert exc.structured_error["category"] == "provider_error"
+    assert exc.structured_error["details"]["module"] == "fake_failing_loader"
+    assert exc.structured_error["details"]["kind"] == "raster"
+    assert exc.structured_error["details"]["function_name"] == "load_local_raster"

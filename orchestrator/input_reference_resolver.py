@@ -28,6 +28,7 @@ from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
 from typing import Any
 
+from orchestrator.input_error_mapping import input_exception_to_structured_error
 from orchestrator.upload_storage import UploadStorage, UploadStorageError
 from orchestrator.loader_plugin_contract import (
     LoaderPluginContractError,
@@ -56,7 +57,43 @@ class UploadReferenceResolverConfig:
 
 
 class UploadReferenceResolverError(RuntimeError):
-    pass
+    """
+    Raised when an upload/input reference cannot be resolved.
+
+    The legacy message remains unchanged; structured_error is additive.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        structured_error: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.structured_error = structured_error
+
+
+def _resolver_error(
+    message: str,
+    *,
+    cause: BaseException | None = None,
+    reference_kind: str | None = None,
+    upload_id: str | None = None,
+    stage: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> UploadReferenceResolverError:
+    exc = cause if cause is not None else RuntimeError(message)
+    return UploadReferenceResolverError(
+        message,
+        structured_error=input_exception_to_structured_error(
+            exc,
+            reference_kind=reference_kind,
+            upload_id=upload_id,
+            stage=stage,
+            message=message,
+            details=details,
+        ),
+    )
 
 
 class UploadReferenceResolver:
@@ -77,7 +114,10 @@ class UploadReferenceResolver:
         inputs: dict[str, Any],
     ) -> dict[str, Any]:
         if not isinstance(inputs, dict):
-            raise UploadReferenceResolverError("inputs must be a dict.")
+            raise _resolver_error(
+                "inputs must be a dict.",
+                stage="resolve_inputs",
+            )
 
         resolved = dict(inputs)
 
@@ -116,15 +156,23 @@ class UploadReferenceResolver:
         kind: str,
     ) -> Any:
         if kind not in {"raster", "vector"}:
-            raise UploadReferenceResolverError(
-                f"Unsupported reference kind: {kind}"
+            raise _resolver_error(
+                f"Unsupported reference kind: {kind}",
+                reference_kind=kind,
+                stage="validate_reference_kind",
             )
 
         try:
             metadata = self.upload_storage.read_metadata(upload_id)
             file_path = self.upload_storage.get_file_path(upload_id)
         except UploadStorageError as exc:
-            raise UploadReferenceResolverError(str(exc)) from exc
+            raise _resolver_error(
+                str(exc),
+                cause=exc,
+                reference_kind=kind,
+                upload_id=upload_id,
+                stage="read_upload_metadata",
+            ) from exc
 
         extension = str(metadata.get("extension") or Path(file_path).suffix).lower()
         is_json_like = extension in {".json", ".geojson"}
@@ -142,7 +190,13 @@ class UploadReferenceResolver:
             try:
                 return self.upload_storage.read_json_content(upload_id)
             except UploadStorageError as exc:
-                raise UploadReferenceResolverError(str(exc)) from exc
+                raise _resolver_error(
+                    str(exc),
+                    cause=exc,
+                    reference_kind=kind,
+                    upload_id=upload_id,
+                    stage="read_json_content",
+                ) from exc
 
         if self.config.use_plugins:
             return self._load_with_plugin(
@@ -151,8 +205,11 @@ class UploadReferenceResolver:
                 metadata=metadata,
             )
 
-        raise UploadReferenceResolverError(
-            f"Cannot resolve upload {upload_id}; plugin loading disabled and JSON fallback unavailable."
+        raise _resolver_error(
+            f"Cannot resolve upload {upload_id}; plugin loading disabled and JSON fallback unavailable.",
+            reference_kind=kind,
+            upload_id=upload_id,
+            stage="resolve_upload_ref",
         )
 
     def _load_with_plugin(
@@ -171,8 +228,12 @@ class UploadReferenceResolver:
         try:
             module = importlib.import_module(module_name)
         except Exception as exc:
-            raise UploadReferenceResolverError(
-                f"Could not import {kind} loader plugin '{module_name}': {exc}"
+            raise _resolver_error(
+                f"Could not import {kind} loader plugin '{module_name}': {exc}",
+                cause=exc,
+                reference_kind=kind,
+                stage="loader_plugin_import",
+                details={"module": module_name},
             ) from exc
 
         if self.config.enforce_loader_contract:
@@ -187,7 +248,13 @@ class UploadReferenceResolver:
                 )
             except LoaderPluginContractError as exc:
                 if not self.config.allow_adaptive_loader_fallback:
-                    raise UploadReferenceResolverError(str(exc)) from exc
+                    raise _resolver_error(
+                        str(exc),
+                        cause=exc,
+                        reference_kind=kind,
+                        stage="loader_contract",
+                        details={"module": module_name},
+                    ) from exc
 
                 # Transitional fallback:
                 # Existing plugins may still expose older call signatures.
@@ -205,8 +272,11 @@ class UploadReferenceResolver:
         )
 
         if not callables:
-            raise UploadReferenceResolverError(
-                f"No compatible callable found in plugin '{module_name}'."
+            raise _resolver_error(
+                f"No compatible callable found in plugin '{module_name}'.",
+                reference_kind=kind,
+                stage="adaptive_loader_discovery",
+                details={"module": module_name},
             )
 
         errors: list[str] = []
@@ -232,10 +302,18 @@ class UploadReferenceResolver:
         if contract_error is not None:
             contract_error_message = f" Contract error: {contract_error}."
 
-        raise UploadReferenceResolverError(
+        raise _resolver_error(
             f"Plugin '{module_name}' could not load {kind} file '{file_path}'."
             f"{contract_error_message} "
-            f"Adaptive errors: {' | '.join(errors[-8:])}"
+            f"Adaptive errors: {' | '.join(errors[-8:])}",
+            cause=contract_error,
+            reference_kind=kind,
+            stage="adaptive_loader_execution",
+            details={
+                "module": module_name,
+                "file_path": str(file_path),
+                "adaptive_errors": errors[-8:],
+            },
         )
 
     @staticmethod

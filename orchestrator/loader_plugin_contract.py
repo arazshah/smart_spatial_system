@@ -34,6 +34,8 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
 
+from orchestrator.input_error_mapping import loader_exception_to_structured_error
+
 
 LOADER_PLUGIN_CONTRACT_VERSION = "1.0.0"
 
@@ -41,7 +43,43 @@ LOADER_PLUGIN_CONTRACT_VERSION = "1.0.0"
 class LoaderPluginContractError(RuntimeError):
     """
     Raised when a loader plugin does not satisfy the loader contract.
+
+    The legacy message remains unchanged; structured_error is additive.
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        structured_error: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.structured_error = structured_error
+
+
+def _loader_error(
+    message: str,
+    *,
+    cause: BaseException | None = None,
+    module_name: str | None = None,
+    kind: str | None = None,
+    function_name: str | None = None,
+    stage: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> LoaderPluginContractError:
+    exc = cause if cause is not None else RuntimeError(message)
+    return LoaderPluginContractError(
+        message,
+        structured_error=loader_exception_to_structured_error(
+            exc,
+            module_name=module_name,
+            kind=kind,
+            function_name=function_name,
+            stage=stage,
+            message=message,
+            details=details,
+        ),
+    )
 
 
 def load_with_loader_contract(
@@ -58,13 +96,17 @@ def load_with_loader_contract(
         "raster" or "vector"
     """
     if kind not in {"raster", "vector"}:
-        raise LoaderPluginContractError(
-            f"Unsupported loader kind: {kind}"
+        raise _loader_error(
+            f"Unsupported loader kind: {kind}",
+            kind=kind,
+            stage="validate_arguments",
         )
 
     if not module_name:
-        raise LoaderPluginContractError(
-            "module_name must not be empty."
+        raise _loader_error(
+            "module_name must not be empty.",
+            kind=kind,
+            stage="validate_arguments",
         )
 
     path_text = str(file_path)
@@ -73,8 +115,12 @@ def load_with_loader_contract(
     try:
         module = importlib.import_module(module_name)
     except Exception as exc:
-        raise LoaderPluginContractError(
-            f"Could not import loader plugin '{module_name}': {exc}"
+        raise _loader_error(
+            f"Could not import loader plugin '{module_name}': {exc}",
+            cause=exc,
+            module_name=module_name,
+            kind=kind,
+            stage="plugin_import",
         ) from exc
 
     function_name = (
@@ -86,9 +132,13 @@ def load_with_loader_contract(
     loader = getattr(module, function_name, None)
 
     if not callable(loader):
-        raise LoaderPluginContractError(
+        raise _loader_error(
             f"Loader plugin '{module_name}' must define callable "
-            f"{function_name}(path: str, options: dict | None = None)."
+            f"{function_name}(path: str, options: dict | None = None).",
+            module_name=module_name,
+            kind=kind,
+            function_name=function_name,
+            stage="contract_validation",
         )
 
     raw_result = _call_loader(
@@ -97,6 +147,7 @@ def load_with_loader_contract(
         options=final_options,
         function_name=function_name,
         module_name=module_name,
+        kind=kind,
     )
 
     plain_result = _to_plain(raw_result)
@@ -139,15 +190,23 @@ def normalize_raster_loader_output(
     payload = _to_plain(payload)
 
     if not isinstance(payload, dict):
-        raise LoaderPluginContractError(
-            "Raster loader output must be a dict-like object."
+        raise _loader_error(
+            "Raster loader output must be a dict-like object.",
+            module_name=source_module,
+            kind="raster",
+            stage="normalize_output",
+            details={"source_path": source_path},
         )
 
     data = payload.get("data")
 
     if not isinstance(data, list):
-        raise LoaderPluginContractError(
-            "Raster loader output must contain 'data' as a list."
+        raise _loader_error(
+            "Raster loader output must contain 'data' as a list.",
+            module_name=source_module,
+            kind="raster",
+            stage="normalize_output",
+            details={"source_path": source_path},
         )
 
     metadata = payload.get("metadata")
@@ -156,8 +215,12 @@ def normalize_raster_loader_output(
         metadata = {}
 
     if not isinstance(metadata, dict):
-        raise LoaderPluginContractError(
-            "Raster loader output 'metadata' must be an object."
+        raise _loader_error(
+            "Raster loader output 'metadata' must be an object.",
+            module_name=source_module,
+            kind="raster",
+            stage="normalize_output",
+            details={"source_path": source_path},
         )
 
     normalized = dict(payload)
@@ -217,16 +280,24 @@ def normalize_vector_loader_output(
     payload = _to_plain(payload)
 
     if not isinstance(payload, dict):
-        raise LoaderPluginContractError(
-            "Vector loader output must be a dict-like object."
+        raise _loader_error(
+            "Vector loader output must be a dict-like object.",
+            module_name=source_module,
+            kind="vector",
+            stage="normalize_output",
+            details={"source_path": source_path},
         )
 
     if payload.get("type") == "FeatureCollection":
         features = payload.get("features")
 
         if not isinstance(features, list):
-            raise LoaderPluginContractError(
-                "Vector FeatureCollection must contain 'features' as a list."
+            raise _loader_error(
+                "Vector FeatureCollection must contain 'features' as a list.",
+                module_name=source_module,
+                kind="vector",
+                stage="normalize_output",
+                details={"source_path": source_path},
             )
 
         normalized = dict(payload)
@@ -241,9 +312,13 @@ def normalize_vector_loader_output(
             normalized["metadata"] = dict(payload["metadata"])
 
     else:
-        raise LoaderPluginContractError(
+        raise _loader_error(
             "Vector loader output must be a GeoJSON FeatureCollection "
-            "or contain 'features' as a list."
+            "or contain 'features' as a list.",
+            module_name=source_module,
+            kind="vector",
+            stage="normalize_output",
+            details={"source_path": source_path},
         )
 
     metadata = normalized.get("metadata")
@@ -285,6 +360,7 @@ def _call_loader(
     options: dict[str, Any],
     function_name: str,
     module_name: str,
+    kind: str,
 ) -> Any:
     """
     Transitional callable invocation.
@@ -314,13 +390,23 @@ def _call_loader(
             errors.append(str(exc))
             continue
         except Exception as exc:
-            raise LoaderPluginContractError(
-                f"Loader '{module_name}.{function_name}' failed: {exc}"
+            raise _loader_error(
+                f"Loader '{module_name}.{function_name}' failed: {exc}",
+                cause=exc,
+                module_name=module_name,
+                kind=kind,
+                function_name=function_name,
+                stage="loader_execution",
             ) from exc
 
-    raise LoaderPluginContractError(
+    raise _loader_error(
         f"Loader '{module_name}.{function_name}' could not be called with "
-        f"the standard contract. Errors: {' | '.join(errors[-4:])}"
+        f"the standard contract. Errors: {' | '.join(errors[-4:])}",
+        module_name=module_name,
+        kind=kind,
+        function_name=function_name,
+        stage="loader_call_contract",
+        details={"attempt_errors": errors[-4:]},
     )
 
 

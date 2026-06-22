@@ -202,3 +202,98 @@ def test_resolver_config_rejects_empty_module() -> None:
         UploadReferenceResolverConfig(
             vector_loader_plugin_module="",
         )
+
+
+def test_resolver_invalid_inputs_has_structured_error(tmp_path: Path) -> None:
+    storage = UploadStorage(
+        UploadStorageConfig(
+            root_dir=tmp_path / "uploads",
+        )
+    )
+
+    resolver = UploadReferenceResolver(storage)
+
+    with pytest.raises(UploadReferenceResolverError) as exc_info:
+        resolver.resolve_inputs(["not", "a", "dict"])  # type: ignore[arg-type]
+
+    exc = exc_info.value
+
+    assert hasattr(exc, "structured_error")
+    assert exc.structured_error["code"] == "input.invalid_payload"
+    assert exc.structured_error["category"] == "validation_error"
+    assert exc.structured_error["source"] == "input_reference_resolver"
+    assert exc.structured_error["details"]["stage"] == "resolve_inputs"
+
+
+def test_resolver_unknown_ref_has_structured_error(tmp_path: Path) -> None:
+    storage = UploadStorage(
+        UploadStorageConfig(
+            root_dir=tmp_path / "uploads",
+        )
+    )
+
+    resolver = UploadReferenceResolver(storage)
+
+    with pytest.raises(UploadReferenceResolverError) as exc_info:
+        resolver.resolve_inputs(
+            {
+                "raster_ref": "upl-missing",
+            }
+        )
+
+    exc = exc_info.value
+
+    assert exc.structured_error["code"] == "input.reference_not_found"
+    assert exc.structured_error["category"] == "validation_error"
+    assert exc.structured_error["details"]["reference_kind"] == "raster"
+    assert exc.structured_error["details"]["upload_id"] == "upl-missing"
+    assert exc.structured_error["details"]["stage"] == "read_upload_metadata"
+
+
+def test_resolver_loader_import_failure_has_structured_error(
+    tmp_path: Path,
+) -> None:
+    storage = UploadStorage(
+        UploadStorageConfig(
+            root_dir=tmp_path / "uploads",
+        )
+    )
+
+    upload = storage.save_upload(
+        filename="image.tif",
+        content=b"fake-tiff-bytes",
+        content_type="image/tiff",
+        kind="raster",
+    )
+
+    resolver = UploadReferenceResolver(
+        storage,
+        UploadReferenceResolverConfig(
+            raster_loader_plugin_module="__missing_raster_loader_for_structured_error__",
+            vector_loader_plugin_module="fake_vector_loader_plugin",
+            allow_adaptive_loader_fallback=False,
+        ),
+    )
+
+    with pytest.raises(UploadReferenceResolverError) as exc_info:
+        resolver.resolve_inputs(
+            {
+                "raster_ref": upload["upload_id"],
+            }
+        )
+
+    exc = exc_info.value
+
+    assert exc.structured_error["code"] in {
+        "input.resolution_failed",
+        "loader.plugin_import_failed",
+    }
+    assert exc.structured_error["source"] in {
+        "input_reference_resolver",
+        "loader_plugin_contract",
+    }
+    assert exc.structured_error["details"]["reference_kind"] == "raster"
+    assert exc.structured_error["details"]["stage"] in {
+        "loader_plugin_import",
+        "plugin_import",
+    }

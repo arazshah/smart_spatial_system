@@ -324,3 +324,60 @@ Compatibility:
 - Tolerant mode still skips bad plugins.
 - Non-tolerant mode still raises.
 - The plain string `error` field is kept for existing clients/tests.
+
+---
+
+## Phase 4 Step 8 — Input Reference / Loader Plugin Structured Errors
+
+Upload/input reference resolution and loader plugin contract failures now use the
+shared structured error contract.
+
+Additions:
+
+- `orchestrator.input_error_mapping`
+- `input_exception_to_structured_error`
+- `loader_exception_to_structured_error`
+- `UploadReferenceResolverError.structured_error`
+- `LoaderPluginContractError.structured_error`
+
+Input/reference mappings:
+
+- Invalid input payload:
+  - code: `input.invalid_payload`
+  - category: `validation_error`
+
+- Missing upload/reference:
+  - code: `input.reference_not_found`
+  - category: `validation_error`
+
+- Unsupported reference/fallback mode:
+  - code: `input.reference_unsupported`
+  - category: `validation_error`
+
+- Generic resolution failure:
+  - code: `input.resolution_failed`
+  - category: `validation_error`
+
+Loader mappings:
+
+- Loader plugin import failure:
+  - code: `loader.plugin_import_failed`
+  - category: `configuration_error`
+
+- Loader contract violation:
+  - code: `loader.contract_invalid`
+  - category: `capability_contract_error`
+
+- Loader execution failure:
+  - code: `loader.execution_failed`
+  - category: `provider_error`
+
+- Invalid loader output:
+  - code: `loader.output_invalid`
+  - category: `capability_contract_error`
+
+Compatibility:
+
+- Existing exception classes are preserved.
+- Existing exception messages are preserved.
+- Structured errors are additive and carried via `.structured_error`.

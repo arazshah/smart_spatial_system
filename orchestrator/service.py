@@ -676,6 +676,11 @@ class OrchestratorServiceConfig:
     min_score: float = 0.01
 
     response_language: str = "fa"
+
+    # Experimental opt-in: execute QuerySpec plans through the
+    # geochat_kernel execution bridge in addition to the current DAG path.
+    # Default is False to keep production behavior unchanged.
+    enable_kernel_execution: bool = False
     include_response_debug: bool = False
 
     keep_history: bool = True
@@ -3873,6 +3878,11 @@ class OrchestratorService:
             parsed = _coerce(os.getenv(env_name))
             if parsed is not None:
                 return parsed
+
+        config = getattr(self, "config", None)
+        parsed = _coerce(getattr(config, "enable_kernel_execution", None))
+        if parsed is not None:
+            return parsed
 
         return False
 

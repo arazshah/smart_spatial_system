@@ -342,3 +342,179 @@ def test_orchestrator_service_kernel_execution_flag_is_opt_in(tmp_path: Path, mo
 
     monkeypatch.setenv("SMART_SPATIAL_ENABLE_KERNEL_EXECUTION", "0")
     assert service._kernel_execution_enabled() is False
+
+
+def test_service_planning_opt_in_kernel_execution_metadata_includes_summary_and_parity(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from orchestrator.planning.runner import make_static_planning_runner
+    from orchestrator.planning.spec import EntitySpec, OperationSpec, OutputSpec, QuerySpec
+    from plugins.feature_scoring import rank_features, score_features
+
+    service = _make_service(tmp_path)
+
+    monkeypatch.setattr(service, "_query_spec_planning_enabled", lambda: True)
+
+    class FakeLLMClient:
+        pass
+
+    class FakeQuerySpecGenerator:
+        def __init__(self, llm_client):
+            self.llm_client = llm_client
+
+        def generate(self, query: str, context=None) -> QuerySpec:
+            return QuerySpec(
+                raw_query=query,
+                goal="rank_properties",
+                entities=[
+                    EntitySpec(ref="properties", kind="vector"),
+                ],
+                operations=[
+                    OperationSpec(
+                        op="score_features",
+                        inputs={"vector": "properties"},
+                        params={
+                            "scoring_spec": {
+                                "output_field": "investment_score",
+                                "scale": 100,
+                                "factors": [
+                                    {
+                                        "name": "near_poi",
+                                        "field": "distance_to_poi",
+                                        "type": "inverse_distance",
+                                        "max_distance": 500,
+                                        "weight": 0.7,
+                                    },
+                                    {
+                                        "name": "buildable",
+                                        "field": "__in_polygon__",
+                                        "type": "boolean",
+                                        "weight": 0.3,
+                                    },
+                                ],
+                            }
+                        },
+                        output="scored",
+                    ),
+                    OperationSpec(
+                        op="rank_features",
+                        inputs={"vector": "scored"},
+                        params={
+                            "score_field": "investment_score",
+                            "rank_field": "investment_rank",
+                        },
+                        output="ranked",
+                    ),
+                ],
+                outputs=[
+                    OutputSpec(kind="vector", source="ranked"),
+                ],
+            )
+
+    def fake_make_registry_planning_runner(registry):
+        return make_static_planning_runner(
+            {
+                "score_features": score_features,
+                "rank_features": rank_features,
+            }
+        )
+
+    monkeypatch.setattr(
+        "orchestrator.service.OpenAICompatibleLLMClient",
+        FakeLLMClient,
+    )
+    monkeypatch.setattr(
+        "orchestrator.service.LLMQuerySpecGenerator",
+        FakeQuerySpecGenerator,
+    )
+    monkeypatch.setattr(
+        "orchestrator.service.make_registry_planning_runner",
+        fake_make_registry_planning_runner,
+    )
+
+    resolved_inputs = {
+        "properties": {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {
+                        "name": "A",
+                        "distance_to_poi": 100,
+                        "__in_polygon__": True,
+                    },
+                },
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [1, 1]},
+                    "properties": {
+                        "name": "B",
+                        "distance_to_poi": 500,
+                        "__in_polygon__": False,
+                    },
+                },
+            ],
+        }
+    }
+
+    response = service._try_handle_query_with_planning(
+        query="املاک را امتیاز بده و رتبه‌بندی کن",
+        resolved_inputs=resolved_inputs,
+        final_request_id="req_kernel_execution_opt_in",
+        final_metadata={},
+        metadata={
+            "enable_kernel_execution": True,
+        },
+    )
+
+    assert response is not None
+    assert response["status"] == "succeeded"
+
+    metadata = response["metadata"]
+    planning_summary = metadata["planning_summary"]
+
+    assert metadata["query_spec_planning_enabled"] is True
+    assert metadata["planning_attempted"] is True
+    assert metadata["kernel_execution_enabled"] is True
+    assert metadata["execution_mode"] == "query_spec_planning_kernel_execution"
+
+    assert planning_summary["success"] is True
+    assert planning_summary["kernel_execution_enabled"] is True
+    assert planning_summary["kernel_execution_success"] is True
+
+    # Kernel plan summary is available in metadata.
+    kernel_plan_summary = planning_summary["kernel_plan"]
+    assert kernel_plan_summary is not None
+    assert kernel_plan_summary["valid"] is True
+    assert kernel_plan_summary["step_count"] == 2
+    assert kernel_plan_summary["output_nodes"] == ["ranked"]
+
+    # Kernel execution summary is available in metadata.
+    kernel_execution_summary = planning_summary["kernel_execution"]
+    assert kernel_execution_summary is not None
+    assert kernel_execution_summary["success"] is True
+    assert kernel_execution_summary["error"] is None
+    assert kernel_execution_summary["artifact_count"] == 2
+    assert kernel_execution_summary["output_artifact_count"] == 1
+    assert kernel_execution_summary["artifact_ids"] == ["scored", "ranked"]
+    assert kernel_execution_summary["output_artifact_ids"] == ["ranked"]
+
+    # Top-level response summary is still available for clients/debug UI.
+    assert response["kernel_execution"]["success"] is True
+    assert response["kernel_execution"]["artifact_count"] == 2
+
+    # DAG vs Kernel parity is available and successful.
+    parity = planning_summary["kernel_execution_parity"]
+    assert parity["available"] is True
+    assert parity["success"] is True
+    assert parity["dag_success"] is True
+    assert parity["kernel_success"] is True
+    assert parity["matching_output_node_ids"] is True
+    assert parity["output_values_match"] is True
+    assert parity["dag_output_node_ids"] == ["ranked"]
+    assert parity["kernel_output_node_ids"] == ["ranked"]
+    assert parity["missing_in_kernel"] == []
+    assert parity["extra_in_kernel"] == []
+    assert parity["mismatched_outputs"] == []

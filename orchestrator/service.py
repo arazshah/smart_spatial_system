@@ -4066,6 +4066,8 @@ class OrchestratorService:
                         (getattr(planning_result, "output_nodes", None) or {}).keys()
                     ),
                     "kernel_execution_enabled": kernel_execution_enabled,
+                    "kernel_plan": kernel_plan_summary,
+                    "kernel_execution": kernel_execution_summary,
                     "kernel_execution_success": (
                         None
                         if kernel_execution_summary is None

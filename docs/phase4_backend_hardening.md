@@ -177,3 +177,62 @@ Compatibility:
 - Existing `error` strings remain available.
 - Existing trace behavior remains unchanged.
 - Structured errors are public-safe and sanitized by the shared error contract.
+
+---
+
+## Phase 4 Step 6 — Service-level Planning Structured Errors
+
+Service-level planning exceptions are now mapped to the Phase 4 structured error
+contract.
+
+This covers errors that happen before or around DAG execution, including:
+
+- LLM QuerySpec generation failures
+- QuerySpec contract validation failures
+- Deterministic planner failures
+- DAG validation/execution exceptions raised through planning orchestration
+- Runtime planning exceptions
+
+Additive behavior:
+
+- Existing `planning_error` metadata remains unchanged.
+- New `planning_structured_error` metadata is added when
+  `_try_handle_query_with_planning(...)` catches a planning exception.
+- The planning fallback behavior remains unchanged; the service may still fall
+  back to the non-QuerySpec routing path after recording the structured planning
+  error.
+
+Current mappings:
+
+- `LLMSpecGenerationError`
+  - code: `planning.llm_spec_generation_failed`
+  - category: `planning_error`
+  - retryable: true for timeout/5xx/rate-limit-like messages
+
+- `PlanningError`
+  - code: `planning.failed`
+  - category: `planning_error`
+
+- `DagValidationError`
+  - code: `dag.validation_failed`
+  - category: `validation_error`
+
+- `DagExecutionError`
+  - code: `dag.execution_failed`
+  - category: `planning_error`
+
+- `ValueError`
+  - code: `planning.validation_failed`
+  - category: `validation_error`
+
+- `RuntimeError`
+  - code: `planning.runtime_failed`
+  - category: `planning_error`
+
+- Other exceptions
+  - code: `planning.unexpected_exception`
+  - category: `internal_error`
+
+Security:
+
+- Sensitive fields in details remain redacted by the shared error contract.

@@ -4252,9 +4252,20 @@ class OrchestratorService:
             RuntimeError,
             Exception,
         ) as exc:
+            from orchestrator.planning.error_mapping import (
+                planning_exception_to_structured_error,
+            )
+
+            planning_structured_error = planning_exception_to_structured_error(
+                exc,
+                source="orchestrator_service",
+                stage="query_spec_planning",
+            )
+
             final_metadata["query_spec_planning_enabled"] = True
             final_metadata["planning_attempted"] = True
             final_metadata["planning_error"] = str(exc)
+            final_metadata["planning_structured_error"] = planning_structured_error
             return None
 
     def handle_query(

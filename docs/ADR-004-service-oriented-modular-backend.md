@@ -2,63 +2,95 @@
 
 ## Status
 
-Accepted / Proposed for Phase 6.
+Accepted for Phase 6 planning.
 
 ## Context
 
-The Smart Spatial System backend has grown significantly. The current codebase
-contains API routes, query orchestration, planning, execution, plugin management,
-data-source connectors, uploads, projects, output storage, reports, feedback,
-runtime settings, and use-case-specific logic.
+The Smart Spatial System backend has grown significantly.
 
-A large portion of the orchestration and product logic currently lives in
-`orchestrator/service.py`, which has become too large and contains multiple
-responsibilities.
+The current repository includes:
 
-The project also contains runtime artifacts, generated outputs, uploads,
-project state, generated reports, backup files, and frontend build artifacts in
-or near the source tree. This makes audits and maintenance harder.
+- FastAPI API routes
+- query orchestration
+- planning and QuerySpec logic
+- DAG planning
+- kernel execution bridge
+- plugin/capability routing
+- uploads
+- projects
+- data sources
+- external connectors
+- output persistence
+- map layers
+- generated documents
+- feedback and learning signals
+- runtime settings
+- use-case-specific logic such as real-estate ranking
 
-The long-term product goal is a professional, backend-first, plugin-based,
-multi-source, language-aware smart spatial system. The system must remain
-generic and should not become tied to one use case such as real-estate ranking.
+A large part of the system currently flows through `orchestrator/service.py`.
+This file has become too large and contains many responsibilities.
+
+Current risks:
+
+1. `OrchestratorService` is becoming a God Service.
+2. Core orchestration logic is mixed with upload, project, data source, output,
+   plugin, report, and use-case logic.
+3. Real-estate ranking logic is currently inside the core service, although it
+   should be an isolated use case or plugin.
+4. Runtime data such as outputs, uploads, projects, cache, and generated reports
+   exists near the source tree and makes the repository harder to audit.
+5. Backup files such as `.bak` and `.before-*` files exist inside source
+   directories and create noise.
+6. Upload, DataSource, Connector, and Dataset/DataAsset concepts need clearer
+   boundaries.
+7. Phase 7 will introduce or harden multi-source data connectors, so the backend
+   needs cleaner internal boundaries before that phase.
+8. Moving directly to independently deployed microservices now would introduce
+   operational complexity before the internal architecture is stable.
 
 ## Decision
 
-We will not split the backend into independently deployed microservices
-immediately.
+We will not immediately split the backend into independently deployed
+microservices.
 
-Instead, we will first move toward a service-oriented modular backend:
+Instead, we will first move toward a service-oriented modular backend.
 
-- Define clear bounded contexts.
-- Extract internal service modules.
-- Keep a single deployable backend process for now.
-- Use explicit contracts between internal services.
-- Keep FastAPI as the API edge.
-- Reduce `OrchestratorService` into a facade/coordinator.
-- Move use-case-specific logic out of the core orchestration layer.
-- Prepare the architecture so that selected services can later become real
-  microservices if needed.
+This means:
 
-This approach gives us most of the architectural benefits of microservices
-without immediately introducing distributed-system complexity.
+- keep one deployable backend process for now
+- define clear internal service boundaries
+- extract responsibilities out of `orchestrator/service.py`
+- keep FastAPI as the API edge
+- make `OrchestratorService` a facade/coordinator over internal services
+- move use-case-specific logic out of the core orchestration layer
+- define contracts between internal services
+- prepare the codebase so selected internal services can later become real
+  microservices if needed
 
-## Target Internal Service Boundaries
+This approach gives us the structural benefits of microservices without adding
+distributed-system complexity too early.
+
+## Architecture Direction
+
+The target architecture is a modular service-oriented backend.
+
+Internal service boundaries should include:
 
 ### API Edge
 
-Responsibilities:
+Responsible for:
 
-- HTTP routing
+- HTTP routes
 - request validation
 - response serialization
 - HTTP error mapping
+- OpenAPI exposure
 
-No heavy business logic should live here.
+The API layer should not contain heavy business logic.
 
 ### Query Orchestration Service
 
-Responsibilities:
+Responsible for:
 
 - main `/query` flow
 - input reference resolution coordination
@@ -66,62 +98,70 @@ Responsibilities:
 - production response assembly
 - request recording
 
+It should coordinate other services instead of implementing every detail itself.
+
 ### Planning Service
 
-Responsibilities:
+Responsible for:
 
 - QuerySpec planning
 - deterministic planning
 - LLM spec generation
 - DAG plan creation
 - kernel plan adaptation
-- planning trace
+- planning traces
+- semantic planning context
 
 ### Execution Service
 
-Responsibilities:
+Responsible for:
 
 - plan execution
 - plugin/capability execution
 - kernel execution bridge
-- execution trace and parity metadata
+- execution trace
+- parity/debug metadata
 
 ### Plugin Registry Service
 
-Responsibilities:
+Responsible for:
 
 - plugin discovery
 - plugin configuration
 - plugin enable/disable state
 - capability registry
 - weighted routing support
+- plugin health/status views
 
 ### Data Connector Service
 
-Responsibilities:
+Responsible for:
 
 - PostGIS connector
-- WFS/WMS connector
+- WFS connector
+- WMS connector
 - URL connector
 - CSV/table connector
 - local raster/vector loader coordination
 - connector registry
 - normalized connector results
-- source preview metadata
+- source metadata and preview
+
+This boundary is required before Phase 7.
 
 ### Upload Service
 
-Responsibilities:
+Responsible for:
 
 - file upload storage
 - upload metadata
 - upload validation
-- upload file download
+- upload file path/media type
 - parsed JSON metadata
 
 ### Project Service
 
-Responsibilities:
+Responsible for:
 
 - project/workspace creation
 - project metadata
@@ -129,25 +169,26 @@ Responsibilities:
 
 ### Artifact/Output Service
 
-Responsibilities:
+Responsible for:
 
 - output manifests
 - output file persistence
-- map layer file persistence
-- production response/audit file persistence
+- production response persistence
+- audit record persistence
+- output file listing
 - output file download paths
 
 ### Map Layer Service
 
-Responsibilities:
+Responsible for:
 
-- Leaflet-ready layer generation
+- Leaflet-ready map layer generation
 - GeoJSON output normalization
 - map layer metadata
 
 ### Report/Document Service
 
-Responsibilities:
+Responsible for:
 
 - generic report/document generation
 - document metadata
@@ -156,107 +197,183 @@ Responsibilities:
 
 Use-case-specific report logic must not live in core orchestration.
 
-### Use Case Plugins
+### Use Case Modules or Plugins
 
-Responsibilities:
+Responsible for domain-specific workflows such as:
 
-- domain-specific analysis logic
 - real-estate ranking
-- specialized scoring
-- specialized report templates
+- risk analysis
+- vegetation/NDVI workflows
+- other future domain workflows
 
-Use cases should be implemented as plugins or isolated domain modules.
+These should be isolated from the core backend.
 
-## Current Problems to Address
+A use case may start as:
 
-1. `orchestrator/service.py` has too many responsibilities.
-2. Real-estate ranking logic is currently inside the core service.
-3. Runtime data exists in top-level source paths such as `outputs`, `uploads`,
-   `projects`, and `artifacts/reports`.
-4. Backup files exist inside source directories.
-5. Upload and DataSource concepts are partially mixed.
-6. External connector responses and errors are not fully normalized.
-7. API and service layers sometimes contain direct connector logic.
-8. The frontend directory and generated frontend artifacts add audit noise.
-9. Some status and error contracts are not fully unified.
-10. The system needs clearer boundaries before Phase 7 multi-source connectors.
+```text
+orchestrator/use_cases/<use_case_name>/
 
-## Migration Strategy
+
+and later move to:
+
+text
+plugins/use_cases/<use_case_name>/
+
+
+if needed.
+
+Important Concept Boundaries
+
+The following concepts must be kept distinct:
+
+Upload
+
+A physical or logical file uploaded by a user.
+
+Examples:
+
+GeoJSON file
+raster JSON
+GeoTIFF
+CSV file
+DataSource
+
+A registered source of data that can be referenced, previewed, or queried.
+
+Examples:
+
+PostGIS table
+WFS layer
+WMS layer
+URL-based GeoJSON
+uploaded file registered as a project source
+Connector
+
+An adapter that knows how to connect to, fetch from, validate, or preview a
+specific type of source.
+
+Examples:
+
+PostGISConnector
+WFSConnector
+WMSConnector
+URLConnector
+CSVConnector
+LocalRasterConnector
+LocalVectorConnector
+Dataset/DataAsset
+
+A normalized internal representation of data that the planner/executor/plugins
+can consume.
+
+Migration Strategy
 
 We will use a strangler-style refactor.
 
-For each extracted service:
+For each extracted internal service:
 
-1. Keep current behavior unchanged.
-2. Add focused tests if needed.
-3. Create the new internal service module.
-4. Move logic from `orchestrator/service.py` into the new service.
-5. Make `OrchestratorService` delegate to the new service.
-6. Run all relevant tests.
-7. Commit.
-8. Repeat.
+Keep current behavior unchanged.
+Add or keep focused tests.
+Create the new service module.
+Move logic from orchestrator/service.py into the new service.
+Make OrchestratorService delegate to the new service.
+Run relevant tests.
+Commit.
+Repeat.
 
 No large rewrite should be done in one step.
 
-## Phase Alignment
+Phase Alignment
+Phase 5 — API Contract Stabilization Closure
 
-### Phase 6 — Backend Architecture Decomposition
+This ADR belongs to the end of Phase 5 because it defines the architectural
+direction required before continuing with backend decomposition.
 
-- repository hygiene
-- service boundary definition
-- service extraction
-- use-case isolation
-- runtime data cleanup
-- OrchestratorService slimming
+Phase 6 — Backend Architecture Decomposition
 
-### Phase 7 — Multi-source Data Connectors
+Phase 6 will focus on:
 
-- connector contract
-- connector registry
-- PostGIS/WFS/WMS/URL/CSV hardening
-- connector metadata and preview normalization
+repository hygiene
+runtime directory standardization
+service boundary extraction
+OrchestratorService slimming
+use-case isolation
+preparing clean boundaries for connectors
+Phase 7 — Multi-source Data Connectors
 
-### Phase 8 — Backend Packaging + CLI
+Phase 7 will focus on:
 
-- installable package
-- CLI entrypoints
-- runtime path configuration
-- package metadata
+connector contracts
+connector registry
+PostGIS hardening
+WFS/WMS hardening
+URL/CSV connectors
+local raster/vector connector alignment
+metadata and preview normalization
+Phase 8 — Backend Packaging + CLI
 
-### Phase 9 — Backend API Finalization
+Phase 8 will focus on:
 
-- public schemas
-- OpenAPI finalization
-- API versioning
-- structured error consistency
-- security and deployment readiness
+installable package
+CLI entrypoints
+runtime path configuration
+package metadata
+installation docs
+Phase 9 — Backend API Finalization
 
-### Phase 10 — Frontend Readiness
+Phase 9 will focus on:
 
-- frontend handoff
-- frontend contract examples
-- UI implementation readiness checklist
+public Pydantic schemas
+unified error contract
+status normalization
+OpenAPI polish
+API versioning decision
+security/config/deployment readiness
+Phase 10 — Frontend Readiness
 
-## Consequences
+Phase 10 will focus on:
 
-### Positive
+frontend handoff
+frontend API examples
+UI readiness checklist
+final frontend contract smoke tests
 
-- Lower cognitive load.
-- Cleaner code ownership.
-- Easier testing.
-- Easier future microservice extraction.
-- Better alignment with plugin-based architecture.
-- Less risk of use-case-specific logic polluting the core.
+Frontend implementation should not start before this readiness phase.
 
-### Negative
+Rules Going Forward
+Do not add new business logic directly to orchestrator/service.py.
+Prefer adding new logic behind internal service boundaries.
+Keep use-case-specific logic outside the core orchestration layer.
+Keep connector logic behind the Data Connector Service boundary.
+Keep runtime artifacts out of source-code paths where possible.
+Keep each migration step small, tested, and committed.
+Preserve current behavior while extracting services.
+Do not introduce distributed microservice deployment until internal service boundaries are stable.
+Consequences
+Positive
+lower cognitive load
+cleaner ownership of logic
+easier testing
+easier future microservice extraction
+reduced risk of use-case-specific core pollution
+better alignment with plugin-based architecture
+safer preparation for Phase 7 connectors
+Negative
+requires disciplined incremental refactoring
+temporarily increases the number of modules/files
+requires careful test coverage
+does not immediately solve deployment-level scaling
+requires clear documentation to avoid another kind of fragmentation
+Decision Summary
 
-- Requires disciplined incremental refactoring.
-- Adds internal service interfaces.
-- May temporarily increase number of files/modules.
-- Requires careful test coverage to avoid regressions.
+We choose:
 
-## Rule
+text
+Service-oriented modular backend first.
+Microservice-ready design.
+No immediate distributed microservice split.
+Incremental extraction from OrchestratorService.
 
-Until Phase 6 is complete, new functionality should avoid adding more business
-logic directly into `orchestrator/service.py`.
 
+This is the safest path to reach the target product architecture without
+breaking the current working backend.

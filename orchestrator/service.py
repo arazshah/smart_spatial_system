@@ -32,6 +32,8 @@ from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Any
 
+from orchestrator.error_contract import CATEGORY_INTERNAL, exception_to_error
+
 
 class _EnabledOnlyRegistryView:
     """
@@ -721,7 +723,123 @@ class OrchestratorServiceConfig:
 class OrchestratorServiceError(RuntimeError):
     """
     Service-level error.
+
+    The legacy message remains unchanged; structured_error is additive.
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        structured_error: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.structured_error = structured_error
+
+
+def _service_exception_chain(exc: BaseException) -> list[BaseException]:
+    chain: list[BaseException] = []
+    seen: set[int] = set()
+    current: BaseException | None = exc
+
+    while current is not None and id(current) not in seen:
+        chain.append(current)
+        seen.add(id(current))
+
+        cause = getattr(current, "__cause__", None)
+        context = getattr(current, "__context__", None)
+
+        if isinstance(cause, BaseException):
+            current = cause
+        elif isinstance(context, BaseException):
+            current = context
+        else:
+            current = None
+
+    return chain
+
+
+def _find_structured_error_in_exception_chain(
+    exc: BaseException,
+) -> dict[str, Any] | None:
+    for item in _service_exception_chain(exc):
+        structured_error = getattr(item, "structured_error", None)
+
+        if isinstance(structured_error, dict):
+            return structured_error
+
+    return None
+
+
+def _service_exception_to_structured_error(
+    exc: BaseException,
+    *,
+    stage: str | None = None,
+    source: str = "orchestrator_service",
+    details: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Preserve an existing structured_error from the exception chain when present.
+    Otherwise create a generic service-level structured error.
+    """
+    existing = _find_structured_error_in_exception_chain(exc)
+
+    if isinstance(existing, dict):
+        payload = dict(existing)
+        payload_details = dict(payload.get("details") or {})
+
+        if stage is not None:
+            payload_details.setdefault("service_stage", stage)
+
+        if details:
+            payload_details.update(details)
+
+        payload["details"] = payload_details
+        return payload
+
+    merged_details: dict[str, Any] = {
+        "exception_chain": [
+            {
+                "type": type(item).__name__,
+                "message": str(item) or type(item).__name__,
+            }
+            for item in _service_exception_chain(exc)
+        ],
+    }
+
+    if stage is not None:
+        merged_details["stage"] = stage
+
+    if details:
+        merged_details.update(details)
+
+    return exception_to_error(
+        exc,
+        code="service.unexpected_exception",
+        category=CATEGORY_INTERNAL,
+        retryable=False,
+        source=source,
+        details=merged_details,
+    ).to_dict()
+
+
+def _service_error_from_exception(
+    exc: BaseException,
+    *,
+    stage: str | None = None,
+    message: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> OrchestratorServiceError:
+    final_message = str(exc) if message is None else message
+
+    return OrchestratorServiceError(
+        final_message,
+        structured_error=_service_exception_to_structured_error(
+            exc,
+            stage=stage,
+            details=details,
+        ),
+    )
 
 
 class OrchestratorService:
@@ -4456,6 +4574,13 @@ class OrchestratorService:
             return production_response
 
         except Exception as exc:
+            service_structured_error = _service_exception_to_structured_error(
+                exc,
+                stage="handle_query",
+            )
+            final_metadata["structured_error"] = service_structured_error
+            final_metadata["service_structured_error"] = service_structured_error
+
             failed_response = self.response_builder.build_dict(
                 response={
                     "status": "failed",
@@ -4464,6 +4589,12 @@ class OrchestratorService:
                 error=exc,
                 metadata=final_metadata,
             )
+
+            failed_response["structured_error"] = _json_safe(service_structured_error)
+            failed_metadata = failed_response.setdefault("metadata", {})
+            if isinstance(failed_metadata, dict):
+                failed_metadata["structured_error"] = _json_safe(service_structured_error)
+                failed_metadata["service_structured_error"] = _json_safe(service_structured_error)
 
             self._remember(
                 request_id=final_request_id,
@@ -5620,7 +5751,10 @@ class OrchestratorService:
         try:
             return self.upload_reference_resolver.resolve_inputs(inputs)
         except UploadReferenceResolverError as exc:
-            raise OrchestratorServiceError(str(exc)) from exc
+            raise _service_error_from_exception(
+                exc,
+                stage="resolve_input_references",
+            ) from exc
 
 
     def save_request_outputs(

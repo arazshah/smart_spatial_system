@@ -381,3 +381,30 @@ Compatibility:
 - Existing exception classes are preserved.
 - Existing exception messages are preserved.
 - Structured errors are additive and carried via `.structured_error`.
+
+---
+
+## Phase 4 Step 9 — Service/API Structured Error Normalization
+
+Service-level failures now preserve structured errors across the service/API
+boundary.
+
+Additions:
+
+- `OrchestratorServiceError.structured_error`
+- Service helper for preserving structured errors from exception chains
+- `handle_query` failed responses expose:
+  - top-level `structured_error`
+  - `metadata.structured_error`
+  - `metadata.service_structured_error`
+- Upload/input resolver errors are preserved when wrapped by
+  `OrchestratorServiceError`
+- API `HTTPException.detail` can expose structured error details when the
+  underlying service exception carries `.structured_error`
+
+Compatibility:
+
+- Existing exception messages are preserved.
+- Existing failed query response shape is preserved.
+- `structured_error` fields are additive.
+- HTTP errors without structured errors still return the previous string detail.

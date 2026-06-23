@@ -132,7 +132,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=400,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
     @app.get("/projects")
@@ -154,7 +154,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=404,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
 
@@ -170,7 +170,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=404,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
     @app.get("/data-sources/{upload_id}")
@@ -185,7 +185,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=404,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
     @app.delete("/data-sources/{upload_id}")
@@ -200,7 +200,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=400,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
     @app.patch("/data-sources/{upload_id}")
@@ -216,7 +216,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=400,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
     @app.get("/data-sources/{upload_id}/preview")
@@ -231,7 +231,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=404,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
 
@@ -247,7 +247,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=400,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
     @app.post("/data-sources/wms")
@@ -262,7 +262,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=400,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
 
@@ -286,7 +286,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=404,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
 
@@ -324,12 +324,12 @@ def create_app(
         try:
             svc.get_plugin(plugin_id)
         except OrchestratorServiceError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            raise HTTPException(status_code=404, detail=_http_error_detail(exc)) from exc
 
         try:
             return _json_safe(read_plugin_config(plugin_id))
         except PluginConfigStoreError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise HTTPException(status_code=400, detail=_http_error_detail(exc)) from exc
 
     @app.put("/plugins/{plugin_id}/config")
     def put_plugin_config(
@@ -342,7 +342,7 @@ def create_app(
         try:
             svc.get_plugin(plugin_id)
         except OrchestratorServiceError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            raise HTTPException(status_code=404, detail=_http_error_detail(exc)) from exc
 
         raw_yaml = payload.get("raw_yaml")
         parsed = payload.get("parsed")
@@ -354,7 +354,7 @@ def create_app(
                 parsed=parsed,
             )
         except PluginConfigStoreError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise HTTPException(status_code=400, detail=_http_error_detail(exc)) from exc
 
         return _json_safe(result)
 
@@ -386,7 +386,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=502,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
     @app.post("/planner/intent")
@@ -408,7 +408,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=400,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
     @app.post("/uploads/raster")
@@ -443,7 +443,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=400,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
         return _json_safe(payload)
@@ -480,7 +480,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=400,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
         return _json_safe(payload)
@@ -504,7 +504,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=404,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
     @app.get("/uploads/{upload_id}/file")
@@ -520,7 +520,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=404,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
         return FileResponse(
@@ -679,12 +679,12 @@ def create_app(
             if "Unknown request_id" in str(exc):
                 raise HTTPException(
                     status_code=404,
-                    detail=str(exc),
+                    detail=_http_error_detail(exc),
                 ) from exc
 
             raise HTTPException(
                 status_code=400,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
         return _json_safe(payload)
@@ -726,12 +726,12 @@ def create_app(
             if "Unknown request_id" in str(exc):
                 raise HTTPException(
                     status_code=404,
-                    detail=str(exc),
+                    detail=_http_error_detail(exc),
                 ) from exc
 
             raise HTTPException(
                 status_code=400,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
     @app.get("/requests/{request_id}/outputs")
@@ -749,7 +749,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=404,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
     @app.post("/requests/{request_id}/outputs/save")
@@ -768,12 +768,12 @@ def create_app(
             if "Unknown request_id" in str(exc):
                 raise HTTPException(
                     status_code=404,
-                    detail=str(exc),
+                    detail=_http_error_detail(exc),
                 ) from exc
 
             raise HTTPException(
                 status_code=400,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
     @app.get("/requests/{request_id}/outputs/files")
@@ -791,7 +791,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=404,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
     @app.get("/requests/{request_id}/outputs/files/{filename}")
@@ -813,7 +813,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=404,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
         return FileResponse(
@@ -891,7 +891,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=500,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
     @app.post("/weights/reload")
@@ -903,7 +903,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=500,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
     @app.post("/weights/proposals/apply")
@@ -946,7 +946,7 @@ def create_app(
         except (OrchestratorServiceError, TypeError, ValueError) as exc:
             raise HTTPException(
                 status_code=400,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
         return _json_safe(payload)
@@ -1053,7 +1053,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=400,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
         return _json_safe({
@@ -1171,7 +1171,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=400,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
         return _json_safe({
@@ -1271,7 +1271,7 @@ def create_app(
         except OrchestratorServiceError as exc:
             raise HTTPException(
                 status_code=400,
-                detail=str(exc),
+                detail=_http_error_detail(exc),
             ) from exc
 
         return _json_safe({
@@ -1282,6 +1282,19 @@ def create_app(
         })
 
     return app
+
+
+def _http_error_detail(exc: BaseException) -> Any:
+    structured_error = getattr(exc, "structured_error", None)
+
+    if isinstance(structured_error, dict):
+        return {
+            "message": str(exc),
+            "error": str(exc),
+            "structured_error": _json_safe(structured_error),
+        }
+
+    return str(exc)
 
 
 def _service(request: Request) -> OrchestratorService:

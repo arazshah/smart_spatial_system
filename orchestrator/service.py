@@ -123,6 +123,7 @@ from orchestrator.production_response import (
 from orchestrator.routing_aware_natural_query_runner import (
     run_natural_query_with_routing_evidence,
 )
+from orchestrator.upload_service import UploadService, UploadServiceError
 from orchestrator.upload_storage import (
     UploadStorage,
     UploadStorageConfig,
@@ -923,6 +924,7 @@ class OrchestratorService:
                 root_dir=upload_root,
             )
         )
+        self.upload_service = UploadService(self.upload_storage)
 
         self.project_store = ProjectStore(
             ProjectStoreConfig(
@@ -5292,7 +5294,7 @@ class OrchestratorService:
         Save uploaded user file and return upload metadata.
         """
         try:
-            payload = self.upload_storage.save_upload(
+            payload = self.upload_service.save_upload(
                 filename=filename,
                 content=content,
                 content_type=content_type,
@@ -5308,14 +5310,14 @@ class OrchestratorService:
                 payload["project_id"] = project_id
 
             return payload
-        except UploadStorageError as exc:
+        except (UploadStorageError, UploadServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
     def list_uploads(self) -> list[dict[str, Any]]:
         """
         List stored uploads.
         """
-        return self.upload_storage.list_uploads()
+        return self.upload_service.list_uploads()
 
     def get_upload_metadata(
         self,
@@ -5325,8 +5327,8 @@ class OrchestratorService:
         Return upload metadata.
         """
         try:
-            return self.upload_storage.read_metadata(upload_id)
-        except UploadStorageError as exc:
+            return self.upload_service.read_metadata(upload_id)
+        except (UploadStorageError, UploadServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
     def get_upload_file_path(
@@ -5337,8 +5339,8 @@ class OrchestratorService:
         Return safe uploaded file path.
         """
         try:
-            return self.upload_storage.get_file_path(upload_id)
-        except UploadStorageError as exc:
+            return self.upload_service.get_file_path(upload_id)
+        except (UploadStorageError, UploadServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
     def get_upload_file_media_type(
@@ -5346,8 +5348,8 @@ class OrchestratorService:
         upload_id: str,
     ) -> str:
         try:
-            return self.upload_storage.get_media_type(upload_id)
-        except UploadStorageError as exc:
+            return self.upload_service.get_media_type(upload_id)
+        except (UploadStorageError, UploadServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
 
@@ -5398,7 +5400,7 @@ class OrchestratorService:
         }
 
         try:
-            metadata = self.upload_storage.save_external_source(
+            metadata = self.upload_service.save_external_source(
                 source_type="csv_table",
                 kind="table",
                 display_name=display_name,
@@ -5413,7 +5415,7 @@ class OrchestratorService:
                 metadata,
                 project_id=project_id,
             )
-        except (UploadStorageError, ProjectServiceError) as exc:
+        except (UploadStorageError, ProjectServiceError, UploadServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
     def register_wms_source(
@@ -5465,7 +5467,7 @@ class OrchestratorService:
         }
 
         try:
-            metadata = self.upload_storage.save_external_source(
+            metadata = self.upload_service.save_external_source(
                 source_type="wms",
                 kind="online",
                 display_name=display_name,
@@ -5480,7 +5482,7 @@ class OrchestratorService:
                 metadata,
                 project_id=project_id,
             )
-        except (UploadStorageError, ProjectServiceError) as exc:
+        except (UploadStorageError, ProjectServiceError, UploadServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
     def list_project_data_sources(
@@ -5500,7 +5502,7 @@ class OrchestratorService:
 
         for upload_id in upload_ids:
             try:
-                metadata = self.upload_storage.read_metadata(str(upload_id))
+                metadata = self.upload_service.read_metadata(str(upload_id))
             except UploadStorageError:
                 continue
 
@@ -5522,8 +5524,8 @@ class OrchestratorService:
         upload_id: str,
     ) -> dict[str, Any]:
         try:
-            metadata = self.upload_storage.read_metadata(upload_id)
-        except UploadStorageError as exc:
+            metadata = self.upload_service.read_metadata(upload_id)
+        except (UploadStorageError, UploadServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
         project_id = None
@@ -5543,8 +5545,8 @@ class OrchestratorService:
         upload_id: str,
     ) -> dict[str, Any]:
         try:
-            metadata = self.upload_storage.read_metadata(upload_id)
-        except UploadStorageError as exc:
+            metadata = self.upload_service.read_metadata(upload_id)
+        except (UploadStorageError, UploadServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
         attached_projects: list[str] = []
@@ -5565,8 +5567,8 @@ class OrchestratorService:
                     raise OrchestratorServiceError(str(exc)) from exc
 
         try:
-            self.upload_storage.delete_upload(upload_id)
-        except UploadStorageError as exc:
+            self.upload_service.delete_upload(upload_id)
+        except (UploadStorageError, UploadServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
         payload = self._normalize_data_source_metadata(
@@ -5645,8 +5647,8 @@ class OrchestratorService:
         }
 
         try:
-            metadata = self.upload_storage.update_metadata(upload_id, patch)
-        except UploadStorageError as exc:
+            metadata = self.upload_service.update_metadata(upload_id, patch)
+        except (UploadStorageError, UploadServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
         project_id = None
@@ -5666,8 +5668,8 @@ class OrchestratorService:
         upload_id: str,
     ) -> dict[str, Any]:
         try:
-            metadata = self.upload_storage.read_metadata(upload_id)
-        except UploadStorageError as exc:
+            metadata = self.upload_service.read_metadata(upload_id)
+        except (UploadStorageError, UploadServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
         project_id = None
@@ -5694,7 +5696,7 @@ class OrchestratorService:
 
         if metadata.get("parsed_json_available"):
             try:
-                content = self.upload_storage.read_json_content(upload_id)
+                content = self.upload_service.read_json_content(upload_id)
                 base["preview"] = self._build_json_preview(content)
                 return base
             except UploadStorageError:

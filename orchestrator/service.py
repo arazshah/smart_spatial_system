@@ -113,6 +113,10 @@ from orchestrator.project_store import (
     ProjectStoreConfig,
     ProjectStoreError,
 )
+from orchestrator.project_service import (
+    ProjectService,
+    ProjectServiceError,
+)
 from orchestrator.production_response import (
     ProductionResponseBuilder,
     ProductionResponseConfig,
@@ -926,6 +930,8 @@ class OrchestratorService:
                 root_dir=project_root,
             )
         )
+
+        self.project_service = ProjectService(self.project_store)
 
         self.upload_reference_resolver = UploadReferenceResolver(
             self.upload_storage,
@@ -4822,27 +4828,30 @@ class OrchestratorService:
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         try:
-            return self.project_store.create_project(
+            return self.project_service.create_project(
                 name=name,
                 description=description,
                 metadata=metadata,
             )
-        except ProjectStoreError as exc:
+        except ProjectServiceError as exc:
             raise OrchestratorServiceError(str(exc)) from exc
+
 
     def list_projects(
         self,
     ) -> list[dict[str, Any]]:
-        return self.project_store.list_projects()
+        return self.project_service.list_projects()
+
 
     def get_project(
         self,
         project_id: str,
     ) -> dict[str, Any]:
         try:
-            return self.project_store.get_project(project_id)
-        except ProjectStoreError as exc:
+            return self.project_service.get_project(project_id)
+        except ProjectServiceError as exc:
             raise OrchestratorServiceError(str(exc)) from exc
+
 
     def list_plugins(
         self,

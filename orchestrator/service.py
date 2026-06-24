@@ -104,6 +104,7 @@ from orchestrator.input_reference_resolver import (
     UploadReferenceResolverError,
 )
 from orchestrator.data_source_service import DataSourceService, DataSourceServiceError
+from orchestrator.map_layer_service import MapLayerService, MapLayerServiceError
 from orchestrator.output_service import OutputService, OutputServiceError
 from orchestrator.output_storage import (
     OutputStorage,
@@ -914,6 +915,10 @@ class OrchestratorService:
         self.weight_store = weight_store or self._load_weight_store()
 
         self.map_layer_builder = MapLayerBuilder()
+        self.map_layer_service = MapLayerService(
+            self.get_request,
+            self.map_layer_builder,
+        )
 
         self.output_storage = OutputStorage(
             OutputStorageConfig(
@@ -5572,18 +5577,11 @@ class OrchestratorService:
     def get_map_layers(
         self,
         request_id: str,
-    ) -> dict[str, Any]:
-        """
-        Return Leaflet-ready map layers for a stored request.
-        """
-        record = self.get_request(request_id)
-
-        if record is None:
-            raise OrchestratorServiceError(
-                f"Unknown request_id: {request_id}"
-            )
-
-        return self.map_layer_builder.build_for_request_record(record)
+    ) -> list[dict[str, Any]]:
+        try:
+            return self.map_layer_service.get_map_layers(request_id)
+        except MapLayerServiceError as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
 
     def get_weights(self) -> dict[str, Any]:
         """

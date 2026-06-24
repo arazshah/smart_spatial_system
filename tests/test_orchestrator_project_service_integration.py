@@ -64,3 +64,17 @@ def test_orchestrator_service_converts_project_service_errors(
 
     with pytest.raises(OrchestratorServiceError):
         service.get_project("missing-project")
+
+
+def test_orchestrator_service_does_not_use_project_store_for_attachments() -> None:
+    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+
+    assert "self.project_store.attach_upload(" not in source
+    assert "self.project_store.attach_request(" not in source
+    assert "self.project_store.attach_output(" not in source
+    assert "self.project_store.detach_upload(" not in source
+
+    assert "self.project_service.attach_upload(" in source
+    assert "self.project_service.attach_request(" in source
+    assert "self.project_service.attach_output(" in source
+    assert "self.project_service.detach_upload(" in source

@@ -1993,7 +1993,7 @@ class OrchestratorService:
 
         if _resolved_project_id:
             try:
-                self.project_store.attach_request(
+                self.project_service.attach_request(
                     _resolved_project_id,
                     final_request_id,
                 )
@@ -4371,7 +4371,7 @@ class OrchestratorService:
 
                 if stored_project_id:
                     try:
-                        self.project_store.attach_request(
+                        self.project_service.attach_request(
                             stored_project_id,
                             final_request_id,
                         )
@@ -4383,7 +4383,7 @@ class OrchestratorService:
 
                     if stored_project_id and isinstance(manifest, dict):
                         try:
-                            self.project_store.attach_output(
+                            self.project_service.attach_output(
                                 stored_project_id,
                                 final_request_id,
                             )
@@ -4583,7 +4583,7 @@ class OrchestratorService:
 
                 if project_id:
                     try:
-                        self.project_store.attach_request(
+                        self.project_service.attach_request(
                             project_id,
                             final_request_id,
                         )
@@ -4595,7 +4595,7 @@ class OrchestratorService:
 
                     if project_id and isinstance(manifest, dict):
                         try:
-                            self.project_store.attach_output(
+                            self.project_service.attach_output(
                                 project_id,
                                 final_request_id,
                             )
@@ -5302,7 +5302,7 @@ class OrchestratorService:
             )
 
             if project_id:
-                self.project_store.attach_upload(
+                self.project_service.attach_upload(
                     project_id,
                     payload["upload_id"],
                 )
@@ -5408,13 +5408,13 @@ class OrchestratorService:
             )
 
             if project_id:
-                self.project_store.attach_upload(project_id, metadata["upload_id"])
+                self.project_service.attach_upload(project_id, metadata["upload_id"])
 
             return self._normalize_data_source_metadata(
                 metadata,
                 project_id=project_id,
             )
-        except (UploadStorageError, ProjectStoreError) as exc:
+        except (UploadStorageError, ProjectStoreError, ProjectServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
     def register_wms_source(
@@ -5475,13 +5475,13 @@ class OrchestratorService:
             )
 
             if project_id:
-                self.project_store.attach_upload(project_id, metadata["upload_id"])
+                self.project_service.attach_upload(project_id, metadata["upload_id"])
 
             return self._normalize_data_source_metadata(
                 metadata,
                 project_id=project_id,
             )
-        except (UploadStorageError, ProjectStoreError) as exc:
+        except (UploadStorageError, ProjectStoreError, ProjectServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
     def list_project_data_sources(
@@ -5490,7 +5490,7 @@ class OrchestratorService:
     ) -> list[dict[str, Any]]:
         try:
             project = self.project_store.get_project(project_id)
-        except ProjectStoreError as exc:
+        except (ProjectStoreError, ProjectServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
         upload_ids = project.get("uploads")
@@ -5560,9 +5560,9 @@ class OrchestratorService:
                 and upload_id in uploads
             ):
                 try:
-                    self.project_store.detach_upload(project_id, upload_id)
+                    self.project_service.detach_upload(project_id, upload_id)
                     attached_projects.append(str(project_id))
-                except ProjectStoreError as exc:
+                except (ProjectStoreError, ProjectServiceError) as exc:
                     raise OrchestratorServiceError(str(exc)) from exc
 
         try:
@@ -6043,7 +6043,7 @@ class OrchestratorService:
         project_id = str(record.get("project_id") or "").strip()
         if project_id:
             try:
-                self.project_store.attach_request(project_id, request_id)
+                self.project_service.attach_request(project_id, request_id)
             except Exception:
                 pass
 

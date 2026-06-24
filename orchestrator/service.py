@@ -5489,7 +5489,7 @@ class OrchestratorService:
         project_id: str,
     ) -> list[dict[str, Any]]:
         try:
-            project = self.project_store.get_project(project_id)
+            project = self.project_service.get_project(project_id)
         except (ProjectStoreError, ProjectServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
@@ -5528,7 +5528,7 @@ class OrchestratorService:
             raise OrchestratorServiceError(str(exc)) from exc
 
         project_id = None
-        for project in self.project_store.list_projects():
+        for project in self.project_service.list_projects():
             uploads = project.get("uploads")
             if isinstance(uploads, list) and upload_id in uploads:
                 project_id = project.get("project_id")
@@ -5550,7 +5550,7 @@ class OrchestratorService:
 
         attached_projects: list[str] = []
 
-        for project in self.project_store.list_projects():
+        for project in self.project_service.list_projects():
             project_id = project.get("project_id")
             uploads = project.get("uploads")
 
@@ -5651,7 +5651,7 @@ class OrchestratorService:
             raise OrchestratorServiceError(str(exc)) from exc
 
         project_id = None
-        for project in self.project_store.list_projects():
+        for project in self.project_service.list_projects():
             uploads = project.get("uploads")
             if isinstance(uploads, list) and upload_id in uploads:
                 project_id = project.get("project_id")
@@ -5672,7 +5672,7 @@ class OrchestratorService:
             raise OrchestratorServiceError(str(exc)) from exc
 
         project_id = None
-        for project in self.project_store.list_projects():
+        for project in self.project_service.list_projects():
             uploads = project.get("uploads")
             if isinstance(uploads, list) and upload_id in uploads:
                 project_id = project.get("project_id")

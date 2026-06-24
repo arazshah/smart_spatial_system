@@ -78,3 +78,15 @@ def test_orchestrator_service_does_not_use_project_store_for_attachments() -> No
     assert "self.project_service.attach_request(" in source
     assert "self.project_service.attach_output(" in source
     assert "self.project_service.detach_upload(" in source
+
+
+def test_orchestrator_service_does_not_use_project_store_for_project_lookups() -> None:
+    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+
+    assert "self.project_store.create_project(" not in source
+    assert "self.project_store.get_project(" not in source
+    assert "self.project_store.list_projects(" not in source
+
+    assert "self.project_service.create_project(" in source
+    assert "self.project_service.get_project(" in source
+    assert "self.project_service.list_projects(" in source

@@ -30,6 +30,8 @@ import os
 import uuid
 from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
+
+from orchestrator.runtime_paths import RuntimePaths
 from typing import Any
 
 from orchestrator.error_contract import CATEGORY_INTERNAL, exception_to_error
@@ -661,9 +663,15 @@ class OrchestratorServiceConfig:
     use_weighted_router: bool = True
     load_persisted_weights: bool = True
     weights_path: str | Path = "weights/router_weights.json"
-    outputs_path: str | Path = "outputs"
-    uploads_path: str | Path = "uploads"
-    projects_path: str | Path = "projects"
+
+    # Runtime root for generated local state.
+    # If outputs/uploads/projects paths are not provided explicitly, they are
+    # resolved from RuntimePaths using this value, SMART_SPATIAL_RUNTIME_DIR, or
+    # the default runtime root.
+    runtime_dir: str | Path | None = None
+    outputs_path: str | Path | None = None
+    uploads_path: str | Path | None = None
+    projects_path: str | Path | None = None
     resolve_upload_refs_with_plugins: bool = True
     raster_loader_plugin_module: str = "plugins.local_raster_loader"
     vector_loader_plugin_module: str = "plugins.local_vector_loader"
@@ -863,6 +871,23 @@ class OrchestratorService:
     ) -> None:
         self.config = config or OrchestratorServiceConfig()
 
+        self.runtime_paths = RuntimePaths.from_env(self.config.runtime_dir)
+        output_root = (
+            self.config.outputs_path
+            if self.config.outputs_path is not None
+            else self.runtime_paths.outputs
+        )
+        upload_root = (
+            self.config.uploads_path
+            if self.config.uploads_path is not None
+            else self.runtime_paths.uploads
+        )
+        project_root = (
+            self.config.projects_path
+            if self.config.projects_path is not None
+            else self.runtime_paths.projects
+        )
+
         self.registry = CapabilityRegistry.from_plugin_modules(
             self.config.plugin_modules,
             tolerant=True,
@@ -886,19 +911,19 @@ class OrchestratorService:
 
         self.output_storage = OutputStorage(
             OutputStorageConfig(
-                root_dir=self.config.outputs_path,
+                root_dir=output_root,
             )
         )
 
         self.upload_storage = UploadStorage(
             UploadStorageConfig(
-                root_dir=self.config.uploads_path,
+                root_dir=upload_root,
             )
         )
 
         self.project_store = ProjectStore(
             ProjectStoreConfig(
-                root_dir=self.config.projects_path,
+                root_dir=project_root,
             )
         )
 

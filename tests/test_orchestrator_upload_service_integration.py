@@ -11,7 +11,12 @@ def test_orchestrator_service_wires_upload_service() -> None:
 
 
 def test_orchestrator_service_does_not_call_upload_storage_operations_directly() -> None:
-    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+    from pathlib import Path
+
+    service_source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+    data_source_source = Path(
+        "smart_spatial_system/application/services/data_source_service.py"
+    ).read_text(encoding="utf-8")
 
     forbidden_calls = [
         "self.upload_storage.save_upload(",
@@ -25,20 +30,29 @@ def test_orchestrator_service_does_not_call_upload_storage_operations_directly()
         "self.upload_storage.read_json_content(",
     ]
 
-    for call in forbidden_calls:
-        assert call not in source
+    combined_source = service_source + "\n" + data_source_source
 
-    expected_calls = [
+    for call in forbidden_calls:
+        assert call not in combined_source
+
+    orchestrator_expected_calls = [
         "self.upload_service.save_upload(",
         "self.upload_service.list_uploads(",
         "self.upload_service.read_metadata(",
         "self.upload_service.get_file_path(",
         "self.upload_service.get_media_type(",
+    ]
+
+    for call in orchestrator_expected_calls:
+        assert call in service_source
+
+    data_source_expected_calls = [
         "self.upload_service.save_external_source(",
         "self.upload_service.delete_upload(",
         "self.upload_service.update_metadata(",
         "self.upload_service.read_json_content(",
     ]
 
-    for call in expected_calls:
-        assert call in source
+    for call in data_source_expected_calls:
+        assert call in data_source_source
+

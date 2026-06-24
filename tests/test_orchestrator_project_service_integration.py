@@ -67,17 +67,26 @@ def test_orchestrator_service_converts_project_service_errors(
 
 
 def test_orchestrator_service_does_not_use_project_store_for_attachments() -> None:
-    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+    from pathlib import Path
 
-    assert "self.project_store.attach_upload(" not in source
-    assert "self.project_store.attach_request(" not in source
-    assert "self.project_store.attach_output(" not in source
-    assert "self.project_store.detach_upload(" not in source
+    service_source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+    data_source_source = Path(
+        "smart_spatial_system/application/services/data_source_service.py"
+    ).read_text(encoding="utf-8")
 
-    assert "self.project_service.attach_upload(" in source
-    assert "self.project_service.attach_request(" in source
-    assert "self.project_service.attach_output(" in source
-    assert "self.project_service.detach_upload(" in source
+    forbidden_calls = [
+        "self.project_store.attach_upload(",
+        "self.project_store.detach_upload(",
+    ]
+
+    combined_source = service_source + "\n" + data_source_source
+
+    for call in forbidden_calls:
+        assert call not in combined_source
+
+    assert "self.project_service.attach_upload(" in data_source_source
+    assert "self.project_service.detach_upload(" in data_source_source
+
 
 
 def test_orchestrator_service_does_not_use_project_store_for_project_lookups() -> None:

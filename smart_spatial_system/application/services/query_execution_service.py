@@ -902,6 +902,221 @@ class QueryExecutionService:
     def __getattr__(self, name: str) -> Any:
         return getattr(self._context, name)
 
+    def _planning_trace_to_steps(self, trace: list[Any]) -> list[dict[str, Any]]:
+            steps: list[dict[str, Any]] = []
+
+            for item in trace or []:
+                capability_name = getattr(item, "capability_name", None)
+                node_id = getattr(item, "node_id", None)
+                status = getattr(item, "status", None)
+                error = getattr(item, "error", None)
+                output_summary = getattr(item, "output_summary", None) or {}
+
+                if error:
+                    message = error
+                elif isinstance(output_summary, dict) and output_summary:
+                    parts = [f"{k}={v}" for k, v in output_summary.items()]
+                    message = ", ".join(parts[:6])
+                else:
+                    message = status or ""
+
+                steps.append(
+                    {
+                        "label": capability_name or node_id or "step",
+                        "step": node_id or capability_name or "step",
+                        "status": status or "unknown",
+                        "message": message,
+                    }
+                )
+
+            return steps
+
+    def _planning_outputs_to_response_payload(
+            self,
+            planning_result: Any,
+        ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any] | None]:
+            from orchestrator.kernel_artifacts import (
+                artifact_to_public_dict,
+                output_to_artifact,
+            )
+
+            layers: list[dict[str, Any]] = []
+            outputs: dict[str, Any] = {
+                "files": [],
+                "vectors": [],
+                "tables": [],
+                "rasters": [],
+                "artifacts": [],
+            }
+            primary_report: dict[str, Any] | None = None
+
+            def _as_feature_collection(value: Any) -> dict[str, Any] | None:
+                if _is_feature_collection(value):
+                    return value
+
+                geojson = getattr(value, "geojson", None)
+                if _is_feature_collection(geojson):
+                    return geojson
+
+                features = getattr(value, "features", None)
+                if isinstance(features, list):
+                    return {
+                        "type": "FeatureCollection",
+                        "features": _json_safe(features),
+                    }
+
+                if isinstance(value, dict) and isinstance(value.get("features"), list):
+                    return {
+                        "type": "FeatureCollection",
+                        "features": _json_safe(value.get("features") or []),
+                    }
+
+                return None
+
+            for node_id, value in (getattr(planning_result, "output_nodes", None) or {}).items():
+                try:
+                    artifact = output_to_artifact(
+                        value,
+                        source_node=node_id,
+                        title=node_id,
+                        produced_by="query_spec_planning",
+                        metadata={
+                            "source": "planning.output_nodes",
+                        },
+                    )
+                    outputs["artifacts"].append(artifact_to_public_dict(artifact))
+                except Exception as exc:
+                    outputs.setdefault("artifact_errors", []).append(
+                        {
+                            "node_id": node_id,
+                            "error": f"{type(exc).__name__}: {exc}",
+                        }
+                    )
+
+                feature_collection = _as_feature_collection(value)
+
+                if feature_collection is not None:
+                    layer = {
+                        "id": node_id,
+                        "name": node_id,
+                        "type": "vector",
+                        "format": "geojson",
+                        "geojson": feature_collection,
+                        "summary": {
+                            "feature_count": len(feature_collection.get("features", [])),
+                        },
+                    }
+                    layers.append(layer)
+                    outputs["vectors"].append(layer)
+                    continue
+
+                safe_value = _json_safe(value)
+
+                if isinstance(safe_value, dict):
+                    if any(
+                        key in safe_value
+                        for key in ("title", "summary", "sections", "rankings", "table", "rows")
+                    ):
+                        if primary_report is None:
+                            primary_report = safe_value
+
+                        outputs["tables"].append(
+                            {
+                                "name": node_id,
+                                "source": "planning.output_nodes",
+                                "data": safe_value,
+                            }
+                        )
+
+                    for key in ("path", "file_path", "output_path", "pdf_path"):
+                        file_path = safe_value.get(key)
+                        if isinstance(file_path, str) and file_path:
+                            outputs["files"].append(
+                                {
+                                    "name": safe_value.get("name") or node_id,
+                                    "path": file_path,
+                                    "source": "planning.output_nodes",
+                                    "format": (
+                                        "pdf"
+                                        if str(file_path).lower().endswith(".pdf")
+                                        else "file"
+                                    ),
+                                }
+                            )
+                            break
+
+                    continue
+
+                if isinstance(value, str) and value.lower().endswith(".pdf"):
+                    outputs["files"].append(
+                        {
+                            "name": node_id,
+                            "path": value,
+                            "source": "planning.output_nodes",
+                            "format": "pdf",
+                        }
+                    )
+
+            return layers, outputs, primary_report
+
+    def _enrich_query_database_params_from_inputs(
+            self,
+            query_spec: Any,
+            resolved_inputs: dict[str, Any],
+        ) -> None:
+            """
+            Inject runtime database connection parameters into query_database ops.
+
+            The LLM should describe *what* to query, not invent secrets or runtime
+            connection details. This method copies safe runtime inputs into the
+            executable QuerySpec before DAG planning.
+            """
+            if not resolved_inputs:
+                return
+
+            runtime_keys = (
+                "host",
+                "port",
+                "database",
+                "user",
+                "password",
+                "connect_timeout",
+                "profile",
+                "dsn",
+                "schema",
+                "table",
+                "geom_col",
+                "limit",
+                "output_srid",
+            )
+
+            operations = getattr(query_spec, "operations", None) or []
+
+            for operation in operations:
+                if getattr(operation, "op", None) != "query_database":
+                    continue
+
+                params = getattr(operation, "params", None)
+
+                if not isinstance(params, dict):
+                    continue
+
+                for key in runtime_keys:
+                    value = resolved_inputs.get(key)
+
+                    if value is None:
+                        continue
+
+                    if key in params and params.get(key) not in (None, "", "<provided-at-runtime>"):
+                        continue
+
+                    params[key] = value
+
+                # SQL mode normally exposes geometry as "AS geom".
+                # If the LLM generated SQL and no geom_col is present, use "geom".
+                if isinstance(params.get("sql"), str) and params.get("sql", "").strip():
+                    params.setdefault("geom_col", "geom")
+
     def _try_handle_query_with_planning(
             self,
             *,

@@ -977,25 +977,11 @@ class OrchestratorService:
 
     @staticmethod
     def _llm_planning_enabled() -> bool:
-        """
-        Whether LLM-based intent planning is enabled for /query.
-        """
-        import os
-
-        value = os.getenv("LLM_PLANNING_ENABLED", "false").strip().lower()
-        return value in {"1", "true", "yes", "on"}
+        return QueryExecutionService._llm_planning_enabled()
 
     @staticmethod
     def _query_spec_planning_enabled() -> bool:
-        """
-        Whether QuerySpec-based planning is enabled for /query.
-
-        This is separate from legacy LLM intent planning.
-        """
-        import os
-
-        value = os.getenv("QUERY_SPEC_PLANNING_ENABLED", "false").strip().lower()
-        return value in {"1", "true", "yes", "on"}
+        return QueryExecutionService._query_spec_planning_enabled()
 
     def _maybe_plan_llm_intent(
         self,
@@ -3782,121 +3768,10 @@ class OrchestratorService:
         metadata: dict[str, Any] | None = None,
         final_metadata: dict[str, Any] | None = None,
     ) -> bool:
-        """
-        Return whether experimental kernel execution should be enabled for
-        QuerySpec planning.
-
-        Phase 4 hardening precedence:
-
-          1. If a request explicitly DISABLES kernel execution, it is disabled.
-             A request may always disable it for safety.
-
-          2. If a request explicitly ENABLES kernel execution, it is enabled
-             ONLY when the service allows request-level enabling
-             (config.allow_request_kernel_execution is True). Otherwise the
-             request enable flag is ignored.
-
-          3. Otherwise, a deployment-level environment variable is honored.
-
-          4. Otherwise, the service config default
-             (config.enable_kernel_execution) is used.
-
-          5. Otherwise it defaults to False.
-
-        Accepted truthy values:
-          true, 1, yes, y, on, enabled
-
-        Accepted falsy values:
-          false, 0, no, n, off, disabled
-        """
-        import os
-
-        truthy = {"true", "1", "yes", "y", "on", "enabled"}
-        falsy = {"false", "0", "no", "n", "off", "disabled", ""}
-
-        def _coerce(value: Any) -> bool | None:
-            if isinstance(value, bool):
-                return value
-
-            if value is None:
-                return None
-
-            if isinstance(value, (int, float)):
-                return bool(value)
-
-            if isinstance(value, str):
-                normalized = value.strip().lower()
-                if normalized in truthy:
-                    return True
-                if normalized in falsy:
-                    return False
-
-            return None
-
-        def _request_flag() -> bool | None:
-            for source in (metadata, final_metadata):
-                if not isinstance(source, dict):
-                    continue
-
-                for key in (
-                    "enable_kernel_execution",
-                    "kernel_execution",
-                    "use_kernel_execution",
-                ):
-                    parsed = _coerce(source.get(key))
-                    if parsed is not None:
-                        return parsed
-
-                planning_options = source.get("planning")
-                if isinstance(planning_options, dict):
-                    for key in (
-                        "enable_kernel_execution",
-                        "kernel_execution",
-                        "use_kernel_execution",
-                    ):
-                        parsed = _coerce(planning_options.get(key))
-                        if parsed is not None:
-                            return parsed
-
-            return None
-
-        config = getattr(self, "config", None)
-        allow_request_enable = bool(
-            getattr(config, "allow_request_kernel_execution", False)
+        return self.query_execution_service._kernel_execution_enabled(
+            metadata=metadata,
+            final_metadata=final_metadata,
         )
-
-        request_flag = _request_flag()
-
-        # Request-level override policy.
-        if request_flag is not None:
-            if request_flag is False:
-                # A request may always disable kernel execution.
-                return False
-
-            # request_flag is True.
-            if allow_request_enable:
-                return True
-
-            # Request tried to enable but is not allowed to.
-            # Ignore the enable request and fall through to deployment/config
-            # defaults.
-
-        # Deployment-level environment override.
-        for env_name in (
-            "SMART_SPATIAL_ENABLE_KERNEL_EXECUTION",
-            "ENABLE_KERNEL_EXECUTION",
-        ):
-            parsed = _coerce(os.getenv(env_name))
-            if parsed is not None:
-                return parsed
-
-        # Service config default.
-        parsed = _coerce(getattr(config, "enable_kernel_execution", None))
-        if parsed is not None:
-            return parsed
-
-        # Safe default.
-        return False
 
 
     def _try_handle_query_with_planning(

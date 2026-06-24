@@ -987,66 +987,17 @@ class OrchestratorService:
         self,
         query: str,
     ) -> dict[str, Any] | None:
-        """
-        Best-effort LLM intent planning. Never breaks the pipeline.
-        """
-        if not self._llm_planning_enabled():
-            return None
-
         try:
-            planned = self.plan_intent_with_llm(query)
-        except OrchestratorServiceError:
-            return None
-        except Exception:
-            return None
-
-        if not isinstance(planned, dict):
-            return None
-
-        return planned.get("intent")
+            return self.query_execution_service._maybe_plan_llm_intent(query)
+        except QueryExecutionServiceError as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
 
     @staticmethod
     def _apply_intent_to_query(
         query: str,
         intent: dict[str, Any] | None,
     ) -> str:
-        """
-        Rewrite the natural query so the current deterministic parser
-        can trigger the right workflow.
-
-        Currently specialized for vegetation_extraction (NDVI pipeline).
-        """
-        if not intent or not isinstance(intent, dict):
-            return query
-
-        intent_name = str(intent.get("intent_name") or "")
-
-        if intent_name == "vegetation_extraction":
-            params = intent.get("parameters") or {}
-
-            try:
-                threshold = float(params.get("threshold", 0.3))
-            except Exception:
-                threshold = 0.3
-
-            vectorize = bool(params.get("vectorize", False))
-
-            parts = [
-                "NDVI vegetation extraction.",
-                f"greater than {threshold}.",
-            ]
-
-            if vectorize:
-                parts.append("polygon vectorize استخراج کن.")
-
-            parts.append(f"original_query: {query}")
-
-            return " ".join(parts)
-
-        if intent_name == "raster_vectorization":
-            return "NDVI raster_to_vector polygon استخراج کن. " + f"original_query: {query}"
-
-        return query
+        return QueryExecutionService._apply_intent_to_query(query, intent)
 
     @staticmethod
     def _is_vector_display_query(
@@ -4442,25 +4393,9 @@ class OrchestratorService:
         self,
         query: str,
     ) -> dict[str, Any]:
-        """
-        Plan geospatial query intent using the configured LLM.
-
-        This method does not execute plugins.
-        """
-        from orchestrator.llm_client import LLMClientError, LLMConfigError
-        from orchestrator.llm_intent_planner import (
-            LLMIntentPlannerError,
-            plan_intent_with_llm,
-        )
-
-        capability_names = self._enabled_capability_names()
-
         try:
-            return plan_intent_with_llm(
-                query=query,
-                available_capabilities=capability_names,
-            )
-        except (LLMConfigError, LLMClientError, LLMIntentPlannerError) as exc:
+            return self.query_execution_service.plan_intent_with_llm(query)
+        except QueryExecutionServiceError as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
     def save_upload(

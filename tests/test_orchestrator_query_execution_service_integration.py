@@ -84,3 +84,31 @@ def test_orchestrator_planning_flag_helpers_delegate_to_query_execution_service(
         "return self.query_execution_service._kernel_execution_enabled("
         in source
     )
+
+
+def test_query_execution_service_contains_llm_intent_helpers() -> None:
+    source = Path(
+        "smart_spatial_system/application/services/query_execution_service.py"
+    ).read_text(encoding="utf-8")
+
+    assert "def _maybe_plan_llm_intent(" in source
+    assert "def _apply_intent_to_query(" in source
+    assert "def plan_intent_with_llm(" in source
+    assert "QueryExecutionServiceError" in source
+
+
+def test_orchestrator_llm_intent_helpers_delegate_to_query_execution_service() -> None:
+    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+
+    assert (
+        "return self.query_execution_service._maybe_plan_llm_intent(query)"
+        in source
+    )
+    assert (
+        "return QueryExecutionService._apply_intent_to_query(query, intent)"
+        in source
+    )
+    assert (
+        "return self.query_execution_service.plan_intent_with_llm(query)"
+        in source
+    )

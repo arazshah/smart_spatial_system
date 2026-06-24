@@ -103,6 +103,7 @@ from orchestrator.input_reference_resolver import (
     UploadReferenceResolverConfig,
     UploadReferenceResolverError,
 )
+from orchestrator.output_service import OutputService, OutputServiceError
 from orchestrator.output_storage import (
     OutputStorage,
     OutputStorageConfig,
@@ -918,6 +919,7 @@ class OrchestratorService:
                 root_dir=output_root,
             )
         )
+        self.output_service = OutputService(self.output_storage)
 
         self.upload_storage = UploadStorage(
             UploadStorageConfig(
@@ -5856,8 +5858,8 @@ class OrchestratorService:
             return record["output_manifest"]
 
         try:
-            return self.output_storage.read_manifest(request_id)
-        except OutputStorageError as exc:
+            return self.output_service.read_manifest(request_id)
+        except (OutputStorageError, OutputServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
     def list_output_files(
@@ -5868,8 +5870,8 @@ class OrchestratorService:
         List persisted output files for a request.
         """
         try:
-            return self.output_storage.list_files(request_id)
-        except OutputStorageError as exc:
+            return self.output_service.list_files(request_id)
+        except (OutputStorageError, OutputServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
     def get_output_file_path(
@@ -5881,18 +5883,18 @@ class OrchestratorService:
         Return safe path for a persisted output file.
         """
         try:
-            return self.output_storage.get_file_path(
+            return self.output_service.get_file_path(
                 request_id,
                 filename,
             )
-        except OutputStorageError as exc:
+        except (OutputStorageError, OutputServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
     def get_output_file_media_type(
         self,
         filename: str,
     ) -> str:
-        return self.output_storage.get_media_type(filename)
+        return self.output_service.get_media_type(filename)
 
     def _persist_outputs_for_record(
         self,
@@ -5904,7 +5906,7 @@ class OrchestratorService:
         try:
             map_layers_payload = self.map_layer_builder.build_for_request_record(record)
 
-            manifest = self.output_storage.save_request_record(
+            manifest = self.output_service.save_request_record(
                 record,
                 map_layers_payload=map_layers_payload,
             )

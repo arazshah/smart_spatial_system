@@ -111,7 +111,6 @@ from orchestrator.output_storage import (
 from orchestrator.project_store import (
     ProjectStore,
     ProjectStoreConfig,
-    ProjectStoreError,
 )
 from orchestrator.project_service import (
     ProjectService,
@@ -5414,7 +5413,7 @@ class OrchestratorService:
                 metadata,
                 project_id=project_id,
             )
-        except (UploadStorageError, ProjectStoreError, ProjectServiceError) as exc:
+        except (UploadStorageError, ProjectServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
     def register_wms_source(
@@ -5481,7 +5480,7 @@ class OrchestratorService:
                 metadata,
                 project_id=project_id,
             )
-        except (UploadStorageError, ProjectStoreError, ProjectServiceError) as exc:
+        except (UploadStorageError, ProjectServiceError) as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
     def list_project_data_sources(
@@ -5490,7 +5489,7 @@ class OrchestratorService:
     ) -> list[dict[str, Any]]:
         try:
             project = self.project_service.get_project(project_id)
-        except (ProjectStoreError, ProjectServiceError) as exc:
+        except ProjectServiceError as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
         upload_ids = project.get("uploads")
@@ -5562,7 +5561,7 @@ class OrchestratorService:
                 try:
                     self.project_service.detach_upload(project_id, upload_id)
                     attached_projects.append(str(project_id))
-                except (ProjectStoreError, ProjectServiceError) as exc:
+                except ProjectServiceError as exc:
                     raise OrchestratorServiceError(str(exc)) from exc
 
         try:

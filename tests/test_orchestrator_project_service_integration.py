@@ -90,3 +90,10 @@ def test_orchestrator_service_does_not_use_project_store_for_project_lookups() -
     assert "self.project_service.create_project(" in source
     assert "self.project_service.get_project(" in source
     assert "self.project_service.list_projects(" in source
+
+
+def test_orchestrator_service_no_longer_references_project_store_error() -> None:
+    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+
+    assert "ProjectStoreError" not in source
+    assert "ProjectServiceError" in source

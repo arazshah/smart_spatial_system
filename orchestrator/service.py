@@ -5099,6 +5099,37 @@ class OrchestratorService:
         return self.get_plugin(plugin["plugin_id"])
 
 
+    def _runtime_paths_metadata(self) -> dict[str, str]:
+        """
+        Return JSON-safe runtime path metadata.
+
+        RuntimePaths defines the canonical runtime layout. Some storage roots may
+        be explicitly overridden by configuration, so this method reports the
+        effective paths used by the service where possible.
+        """
+        runtime_paths = getattr(self, "runtime_paths", None)
+
+        if runtime_paths is None:
+            return {}
+
+        payload = runtime_paths.as_dict()
+
+        output_storage = getattr(self, "output_storage", None)
+        upload_storage = getattr(self, "upload_storage", None)
+        project_store = getattr(self, "project_store", None)
+
+        if output_storage is not None:
+            payload["outputs"] = str(getattr(output_storage, "root_dir", payload["outputs"]))
+
+        if upload_storage is not None:
+            payload["uploads"] = str(getattr(upload_storage, "root_dir", payload["uploads"]))
+
+        if project_store is not None:
+            payload["projects"] = str(getattr(project_store, "root_dir", payload["projects"]))
+
+        return payload
+
+
     def get_runtime_settings(
         self,
     ) -> dict[str, Any]:
@@ -5175,6 +5206,9 @@ class OrchestratorService:
                 "skipped_plugins": skipped_plugins,
             },
             "runtime": {
+                "runtime_dir": str(getattr(config, "runtime_dir", None))
+                if getattr(config, "runtime_dir", None) is not None
+                else None,
                 "resolve_upload_refs_with_plugins": getattr(
                     config,
                     "resolve_upload_refs_with_plugins",
@@ -5191,6 +5225,7 @@ class OrchestratorService:
                     None,
                 ),
             },
+            "runtime_paths": self._runtime_paths_metadata(),
         }
 
     def run_llm_smoke_test(
@@ -5940,6 +5975,7 @@ class OrchestratorService:
             "use_weighted_router": self.config.use_weighted_router,
             "weights_persistence_exists": self.persistence.exists(),
             "history_size": len(self._history),
+            "runtime_paths": self._runtime_paths_metadata(),
             "weights": self.get_weights(),
         }
 

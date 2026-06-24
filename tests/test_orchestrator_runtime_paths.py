@@ -78,3 +78,57 @@ def test_orchestrator_service_does_not_create_runtime_dirs_on_init(
     assert not Path(service.output_storage.root_dir).exists()
     assert not Path(service.upload_storage.root_dir).exists()
     assert not Path(service.project_store.root_dir).exists()
+
+
+def test_orchestrator_health_exposes_effective_runtime_paths(
+    monkeypatch,
+    tmp_path,
+):
+    runtime_root = tmp_path / "runtime"
+    monkeypatch.setenv(ENV_RUNTIME_DIR, str(runtime_root))
+
+    service = OrchestratorService(OrchestratorServiceConfig())
+
+    health = service.get_health()
+
+    assert health["runtime_paths"] == {
+        "root": str(runtime_root),
+        "outputs": str(runtime_root / "outputs"),
+        "uploads": str(runtime_root / "uploads"),
+        "projects": str(runtime_root / "projects"),
+        "reports": str(runtime_root / "reports"),
+        "cache": str(runtime_root / "cache"),
+    }
+
+
+def test_orchestrator_runtime_settings_exposes_effective_runtime_paths(
+    monkeypatch,
+    tmp_path,
+):
+    runtime_root = tmp_path / "runtime"
+    monkeypatch.setenv(ENV_RUNTIME_DIR, str(runtime_root))
+
+    outputs_path = tmp_path / "custom-outputs"
+    uploads_path = tmp_path / "custom-uploads"
+    projects_path = tmp_path / "custom-projects"
+
+    service = OrchestratorService(
+        OrchestratorServiceConfig(
+            outputs_path=outputs_path,
+            uploads_path=uploads_path,
+            projects_path=projects_path,
+        )
+    )
+
+    settings = service.get_runtime_settings()
+
+    assert settings["runtime_paths"] == {
+        "root": str(runtime_root),
+        "outputs": str(outputs_path),
+        "uploads": str(uploads_path),
+        "projects": str(projects_path),
+        "reports": str(runtime_root / "reports"),
+        "cache": str(runtime_root / "cache"),
+    }
+
+    assert settings["runtime"]["runtime_dir"] is None

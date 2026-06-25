@@ -54,6 +54,7 @@ from api.routers.data_sources import router as data_sources_router
 from api.routers.data_source_connectors import router as data_source_connectors_router
 from api.routers.plugins_settings import router as plugins_settings_router
 from api.routers.requests_outputs import router as requests_outputs_router
+from api.routers.weights import router as weights_router
 
 
 @dataclass(frozen=True)
@@ -119,6 +120,7 @@ def create_app(
     app.include_router(data_source_connectors_router)
     app.include_router(plugins_settings_router)
     app.include_router(requests_outputs_router)
+    app.include_router(weights_router)
 
 
 
@@ -338,79 +340,9 @@ def create_app(
 
 
 
-    @app.get("/weights")
-    def get_weights(request: Request) -> dict[str, Any]:
-        svc = _service(request)
-        return _json_safe(svc.get_weights())
 
-    @app.post("/weights/save")
-    def save_weights(request: Request) -> dict[str, Any]:
-        svc = _service(request)
 
-        try:
-            return _json_safe(svc.save_weights())
-        except OrchestratorServiceError as exc:
-            raise HTTPException(
-                status_code=500,
-                detail=_http_error_detail(exc),
-            ) from exc
 
-    @app.post("/weights/reload")
-    def reload_weights(request: Request) -> dict[str, Any]:
-        svc = _service(request)
-
-        try:
-            return _json_safe(svc.reload_weights())
-        except OrchestratorServiceError as exc:
-            raise HTTPException(
-                status_code=500,
-                detail=_http_error_detail(exc),
-            ) from exc
-
-    @app.post("/weights/proposals/apply")
-    def apply_weight_proposal(
-        request: Request,
-        body: dict[str, Any] = Body(...),
-    ) -> dict[str, Any]:
-        """
-        Approve and apply a weight proposal.
-
-        Expected body:
-            {
-                "proposal": {...},
-                "save": true
-            }
-        """
-        svc = _service(request)
-
-        proposal = body.get("proposal")
-
-        if not isinstance(proposal, dict):
-            raise HTTPException(
-                status_code=400,
-                detail="'proposal' must be an object.",
-            )
-
-        save = body.get("save", True)
-
-        if not isinstance(save, bool):
-            raise HTTPException(
-                status_code=400,
-                detail="'save' must be boolean when provided.",
-            )
-
-        try:
-            payload = svc.approve_and_apply_proposal(
-                proposal,
-                save=save,
-            )
-        except (OrchestratorServiceError, TypeError, ValueError) as exc:
-            raise HTTPException(
-                status_code=400,
-                detail=_http_error_detail(exc),
-            ) from exc
-
-        return _json_safe(payload)
 
 
     # ── Data Source Manager: External Sources ─────────────────────

@@ -49,6 +49,7 @@ from api.support import (
 )
 from api.routers.system import router as system_router
 from api.routers.projects import router as projects_router
+from api.routers.uploads import router as uploads_router
 
 
 @dataclass(frozen=True)
@@ -109,6 +110,7 @@ def create_app(
 
     app.include_router(system_router)
     app.include_router(projects_router)
+    app.include_router(uploads_router)
 
 
 
@@ -353,123 +355,10 @@ def create_app(
                 detail=_http_error_detail(exc),
             ) from exc
 
-    @app.post("/uploads/raster")
-    async def upload_raster(
-        request: Request,
-        file: UploadFile = File(...),
-        kind: str = Form("raster"),
-        project_id: str | None = Form(None),
-    ) -> dict[str, Any]:
-        """
-        Upload a raster file.
 
-        MVP:
-            - JSON raster files can be used directly through raster_ref.
-            - GeoTIFF files are stored for future rasterio/local_raster_loader integration.
-        """
-        svc = _service(request)
 
-        content = await file.read()
 
-        try:
-            payload = svc.save_upload(
-                filename=file.filename or "upload.bin",
-                content=content,
-                content_type=file.content_type,
-                kind=kind,
-                user_context={
-                    "source": "api_upload",
-                },
-                project_id=project_id,
-            )
-        except OrchestratorServiceError as exc:
-            raise HTTPException(
-                status_code=400,
-                detail=_http_error_detail(exc),
-            ) from exc
 
-        return _json_safe(payload)
-
-    @app.post("/uploads/vector")
-    async def upload_vector(
-        request: Request,
-        file: UploadFile = File(...),
-        kind: str = Form("vector"),
-        project_id: str | None = Form(None),
-    ) -> dict[str, Any]:
-        """
-        Upload a vector file.
-
-        MVP:
-            - GeoJSON/JSON can be used directly.
-            - GPKG/SHP ZIP/KML are stored and should be resolved by local_vector_loader.
-        """
-        svc = _service(request)
-
-        content = await file.read()
-
-        try:
-            payload = svc.save_upload(
-                filename=file.filename or "upload_vector.bin",
-                content=content,
-                content_type=file.content_type,
-                kind=kind,
-                user_context={
-                    "source": "api_vector_upload",
-                },
-                project_id=project_id,
-            )
-        except OrchestratorServiceError as exc:
-            raise HTTPException(
-                status_code=400,
-                detail=_http_error_detail(exc),
-            ) from exc
-
-        return _json_safe(payload)
-
-    @app.get("/uploads")
-    def list_uploads(
-        request: Request,
-    ) -> list[dict[str, Any]]:
-        svc = _service(request)
-        return _json_safe(svc.list_uploads())
-
-    @app.get("/uploads/{upload_id}")
-    def get_upload_metadata(
-        request: Request,
-        upload_id: str,
-    ) -> dict[str, Any]:
-        svc = _service(request)
-
-        try:
-            return _json_safe(svc.get_upload_metadata(upload_id))
-        except OrchestratorServiceError as exc:
-            raise HTTPException(
-                status_code=404,
-                detail=_http_error_detail(exc),
-            ) from exc
-
-    @app.get("/uploads/{upload_id}/file")
-    def download_upload_file(
-        request: Request,
-        upload_id: str,
-    ) -> FileResponse:
-        svc = _service(request)
-
-        try:
-            file_path = svc.get_upload_file_path(upload_id)
-            media_type = svc.get_upload_file_media_type(upload_id)
-        except OrchestratorServiceError as exc:
-            raise HTTPException(
-                status_code=404,
-                detail=_http_error_detail(exc),
-            ) from exc
-
-        return FileResponse(
-            path=file_path,
-            media_type=media_type,
-            filename=file_path.name,
-        )
 
     @app.post("/query")
     def query_endpoint(

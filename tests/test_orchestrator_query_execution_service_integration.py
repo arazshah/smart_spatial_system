@@ -276,3 +276,49 @@ def test_orchestrator_real_estate_ranking_direct_handler_delegates_to_query_exec
         "return self.query_execution_service._try_handle_real_estate_ranking_directly("
         in source
     )
+
+
+def test_query_execution_service_contains_real_estate_geometry_metric_helpers() -> None:
+    source = Path(
+        "smart_spatial_system/application/services/query_execution_service.py"
+    ).read_text(encoding="utf-8")
+
+    helper_names = [
+        "_feature_point_lonlat",
+        "_point_in_ring_lonlat",
+        "_point_in_polygon_feature_lonlat",
+        "_lonlat_to_local_xy_m",
+        "_distance_point_to_segment_m",
+        "_distance_point_to_point_m",
+        "_distance_point_to_geometry_m",
+        "_nearest_distance_to_features_m",
+        "_has_metric_value",
+        "_has_bool_like_value",
+        "_normalize_risk_level",
+        "_to_float_or_none",
+    ]
+
+    for helper_name in helper_names:
+        assert f"def {helper_name}(" in source
+
+
+def test_orchestrator_real_estate_geometry_metric_helpers_delegate_to_query_execution_service() -> None:
+    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+
+    helper_names = [
+        "_feature_point_lonlat",
+        "_point_in_ring_lonlat",
+        "_point_in_polygon_feature_lonlat",
+        "_lonlat_to_local_xy_m",
+        "_distance_point_to_segment_m",
+        "_distance_point_to_point_m",
+        "_distance_point_to_geometry_m",
+        "_nearest_distance_to_features_m",
+        "_has_metric_value",
+        "_has_bool_like_value",
+        "_normalize_risk_level",
+        "_to_float_or_none",
+    ]
+
+    for helper_name in helper_names:
+        assert f"return self.query_execution_service.{helper_name}(" in source

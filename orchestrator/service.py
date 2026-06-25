@@ -1879,9 +1879,10 @@ class OrchestratorService:
 
     def reload_weights(self) -> dict[str, Any]:
         """
-        Reload weights from persistence.
+        Reload weights from persistence while preserving store identity.
         """
-        self.weight_store = self._load_weight_store()
+        loaded_store = self._load_weight_store()
+        self.weight_store.replace_with(loaded_store)
         return self.get_weights()
 
     def get_health(self) -> dict[str, Any]:

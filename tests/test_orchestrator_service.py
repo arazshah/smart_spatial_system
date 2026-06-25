@@ -191,27 +191,38 @@ def test_service_submit_feedback_rejects_unknown_request(tmp_path: Path) -> None
 
 
 def test_service_can_save_and_reload_weights(tmp_path: Path) -> None:
-    service = _make_service(tmp_path)
-
-    service.weight_store.set_weight(
-        "capability",
-        "threshold_raster",
-        1.25,
+    service = OrchestratorService(
+        OrchestratorServiceConfig(
+            weights_path=tmp_path / "weights.json",
+            load_persisted_weights=True,
+        )
     )
+
+    service.weight_store.set_weight("capability", "threshold_raster", 1.5)
+
+    original_store = service.weight_store
+    feedback_store = service.feedback_proposal_service.weight_store
+
+    assert feedback_store is original_store
 
     saved = service.save_weights()
 
-    assert saved["store"]["capability_weights"]["threshold_raster"] == 1.25
+    assert saved["store"]["capability_weights"]["threshold_raster"] == 1.5
 
-    service.weight_store.set_weight(
-        "capability",
-        "threshold_raster",
-        0.75,
-    )
+    service.weight_store.set_weight("capability", "threshold_raster", 2.5)
+
+    assert service.get_weights()["capability_weights"]["threshold_raster"] == 2.5
+    assert service.feedback_proposal_service.weight_store is original_store
 
     reloaded = service.reload_weights()
 
-    assert reloaded["capability_weights"]["threshold_raster"] == 1.25
+    assert service.weight_store is original_store
+    assert service.feedback_proposal_service.weight_store is original_store
+    assert reloaded["capability_weights"]["threshold_raster"] == 1.5
+    assert service.feedback_proposal_service.weight_store.get_weight(
+        "capability",
+        "threshold_raster",
+    ) == 1.5
 
 
 def test_service_list_requests(tmp_path: Path) -> None:

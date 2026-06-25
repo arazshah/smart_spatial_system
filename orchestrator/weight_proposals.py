@@ -125,6 +125,24 @@ class InMemoryRouterWeightStore:
             6,
         )
 
+    def replace_with(
+        self,
+        other: "InMemoryRouterWeightStore",
+    ) -> None:
+        """
+        Replace this store's contents in-place.
+
+        This preserves object identity so components holding a reference to this
+        store, such as weighted routers and feedback services, observe reloaded
+        weights without being rebuilt.
+        """
+        if not isinstance(other, InMemoryRouterWeightStore):
+            raise TypeError("other must be InMemoryRouterWeightStore.")
+
+        self.config = other.config
+        self.capability_weights = dict(other.capability_weights)
+        self.plugin_weights = dict(other.plugin_weights)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "config": {

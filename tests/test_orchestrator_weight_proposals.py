@@ -293,3 +293,34 @@ def test_configs_reject_invalid_values() -> None:
 
     with pytest.raises(ValueError, match="max_proposals"):
         RouterWeightProposalCollector(max_proposals=-1)
+
+
+def test_in_memory_router_weight_store_replace_with_preserves_identity() -> None:
+    original = InMemoryRouterWeightStore()
+    original.set_weight("capability", "threshold_raster", 1.25)
+
+    replacement = InMemoryRouterWeightStore(
+        config=WeightStoreConfig(
+            default_weight=0.75,
+            min_weight=0.0,
+            max_weight=5.0,
+        ),
+        capability_weights={
+            "threshold_raster": 2.5,
+            "raster_to_vector": 1.5,
+        },
+        plugin_weights={
+            "demo_plugin": 1.75,
+        },
+    )
+
+    original_id = id(original)
+
+    original.replace_with(replacement)
+
+    assert id(original) == original_id
+    assert original.config.default_weight == 0.75
+    assert original.config.max_weight == 5.0
+    assert original.get_weight("capability", "threshold_raster") == 2.5
+    assert original.get_weight("capability", "raster_to_vector") == 1.5
+    assert original.get_weight("plugin", "demo_plugin") == 1.75

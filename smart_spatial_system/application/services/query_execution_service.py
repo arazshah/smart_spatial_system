@@ -1595,13 +1595,59 @@ class QueryExecutionService:
                 final_metadata["planning_structured_error"] = planning_structured_error
                 return None
 
+    def _orchestrator_context(self) -> Any | None:
+        """
+        Return the owning orchestrator/context object when available.
+
+        QueryExecutionService intentionally keeps backward compatibility with
+        tests/extensions that monkeypatch query helper methods on
+        OrchestratorService.  The exact attribute name is kept defensive because
+        this service is used as an extraction layer.
+        """
+        for attr_name in (
+            "context",
+            "_context",
+            "orchestrator",
+            "_orchestrator",
+            "owner",
+            "_owner",
+        ):
+            owner = getattr(self, attr_name, None)
+            if owner is not None and owner is not self:
+                return owner
+
+        return None
+
     def _maybe_plan_llm_intent(
         self,
         query: str,
     ) -> dict[str, Any] | None:
         """
         Best-effort LLM intent planning. Never breaks the pipeline.
+
+        Backward compatibility:
+        tests/extensions may monkeypatch OrchestratorService._maybe_plan_llm_intent.
+        When such an override exists on the owning context, honor it before
+        using the extracted service implementation.
         """
+        owner = self._orchestrator_context()
+        owner_method = getattr(owner, "_maybe_plan_llm_intent", None) if owner is not None else None
+
+        if callable(owner_method):
+            owner_method_func = getattr(owner_method, "__func__", None)
+            current_method_func = getattr(type(owner), "_maybe_plan_llm_intent", None)
+
+            # If the owner method is not the class-level delegating method, it
+            # is likely an instance monkeypatch/override and should be honored.
+            if owner_method_func is None or owner_method_func is not current_method_func:
+                try:
+                    planned_intent = owner_method(query)
+                except Exception:
+                    planned_intent = None
+
+                if isinstance(planned_intent, dict):
+                    return planned_intent
+
         if not self._llm_planning_enabled():
             return None
 
@@ -1893,6 +1939,471 @@ class QueryExecutionService:
             return True
 
         return False
+
+    @staticmethod
+    def _is_vector_display_query(
+        query: str,
+        intent: dict[str, Any] | None = None,
+    ) -> bool:
+        """
+        Detect simple vector-display queries.
+
+        This is intentionally deterministic and does not depend on LLM.
+        """
+        q = str(query or "").strip().lower()
+
+        display_tokens = [
+            "نمایش",
+            "نشان بده",
+            "نشان بدهد",
+            "روی نقشه",
+            "نقشه",
+            "display",
+            "show",
+            "render",
+            "draw",
+        ]
+
+        vector_tokens = [
+            "نقطه",
+            "نقاط",
+            "عارضه",
+            "عوارض",
+            "وکتور",
+            "برداری",
+            "geojson",
+            "feature",
+            "features",
+            "point",
+            "points",
+            "vector",
+            "layer",
+            "لایه",
+        ]
+
+        has_display = any(token in q for token in display_tokens)
+        has_vector = any(token in q for token in vector_tokens)
+
+        if has_display and has_vector:
+            return True
+
+        if isinstance(intent, dict):
+            name = str(intent.get("intent_name") or "").lower()
+            required = intent.get("required_inputs") or {}
+            output = intent.get("output_expectation") or {}
+            preferred = intent.get("preferred_capabilities") or []
+
+            if (
+                name in {"vector_display", "vector_filter", "unknown"}
+                and bool(required.get("vector", False))
+                and not bool(required.get("raster", False))
+                and bool(output.get("map_layer", False))
+            ):
+                return True
+
+            if (
+                bool(required.get("vector", False))
+                and not bool(required.get("raster", False))
+                and any(
+                    str(cap) in {"filter_features", "extract_centroids", "export_vector_geojson"}
+                    for cap in preferred
+                )
+                and bool(output.get("map_layer", False))
+            ):
+                return True
+
+        return False
+
+    @staticmethod
+    def _is_vector_summary_query(
+        query: str,
+        intent: dict[str, Any] | None = None,
+    ) -> bool:
+        """
+        Detect vector inspection / feature-count / summary queries.
+
+        Examples:
+        - لایه وکتور را بررسی کن و تعداد عارضه‌ها را گزارش بده
+        - چند نقطه داخل فایل است؟
+        - تعداد عارضه‌های فایل را بگو
+        - summarize vector layer
+        """
+        q = str(query or "").strip().lower()
+
+        summary_tokens = [
+            "تعداد",
+            "چند",
+            "گزارش",
+            "گزارش بده",
+            "بررسی",
+            "خلاصه",
+            "آمار",
+            "شمارش",
+            "بشمار",
+            "count",
+            "summary",
+            "summarize",
+            "inspect",
+            "report",
+            "statistics",
+            "stats",
+        ]
+
+        vector_tokens = [
+            "نقطه",
+            "نقاط",
+            "عارضه",
+            "عوارض",
+            "وکتور",
+            "برداری",
+            "geojson",
+            "feature",
+            "features",
+            "point",
+            "points",
+            "vector",
+            "layer",
+            "لایه",
+            "فایل",
+        ]
+
+        has_summary = any(token in q for token in summary_tokens)
+        has_vector = any(token in q for token in vector_tokens)
+
+        if has_summary and has_vector:
+            return True
+
+        if isinstance(intent, dict):
+            name = str(intent.get("intent_name") or "").lower()
+            required = intent.get("required_inputs") or {}
+            output = intent.get("output_expectation") or {}
+
+            if (
+                name in {"vector_summary", "vector_inspect", "vector_statistics"}
+                and bool(required.get("vector", False))
+                and not bool(required.get("raster", False))
+            ):
+                return True
+
+            if (
+                bool(required.get("vector", False))
+                and not bool(required.get("raster", False))
+                and bool(output.get("text", False))
+                and not bool(output.get("map_layer", False))
+            ):
+                return True
+
+        return False
+
+    def _try_handle_vector_display_directly(
+        self,
+        *,
+        query: str,
+        inputs: dict[str, Any],
+        resolved_inputs: dict[str, Any],
+        final_request_id: str,
+        final_metadata: dict[str, Any],
+        band_map: dict[str, int] | None = None,
+        user_context: dict[str, Any] | None = None,
+        llm_intent: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        """
+        Capability-backed bridge for simple vector display/summary queries.
+
+        Historical note:
+            This method used to build the vector display/summary response directly
+            inside the service. It now keeps only the lightweight query detection
+            and delegates actual work to official capabilities:
+
+                - inspect_vector
+                - display_vector_layer
+                - summarize_vector_layer
+
+        This keeps backward-compatible frontend output while making execution
+        auditable and capability-based.
+        """
+        # Do not let simple vector display/summary swallow real-estate
+        # ranking/report/PDF queries. These must be handled by the
+        # real-estate ranking/report pipeline.
+        _normalized_query_for_vector_guard = str(query or "").lower()
+        _real_estate_ranking_terms = (
+            "ملک",
+            "املاک",
+            "امتیاز",
+            "رتبه",
+            "رتبه‌بندی",
+            "رتبه بندی",
+            "گزارش",
+            "pdf",
+            "پی دی اف",
+            "جدول",
+        )
+        if (
+            self._is_real_estate_analysis_query(query)
+            and any(
+                term in _normalized_query_for_vector_guard
+                for term in _real_estate_ranking_terms
+            )
+        ):
+            return None
+
+        is_vector_display = self._is_vector_display_query(query, llm_intent)
+        is_vector_summary = self._is_vector_summary_query(query, llm_intent)
+
+        if not (is_vector_display or is_vector_summary):
+            return None
+
+        feature_collection = self._find_geojson_like(resolved_inputs)
+        if feature_collection is None:
+            feature_collection = self._find_geojson_like(inputs)
+
+        if feature_collection is None:
+            return None
+
+        handler_name = "vector_summary" if is_vector_summary else "vector_display"
+        target_capability = (
+            "summarize_vector_layer"
+            if is_vector_summary
+            else "display_vector_layer"
+        )
+
+        router = self._build_enabled_router()
+
+        inspect_binding = router.resolve("inspect_vector")
+        target_binding = router.resolve(target_capability)
+
+        trace: list[dict[str, Any]] = []
+
+        inspection = inspect_binding.callable(
+            vector=feature_collection,
+        )
+
+        trace.append(
+            {
+                "order": 1,
+                "node_id": "node_001_inspect_vector",
+                "capability_name": "inspect_vector",
+                "plugin_id": inspect_binding.plugin_id,
+                "output_kind": inspect_binding.output_kind,
+                "status": "success",
+            }
+        )
+
+        if is_vector_summary:
+            capability_result = target_binding.callable(
+                vector=feature_collection,
+            )
+        else:
+            capability_result = target_binding.callable(
+                vector=feature_collection,
+                layer_id="active_vector",
+                name="active_vector",
+                visible=True,
+            )
+
+        trace.append(
+            {
+                "order": 2,
+                "node_id": (
+                    "node_002_summarize_vector_layer"
+                    if is_vector_summary
+                    else "node_002_display_vector_layer"
+                ),
+                "capability_name": target_capability,
+                "plugin_id": target_binding.plugin_id,
+                "output_kind": target_binding.output_kind,
+                "status": "success",
+            }
+        )
+
+        summary = (
+            capability_result.get("summary")
+            if isinstance(capability_result, dict)
+            else None
+        )
+
+        if not isinstance(summary, dict):
+            summary = (
+                inspection.get("summary")
+                if isinstance(inspection, dict)
+                else {}
+            )
+
+        if not isinstance(summary, dict):
+            summary = self._summarize_feature_collection(feature_collection)
+
+        if is_vector_summary:
+            feature_count = summary.get("feature_count", 0)
+            geometry_counts = summary.get("geometry_counts", {})
+            geometry_text = ", ".join(
+                f"{key}: {value}"
+                for key, value in geometry_counts.items()
+            ) or "No geometries"
+
+            message = (
+                capability_result.get("message")
+                if isinstance(capability_result, dict)
+                else None
+            ) or f"Vector layer contains {feature_count} features. {geometry_text}."
+
+            result_payload = {
+                "type": "vector_summary",
+                "feature_count": feature_count,
+                "geometry_counts": geometry_counts,
+                "property_keys": summary.get("property_keys", []),
+                "summary": summary,
+                "capability_result": _json_safe(capability_result),
+            }
+
+            outputs = {
+                "vectors": [
+                    {
+                        "id": "active_vector",
+                        "name": "active_vector",
+                        "format": "geojson",
+                        "role": "map_layer",
+                        "geojson": feature_collection,
+                        "summary": summary,
+                    }
+                ],
+                "rasters": [],
+                "tables": [],
+            }
+
+            layers = [
+                {
+                    "id": "active_vector",
+                    "name": "active_vector",
+                    "type": "vector",
+                    "format": "geojson",
+                    "visible": True,
+                    "geojson": feature_collection,
+                    "summary": summary,
+                }
+            ]
+
+        else:
+            message = (
+                capability_result.get("message")
+                if isinstance(capability_result, dict)
+                else None
+            ) or "Vector layer is ready for map display."
+
+            result_payload = {
+                "type": "vector_display",
+                "layer_ids": ["active_vector"],
+                "feature_count": summary.get("feature_count", 0),
+                "geometry_counts": summary.get("geometry_counts", {}),
+                "property_keys": summary.get("property_keys", []),
+                "summary": summary,
+                "capability_result": _json_safe(capability_result),
+            }
+
+            if isinstance(capability_result, dict):
+                outputs = capability_result.get("outputs") or {}
+                layers = capability_result.get("layers") or []
+            else:
+                outputs = {}
+                layers = []
+
+            if not isinstance(outputs, dict) or "vectors" not in outputs:
+                outputs = {
+                    "vectors": [
+                        {
+                            "id": "active_vector",
+                            "name": "active_vector",
+                            "format": "geojson",
+                            "role": "map_layer",
+                            "geojson": feature_collection,
+                            "summary": summary,
+                        }
+                    ],
+                    "rasters": [],
+                    "tables": [],
+                }
+
+            if not isinstance(layers, list) or not layers:
+                layers = [
+                    {
+                        "id": "active_vector",
+                        "name": "active_vector",
+                        "type": "vector",
+                        "format": "geojson",
+                        "visible": True,
+                        "geojson": feature_collection,
+                        "summary": summary,
+                    }
+                ]
+
+        metadata = dict(final_metadata)
+        metadata["execution_mode"] = "capability_bridge"
+        metadata["legacy_handler_name"] = handler_name
+        metadata["original_query"] = query
+        metadata["capabilities"] = {
+            "inspection": "inspect_vector",
+            "target": target_capability,
+        }
+
+        audit_record = {
+            "status": "success",
+            "execution_mode": "capability_bridge",
+            "reason": "simple vector display/summary query routed through official capabilities",
+            "query": query,
+            "request_id": final_request_id,
+            "legacy_handler_name": handler_name,
+            "capabilities": [
+                "inspect_vector",
+                target_capability,
+            ],
+            "trace": trace,
+            "outputs": {
+                "summary": _json_safe(summary),
+            },
+        }
+
+        run_result = {
+            "status": "succeeded",
+            "execution_mode": "capability_bridge",
+            "legacy_handler_name": handler_name,
+            "outputs": {
+                "inspection": _json_safe(inspection),
+                "result": _json_safe(capability_result),
+            },
+            "trace": trace,
+            "audit_record": audit_record,
+        }
+
+        response = {
+            "ok": True,
+            "status": "succeeded",
+            "request_id": final_request_id,
+            "query": query,
+            "message": message,
+            "summary": summary,
+            "metadata": _json_safe(metadata),
+            "outputs": outputs,
+            "layers": layers,
+            "result": result_payload,
+            "audit_record": audit_record,
+        }
+
+        self._remember(
+            request_id=final_request_id,
+            record={
+                "request_id": final_request_id,
+                "query": query,
+                "inputs": _json_safe(resolved_inputs),
+                "original_inputs": _json_safe(inputs),
+                "band_map": _json_safe(band_map or {}),
+                "user_context": _json_safe(user_context or {}),
+                "metadata": _json_safe(metadata),
+                "run_result": _json_safe(run_result),
+                "audit_record": _json_safe(audit_record),
+                "production_response": _json_safe(response),
+            },
+        )
+
+        return _json_safe(response)
 
     def handle_query(
             self,

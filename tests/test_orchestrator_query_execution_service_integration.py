@@ -134,3 +134,30 @@ def test_orchestrator_system_status_helpers_delegate_to_query_execution_service(
         "return self.query_execution_service._is_system_status_query("
         in source
     )
+
+
+def test_query_execution_service_contains_vector_direct_helpers() -> None:
+    source = Path(
+        "smart_spatial_system/application/services/query_execution_service.py"
+    ).read_text(encoding="utf-8")
+
+    assert "def _is_vector_display_query(" in source
+    assert "def _is_vector_summary_query(" in source
+    assert "def _try_handle_vector_display_directly(" in source
+
+
+def test_orchestrator_vector_direct_helpers_delegate_to_query_execution_service() -> None:
+    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+
+    assert (
+        "return QueryExecutionService._is_vector_display_query(query, intent)"
+        in source
+    )
+    assert (
+        "return QueryExecutionService._is_vector_summary_query(query, intent)"
+        in source
+    )
+    assert (
+        "return self.query_execution_service._try_handle_vector_display_directly("
+        in source
+    )

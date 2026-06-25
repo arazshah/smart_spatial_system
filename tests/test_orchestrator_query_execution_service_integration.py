@@ -161,3 +161,40 @@ def test_orchestrator_vector_direct_helpers_delegate_to_query_execution_service(
         "return self.query_execution_service._try_handle_vector_display_directly("
         in source
     )
+
+
+def test_query_execution_service_contains_real_estate_detector_input_helpers() -> None:
+    source = Path(
+        "smart_spatial_system/application/services/query_execution_service.py"
+    ).read_text(encoding="utf-8")
+
+    assert "def _try_handle_missing_real_estate_inputs(" in source
+    assert "def _is_real_estate_analysis_query(" in source
+    assert "def _has_any_real_estate_payload(" in source
+    assert "def _looks_like_real_estate_ranking_query(" in source
+    assert "def _extract_property_feature_collection_from_inputs(" in source
+
+
+def test_orchestrator_real_estate_detector_input_helpers_delegate_to_query_execution_service() -> None:
+    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+
+    assert (
+        "return self.query_execution_service._try_handle_missing_real_estate_inputs("
+        in source
+    )
+    assert (
+        "return self.query_execution_service._is_real_estate_analysis_query("
+        in source
+    )
+    assert (
+        "return self.query_execution_service._has_any_real_estate_payload("
+        in source
+    )
+    assert (
+        "return self.query_execution_service._looks_like_real_estate_ranking_query("
+        in source
+    )
+    assert (
+        "return self.query_execution_service._extract_property_feature_collection_from_inputs("
+        in source
+    )

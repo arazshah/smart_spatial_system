@@ -2405,6 +2405,318 @@ class QueryExecutionService:
 
         return _json_safe(response)
 
+    def _try_handle_missing_real_estate_inputs(
+        self,
+        *,
+        query: str,
+        inputs: dict[str, Any],
+        resolved_inputs: dict[str, Any],
+        final_request_id: str,
+        final_metadata: dict[str, Any],
+        band_map: dict[str, int] | None = None,
+        user_context: dict[str, Any] | None = None,
+        llm_intent: Any | None = None,
+    ) -> dict[str, Any] | None:
+        """
+        Return a controlled response for complex real-estate analysis requests
+        when no useful spatial inputs were provided.
+        """
+        if not self._is_real_estate_analysis_query(query, llm_intent):
+            return None
+
+        if self._has_any_real_estate_payload(resolved_inputs):
+            return None
+
+        required_layers = [
+            "لایه املاک یا نقاط/پلیگون‌های ملک‌ها",
+            "لایه POI شامل ایستگاه‌های مترو و مراکز خرید",
+            "لایه خیابان‌های اصلی یا شبکه معابر",
+            "لایه‌های ریسک سیل، زلزله و آتش‌سوزی",
+            "در صورت نیاز، لایه محدوده مجاز ساخت‌وساز یا کاربری اراضی",
+        ]
+
+        answer = (
+            "برای انجام تحلیل و رتبه‌بندی املاک، داده مکانی کافی ارسال نشده است. "
+            "لطفاً حداقل لایه املاک و لایه‌های مرجع مانند مترو/مرکز خرید، خیابان‌های اصلی "
+            "و ریسک‌ها را در ورودی‌ها اضافه کنید."
+        )
+
+        response = {
+            "ok": False,
+            "status": "failed",
+            "request_id": final_request_id,
+            "query": query,
+            "answer": answer,
+            "message": answer,
+            "outputs": {},
+            "layers": [],
+            "result": {
+                "type": "missing_required_inputs",
+                "domain": "real_estate_spatial_ranking",
+                "required_layers": required_layers,
+            },
+            "confidence": {
+                "level": None,
+                "score": None,
+                "llm_action": "input_validation_guard",
+                "is_ambiguous": False,
+                "competitive_gap": None,
+            },
+            "audit_ref": {
+                "request_id": final_request_id,
+                "query_hash": None,
+                "status": "failed",
+                "plan_steps": 0,
+            },
+            "warnings": [
+                "درخواست تحلیل املاک تشخیص داده شد، اما ورودی مکانی کافی وجود ندارد.",
+                "برای جلوگیری از اجرای pipeline اشتباه، برنامه‌ریز مکانی اجرا نشد.",
+            ],
+            "next_actions": [
+                "لایه املاک را به صورت GeoJSON/Vector اضافه کنید.",
+                "لایه ایستگاه‌های مترو و مراکز خرید را اضافه کنید.",
+                "لایه خیابان‌های اصلی و لایه‌های ریسک را اضافه کنید.",
+                "سپس درخواست رتبه‌بندی و تولید گزارش را دوباره اجرا کنید.",
+            ],
+            "metadata": _json_safe(final_metadata),
+        }
+
+        _resolved_project_id = str(final_metadata.get("project_id") or "").strip() or None
+
+        self._remember(
+            request_id=final_request_id,
+            record={
+                "request_id": final_request_id,
+                "query": query,
+                "inputs": _json_safe(resolved_inputs),
+                "original_inputs": _json_safe(inputs),
+                "band_map": _json_safe(band_map or {}),
+                "user_context": _json_safe(user_context or {}),
+                "metadata": _json_safe(final_metadata),
+                "project_id": _resolved_project_id,
+                "production_response": _json_safe(response),
+            },
+        )
+
+        if _resolved_project_id:
+            try:
+                self.project_service.attach_request(
+                    _resolved_project_id,
+                    final_request_id,
+                )
+            except Exception:
+                pass
+
+        return _json_safe(response)
+
+    def _is_real_estate_analysis_query(
+        self,
+        query: str,
+        llm_intent: Any | None = None,
+    ) -> bool:
+        text = str(query or "").strip().lower()
+
+        if not text:
+            return False
+
+        intent_name = None
+
+        if isinstance(llm_intent, dict):
+            intent_name = str(llm_intent.get("intent_name") or "").lower()
+        else:
+            intent_name = str(getattr(llm_intent, "intent_name", "") or "").lower()
+
+        real_estate_tokens = [
+            "ملک",
+            "املاک",
+            "آپارتمان",
+            "ویلا",
+            "زمین",
+            "ساخت و ساز",
+            "ساخت‌وساز",
+            "real estate",
+            "property",
+            "properties",
+        ]
+
+        analysis_tokens = [
+            "مترو",
+            "مرکز خرید",
+            "خیابان اصلی",
+            "ریسک",
+            "سیل",
+            "زلزله",
+            "آتش",
+            "امتیاز",
+            "رتبه",
+            "رتبه‌بندی",
+            "گزارش",
+            "نزدیک",
+            "۵۰۰",
+            "500",
+        ]
+
+        if intent_name in {
+            "real_estate_ranking",
+            "property_ranking",
+            "vector_filter",
+            "investment_analysis",
+        }:
+            return any(token in text for token in real_estate_tokens)
+
+        return (
+            any(token in text for token in real_estate_tokens)
+            and any(token in text for token in analysis_tokens)
+        )
+
+    def _has_any_real_estate_payload(
+        self,
+        resolved_inputs: dict[str, Any],
+    ) -> bool:
+        if not isinstance(resolved_inputs, dict) or not resolved_inputs:
+            return False
+
+        useful_keys = {
+            "vector",
+            "vectors",
+            "properties",
+            "property_layer",
+            "real_estate",
+            "pois",
+            "poi",
+            "metro",
+            "shopping_centers",
+            "roads",
+            "main_roads",
+            "risk_layers",
+            "flood_risk",
+            "earthquake_risk",
+            "fire_risk",
+            "zoning",
+            "landuse",
+            "land_use",
+        }
+
+        if any(key in resolved_inputs and resolved_inputs.get(key) not in (None, {}, []) for key in useful_keys):
+            return True
+
+        vector = resolved_inputs.get("vector")
+
+        if isinstance(vector, dict):
+            features = vector.get("features")
+            if isinstance(features, list) and features:
+                return True
+
+        vectors = resolved_inputs.get("vectors")
+
+        if isinstance(vectors, list) and vectors:
+            return True
+
+        return False
+
+    def _looks_like_real_estate_ranking_query(self, query: str) -> bool:
+        q = (query or "").lower()
+
+        property_terms = [
+            "ملک",
+            "املاک",
+            "زمین",
+            "آپارتمان",
+            "ویلا",
+            "property",
+            "real estate",
+        ]
+        ranking_terms = [
+            "رتبه",
+            "رتبه‌بندی",
+            "رتبه بندی",
+            "امتیاز",
+            "score",
+            "rank",
+            "ranking",
+            "گزارش",
+            "report",
+        ]
+        constraint_terms = [
+            "مترو",
+            "مرکز خرید",
+            "خیابان اصلی",
+            "ریسک",
+            "سیل",
+            "زلزله",
+            "آتش",
+            "۵۰۰",
+            "500",
+            "متر",
+        ]
+
+        return (
+            any(term in q for term in property_terms)
+            and any(term in q for term in ranking_terms)
+            and any(term in q for term in constraint_terms)
+        )
+
+    def _extract_property_feature_collection_from_inputs(self, inputs: dict[str, Any] | None) -> dict[str, Any] | None:
+        if not isinstance(inputs, dict):
+            return None
+
+        def _property_only_feature_collection(fc: dict[str, Any]) -> dict[str, Any]:
+            features = fc.get("features") or []
+            if not isinstance(features, list):
+                features = []
+
+            property_features: list[dict[str, Any]] = []
+            for feature in features:
+                if not isinstance(feature, dict):
+                    continue
+                props = feature.get("properties") or {}
+                if not isinstance(props, dict):
+                    props = {}
+
+                layer = str(props.get("layer") or "").strip().lower()
+                property_type = str(props.get("property_type") or props.get("kind") or "").strip().lower()
+                has_property_identity = bool(
+                    props.get("property_id")
+                    or str(props.get("id") or "").startswith("prop-")
+                    or layer == "property"
+                    or property_type in {"apartment", "villa", "land", "house", "ملک", "آپارتمان", "ویلا", "زمین"}
+                )
+
+                if has_property_identity:
+                    property_features.append(feature)
+
+            # اگر featureهای property پیدا شد، فقط همان‌ها را برای ranking برگردان.
+            if property_features:
+                out = dict(fc)
+                out["features"] = property_features
+                return out
+
+            return fc
+
+        candidate_keys = [
+            "properties",
+            "property_layer",
+            "propertyLayer",
+            "real_estate_properties",
+            "realEstateProperties",
+            "parcels",
+            "assets",
+            "vector",
+            "geojson",
+        ]
+
+        for key in candidate_keys:
+            value = inputs.get(key)
+            if isinstance(value, dict) and value.get("type") == "FeatureCollection":
+                return _property_only_feature_collection(value)
+
+            if isinstance(value, dict):
+                nested = value.get("geojson") or value.get("data") or value.get("feature_collection")
+                if isinstance(nested, dict) and nested.get("type") == "FeatureCollection":
+                    return _property_only_feature_collection(nested)
+
+        return None
+
     def handle_query(
             self,
             *,

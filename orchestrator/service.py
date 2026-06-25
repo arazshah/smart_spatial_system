@@ -2110,22 +2110,7 @@ class OrchestratorService:
         self,
         inputs: dict[str, Any],
     ) -> dict[str, Any]:
-        """
-        Resolve uploaded input references through UploadReferenceResolver.
-
-        Supported:
-            {"raster_ref": "upl-..."}
-            {"vector_ref": "upl-..."}
-            {"raster": {"upload_id": "upl-..."}}
-            {"vector": {"upload_id": "upl-..."}}
-        """
-        try:
-            return self.upload_reference_resolver.resolve_inputs(inputs)
-        except UploadReferenceResolverError as exc:
-            raise _service_error_from_exception(
-                exc,
-                stage="resolve_input_references",
-            ) from exc
+        return self.query_execution_service._resolve_input_references(inputs)
 
 
     def save_request_outputs(

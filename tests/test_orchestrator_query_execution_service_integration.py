@@ -358,3 +358,19 @@ def test_orchestrator_new_request_id_delegates_to_query_execution_service() -> N
     source = Path("orchestrator/service.py").read_text(encoding="utf-8")
 
     assert "return self.query_execution_service._new_request_id()" in source
+
+
+def test_query_execution_service_contains_resolve_input_references() -> None:
+    source = Path(
+        "smart_spatial_system/application/services/query_execution_service.py"
+    ).read_text(encoding="utf-8")
+
+    assert "def _resolve_input_references(" in source
+    assert "self.upload_reference_resolver.resolve_inputs(inputs)" in source
+    assert "stage=\"resolve_input_references\"" in source
+
+
+def test_orchestrator_resolve_input_references_delegates_to_query_execution_service() -> None:
+    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+
+    assert "return self.query_execution_service._resolve_input_references(inputs)" in source

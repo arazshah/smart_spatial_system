@@ -42,6 +42,11 @@ from orchestrator.service import (
     OrchestratorServiceConfig,
     OrchestratorServiceError,
 )
+from api.support import (
+    http_error_detail as _http_error_detail,
+    json_safe as _json_safe,
+    service as _service,
+)
 
 
 @dataclass(frozen=True)
@@ -1284,66 +1289,10 @@ def create_app(
     return app
 
 
-def _http_error_detail(exc: BaseException) -> Any:
-    structured_error = getattr(exc, "structured_error", None)
-
-    if isinstance(structured_error, dict):
-        return {
-            "message": str(exc),
-            "error": str(exc),
-            "structured_error": _json_safe(structured_error),
-        }
-
-    return str(exc)
 
 
-def _service(request: Request) -> OrchestratorService:
-    return request.app.state.service
 
 
-def _json_safe(value: Any) -> Any:
-    """
-    Convert objects/dataclasses/internal runtime objects to JSON-safe data.
-
-    This is intentionally defensive because request history can contain:
-        - dataclasses
-        - plugin result objects
-        - plan objects
-        - dict-like evidence
-    """
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-
-    if isinstance(value, dict):
-        return {
-            str(key): _json_safe(item)
-            for key, item in value.items()
-        }
-
-    if isinstance(value, (list, tuple, set)):
-        return [
-            _json_safe(item)
-            for item in value
-        ]
-
-    if hasattr(value, "to_dict") and callable(value.to_dict):
-        try:
-            return _json_safe(value.to_dict())
-        except Exception:
-            pass
-
-    if is_dataclass(value):
-        try:
-            return _json_safe(asdict(value))
-        except Exception:
-            pass
-
-    payload = getattr(value, "__dict__", None)
-
-    if isinstance(payload, dict) and payload:
-        return _json_safe(payload)
-
-    return repr(value)
 
 
 app = create_app()

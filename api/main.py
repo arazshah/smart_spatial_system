@@ -1,18 +1,8 @@
 """
-FastAPI MVP API for Smart Spatial System.
+FastAPI API for Smart Spatial System.
 
-This API is the operational HTTP boundary for frontend usage.
-
-MVP endpoints:
-    GET  /health
-    POST /query
-    POST /feedback
-    GET  /requests
-    GET  /requests/{request_id}
-    GET  /weights
-    POST /weights/save
-    POST /weights/reload
-    POST /weights/proposals/apply
+This module owns the HTTP application factory, CORS setup, service wiring,
+and API router registration.
 
 Run:
     uvicorn api.main:app --reload
@@ -24,38 +14,22 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from dataclasses import asdict, dataclass, is_dataclass
-from pathlib import Path
-from typing import Any
+from dataclasses import dataclass
 
-from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 
-from orchestrator.plugin_config_store import (
-    PluginConfigStoreError,
-    read_plugin_config,
-    write_plugin_config,
-)
-from orchestrator.service import (
-    OrchestratorService,
-    OrchestratorServiceConfig,
-    OrchestratorServiceError,
-)
-from api.support import (
-    http_error_detail as _http_error_detail,
-    json_safe as _json_safe,
-    service as _service,
-)
-from api.routers.system import router as system_router
-from api.routers.projects import router as projects_router
-from api.routers.uploads import router as uploads_router
-from api.routers.data_sources import router as data_sources_router
+from orchestrator.service import OrchestratorService, OrchestratorServiceConfig
+
 from api.routers.data_source_connectors import router as data_source_connectors_router
+from api.routers.data_sources import router as data_sources_router
 from api.routers.plugins_settings import router as plugins_settings_router
-from api.routers.requests_outputs import router as requests_outputs_router
-from api.routers.weights import router as weights_router
+from api.routers.projects import router as projects_router
 from api.routers.query_planner import router as query_planner_router
+from api.routers.requests_outputs import router as requests_outputs_router
+from api.routers.system import router as system_router
+from api.routers.uploads import router as uploads_router
+from api.routers.weights import router as weights_router
 
 
 @dataclass(frozen=True)
@@ -124,62 +98,7 @@ def create_app(
     app.include_router(weights_router)
     app.include_router(query_planner_router)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # ── Data Source Manager: External Sources ─────────────────────
-
-
-
-
     return app
-
-
-
-
-
-
 
 
 app = create_app()

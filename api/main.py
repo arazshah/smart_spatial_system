@@ -50,6 +50,7 @@ from api.support import (
 from api.routers.system import router as system_router
 from api.routers.projects import router as projects_router
 from api.routers.uploads import router as uploads_router
+from api.routers.data_sources import router as data_sources_router
 
 
 @dataclass(frozen=True)
@@ -111,72 +112,16 @@ def create_app(
     app.include_router(system_router)
     app.include_router(projects_router)
     app.include_router(uploads_router)
+    app.include_router(data_sources_router)
 
 
 
 
 
 
-    @app.get("/data-sources/{upload_id}")
-    def get_data_source(
-        request: Request,
-        upload_id: str,
-    ) -> dict[str, Any]:
-        svc = _service(request)
 
-        try:
-            return _json_safe(svc.get_data_source(upload_id))
-        except OrchestratorServiceError as exc:
-            raise HTTPException(
-                status_code=404,
-                detail=_http_error_detail(exc),
-            ) from exc
 
-    @app.delete("/data-sources/{upload_id}")
-    def delete_data_source(
-        request: Request,
-        upload_id: str,
-    ) -> dict[str, Any]:
-        svc = _service(request)
 
-        try:
-            return _json_safe(svc.delete_data_source(upload_id))
-        except OrchestratorServiceError as exc:
-            raise HTTPException(
-                status_code=400,
-                detail=_http_error_detail(exc),
-            ) from exc
-
-    @app.patch("/data-sources/{upload_id}")
-    def update_data_source(
-        request: Request,
-        upload_id: str,
-        payload: dict[str, Any] = Body(...),
-    ) -> dict[str, Any]:
-        svc = _service(request)
-
-        try:
-            return _json_safe(svc.update_data_source(upload_id, payload))
-        except OrchestratorServiceError as exc:
-            raise HTTPException(
-                status_code=400,
-                detail=_http_error_detail(exc),
-            ) from exc
-
-    @app.get("/data-sources/{upload_id}/preview")
-    def preview_data_source(
-        request: Request,
-        upload_id: str,
-    ) -> dict[str, Any]:
-        svc = _service(request)
-
-        try:
-            return _json_safe(svc.preview_data_source(upload_id))
-        except OrchestratorServiceError as exc:
-            raise HTTPException(
-                status_code=404,
-                detail=_http_error_detail(exc),
-            ) from exc
 
 
     @app.post("/data-sources/csv-table")

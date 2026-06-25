@@ -360,6 +360,11 @@ def test_service_planning_opt_in_kernel_execution_metadata_includes_summary_and_
     )
 
     monkeypatch.setattr(service, "_query_spec_planning_enabled", lambda: True)
+    monkeypatch.setattr(
+        service.query_execution_service,
+        "_query_spec_planning_enabled",
+        lambda: True,
+    )
 
     class FakeLLMClient:
         pass
@@ -426,15 +431,15 @@ def test_service_planning_opt_in_kernel_execution_metadata_includes_summary_and_
         )
 
     monkeypatch.setattr(
-        "orchestrator.service.OpenAICompatibleLLMClient",
+        "smart_spatial_system.application.services.query_execution_service.OpenAICompatibleLLMClient",
         FakeLLMClient,
     )
     monkeypatch.setattr(
-        "orchestrator.service.LLMQuerySpecGenerator",
+        "smart_spatial_system.application.services.query_execution_service.LLMQuerySpecGenerator",
         FakeQuerySpecGenerator,
     )
     monkeypatch.setattr(
-        "orchestrator.service.make_registry_planning_runner",
+        "smart_spatial_system.application.services.query_execution_service.make_registry_planning_runner",
         fake_make_registry_planning_runner,
     )
 
@@ -563,6 +568,11 @@ def test_service_planning_uses_config_kernel_execution_flag(
     service = _make_service(tmp_path, enable_kernel_execution=True)
 
     monkeypatch.setattr(service, "_query_spec_planning_enabled", lambda: True)
+    monkeypatch.setattr(
+        service.query_execution_service,
+        "_query_spec_planning_enabled",
+        lambda: True,
+    )
 
     class FakeLLMClient:
         pass
@@ -634,15 +644,15 @@ def test_service_planning_uses_config_kernel_execution_flag(
             return FakePlanningResult()
 
     monkeypatch.setattr(
-        "orchestrator.service.OpenAICompatibleLLMClient",
+        "smart_spatial_system.application.services.query_execution_service.OpenAICompatibleLLMClient",
         FakeLLMClient,
     )
     monkeypatch.setattr(
-        "orchestrator.service.LLMQuerySpecGenerator",
+        "smart_spatial_system.application.services.query_execution_service.LLMQuerySpecGenerator",
         FakeQuerySpecGenerator,
     )
     monkeypatch.setattr(
-        "orchestrator.service.make_registry_planning_runner",
+        "smart_spatial_system.application.services.query_execution_service.make_registry_planning_runner",
         lambda registry: FakeRunner(),
     )
 
@@ -711,6 +721,11 @@ def test_service_planning_uses_config_kernel_execution_flag(
     service = _make_service(tmp_path, enable_kernel_execution=True)
 
     monkeypatch.setattr(service, "_query_spec_planning_enabled", lambda: True)
+    monkeypatch.setattr(
+        service.query_execution_service,
+        "_query_spec_planning_enabled",
+        lambda: True,
+    )
 
     class FakeLLMClient:
         pass
@@ -782,15 +797,15 @@ def test_service_planning_uses_config_kernel_execution_flag(
             return FakePlanningResult()
 
     monkeypatch.setattr(
-        "orchestrator.service.OpenAICompatibleLLMClient",
+        "smart_spatial_system.application.services.query_execution_service.OpenAICompatibleLLMClient",
         FakeLLMClient,
     )
     monkeypatch.setattr(
-        "orchestrator.service.LLMQuerySpecGenerator",
+        "smart_spatial_system.application.services.query_execution_service.LLMQuerySpecGenerator",
         FakeQuerySpecGenerator,
     )
     monkeypatch.setattr(
-        "orchestrator.service.make_registry_planning_runner",
+        "smart_spatial_system.application.services.query_execution_service.make_registry_planning_runner",
         lambda registry: FakeRunner(),
     )
 

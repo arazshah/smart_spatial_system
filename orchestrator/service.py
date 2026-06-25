@@ -112,6 +112,7 @@ from orchestrator.plugin_runtime_service import (
     PluginRuntimeService,
     PluginRuntimeServiceError,
 )
+from orchestrator.request_history_service import RequestHistoryService
 from orchestrator.query_execution_service import QueryExecutionService, QueryExecutionServiceError
 from orchestrator.map_layer_service import MapLayerService, MapLayerServiceError
 from orchestrator.output_service import OutputService, OutputServiceError
@@ -1005,6 +1006,12 @@ class OrchestratorService:
 
         self._history: dict[str, dict[str, Any]] = {}
 
+        self.request_history_service = RequestHistoryService(
+            history=self._history,
+            config_getter=lambda: getattr(self, "config", None),
+            project_service_getter=lambda: getattr(self, "project_service", None),
+        )
+
     @staticmethod
     def _llm_planning_enabled() -> bool:
         return QueryExecutionService._llm_planning_enabled()
@@ -1403,30 +1410,10 @@ class OrchestratorService:
         self,
         request_id: str,
     ) -> dict[str, Any] | None:
-        """
-        Return stored request record.
-        """
-        return self._history.get(request_id)
+        return self.request_history_service.get_request(request_id)
 
     def list_requests(self) -> list[dict[str, Any]]:
-        """
-        Return lightweight request history.
-        """
-        items: list[dict[str, Any]] = []
-
-        for request_id, record in self._history.items():
-            response = record.get("production_response") or {}
-
-            items.append(
-                {
-                    "request_id": request_id,
-                    "status": response.get("status"),
-                    "answer": response.get("answer"),
-                    "query": record.get("query"),
-                }
-            )
-
-        return items
+        return self.request_history_service.list_requests()
 
 
     def create_project(
@@ -1907,7 +1894,7 @@ class OrchestratorService:
             "plugin_modules": list(self.config.plugin_modules),
             "use_weighted_router": self.config.use_weighted_router,
             "weights_persistence_exists": self.persistence.exists(),
-            "history_size": len(self._history),
+            "history_size": self.request_history_service.size(),
             "runtime_paths": self._runtime_paths_metadata(),
             "weights": self.get_weights(),
         }
@@ -1955,27 +1942,10 @@ class OrchestratorService:
         request_id: str,
         record: dict[str, Any],
     ) -> None:
-        if not self.config.keep_history:
-            return
-
-        if self.config.max_history_items == 0:
-            return
-
-        self._history[request_id] = record
-
-        # Link this request to its project so the UI history stays persistent.
-        project_id = str(record.get("project_id") or "").strip()
-        if project_id:
-            try:
-                self.project_service.attach_request(project_id, request_id)
-            except Exception:
-                pass
-
-        if len(self._history) > self.config.max_history_items:
-            overflow = len(self._history) - self.config.max_history_items
-
-            for key in list(self._history.keys())[:overflow]:
-                self._history.pop(key, None)
+        self.request_history_service.remember(
+            request_id=request_id,
+            record=record,
+        )
 
     def _new_request_id(self) -> str:
         return self.query_execution_service._new_request_id()

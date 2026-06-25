@@ -48,6 +48,7 @@ from api.support import (
     service as _service,
 )
 from api.routers.system import router as system_router
+from api.routers.projects import router as projects_router
 
 
 @dataclass(frozen=True)
@@ -107,65 +108,12 @@ def create_app(
     )
 
     app.include_router(system_router)
-
-    @app.post("/projects")
-    def create_project(
-        request: Request,
-        payload: dict[str, Any] = Body(...),
-    ) -> dict[str, Any]:
-        svc = _service(request)
-
-        try:
-            return _json_safe(
-                svc.create_project(
-                    name=str(payload.get("name") or "").strip(),
-                    description=payload.get("description"),
-                    metadata=payload.get("metadata") or {},
-                )
-            )
-        except OrchestratorServiceError as exc:
-            raise HTTPException(
-                status_code=400,
-                detail=_http_error_detail(exc),
-            ) from exc
-
-    @app.get("/projects")
-    def list_projects(
-        request: Request,
-    ) -> list[dict[str, Any]]:
-        svc = _service(request)
-        return _json_safe(svc.list_projects())
-
-    @app.get("/projects/{project_id}")
-    def get_project(
-        request: Request,
-        project_id: str,
-    ) -> dict[str, Any]:
-        svc = _service(request)
-
-        try:
-            return _json_safe(svc.get_project(project_id))
-        except OrchestratorServiceError as exc:
-            raise HTTPException(
-                status_code=404,
-                detail=_http_error_detail(exc),
-            ) from exc
+    app.include_router(projects_router)
 
 
-    @app.get("/projects/{project_id}/data-sources")
-    def list_project_data_sources(
-        request: Request,
-        project_id: str,
-    ) -> list[dict[str, Any]]:
-        svc = _service(request)
 
-        try:
-            return _json_safe(svc.list_project_data_sources(project_id))
-        except OrchestratorServiceError as exc:
-            raise HTTPException(
-                status_code=404,
-                detail=_http_error_detail(exc),
-            ) from exc
+
+
 
     @app.get("/data-sources/{upload_id}")
     def get_data_source(

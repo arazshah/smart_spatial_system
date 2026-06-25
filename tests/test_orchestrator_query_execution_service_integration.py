@@ -257,3 +257,22 @@ def test_orchestrator_real_estate_report_document_helpers_delegate_to_query_exec
         "return self.query_execution_service._build_real_estate_analysis_inspector("
         in source
     )
+
+
+def test_query_execution_service_contains_real_estate_ranking_direct_handler() -> None:
+    source = Path(
+        "smart_spatial_system/application/services/query_execution_service.py"
+    ).read_text(encoding="utf-8")
+
+    assert "def _try_handle_real_estate_ranking_directly(" in source
+    assert "real_estate_ranking_bridge" in source
+    assert "real_estate_ranking" in source
+
+
+def test_orchestrator_real_estate_ranking_direct_handler_delegates_to_query_execution_service() -> None:
+    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+
+    assert (
+        "return self.query_execution_service._try_handle_real_estate_ranking_directly("
+        in source
+    )

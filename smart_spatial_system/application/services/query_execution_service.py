@@ -3625,6 +3625,352 @@ class QueryExecutionService:
             ],
         }
 
+    def _try_handle_real_estate_ranking_directly(
+        self,
+        *,
+        query: str,
+        inputs: dict[str, Any] | None,
+        request_id: str | None = None,
+        llm_intent: Any = None,
+    ) -> dict[str, Any] | None:
+        if not self._looks_like_real_estate_ranking_query(query):
+            return None
+
+        feature_collection = self._extract_property_feature_collection_from_inputs(inputs)
+        if not isinstance(feature_collection, dict):
+            return None
+
+        spatial_context = self._extract_real_estate_spatial_context_from_inputs(inputs)
+        feature_collection, spatial_enrichment_summary = (
+            self._enrich_property_feature_collection_with_spatial_context(
+                feature_collection,
+                spatial_context,
+            )
+        )
+
+        features = feature_collection.get("features") or []
+        if not isinstance(features, list):
+            features = []
+
+        ranked_features: list[dict[str, Any]] = []
+        rejected_rows: list[dict[str, Any]] = []
+
+        for feature in features:
+            if not isinstance(feature, dict):
+                continue
+
+            props = dict(feature.get("properties") or {})
+            eligible, rejection_reasons, metrics = self._evaluate_real_estate_eligibility(props)
+            score, score_details = self._score_real_estate_property(props)
+
+            enriched_props = dict(props)
+            enriched_props.update(
+                {
+                    "eligible": eligible,
+                    "eligibility_reasons": rejection_reasons,
+                    "score": score,
+                    "score_details": score_details,
+                    "best_poi_distance_m": metrics.get("best_poi_distance_m"),
+                    "risk_summary": metrics.get("risk_levels"),
+                }
+            )
+
+            enriched_feature = {
+                "type": "Feature",
+                "geometry": feature.get("geometry"),
+                "properties": enriched_props,
+            }
+
+            if eligible:
+                ranked_features.append(enriched_feature)
+            else:
+                rejected_rows.append(
+                    {
+                        "id": props.get("id"),
+                        "name": props.get("name"),
+                        "score": score,
+                        "reasons": rejection_reasons,
+                    }
+                )
+
+        ranked_features.sort(
+            key=lambda f: float((f.get("properties") or {}).get("score") or 0),
+            reverse=True,
+        )
+
+        table_rows: list[dict[str, Any]] = []
+        for idx, feature in enumerate(ranked_features, start=1):
+            props = feature.get("properties") or {}
+            props["rank"] = idx
+
+            table_rows.append(
+                {
+                    "rank": idx,
+                    "id": props.get("id"),
+                    "name": props.get("name"),
+                    "kind": props.get("kind") or props.get("property_type"),
+                    "price": props.get("price"),
+                    "score": props.get("score"),
+                    "best_poi_distance_m": props.get("best_poi_distance_m"),
+                    "distance_to_metro_m": props.get("distance_to_metro_m"),
+                    "distance_to_mall_m": props.get("distance_to_mall_m"),
+                    "distance_to_main_road_m": props.get("distance_to_main_road_m"),
+                    "flood_risk": props.get("flood_risk"),
+                    "earthquake_risk": props.get("earthquake_risk"),
+                    "fire_risk": props.get("fire_risk"),
+                    "in_allowed_zone": (
+                        props.get("in_allowed_zone")
+                        if props.get("in_allowed_zone") is not None
+                        else props.get("build_zone_allowed")
+                        if props.get("build_zone_allowed") is not None
+                        else props.get("construction_allowed")
+                    ),
+                }
+            )
+
+        ranked_geojson = {
+            "type": "FeatureCollection",
+            "features": ranked_features,
+        }
+
+        top_row = table_rows[0] if table_rows else None
+
+        summary = {
+            "candidate_count": len(features),
+            "eligible_count": len(ranked_features),
+            "rejected_count": len(rejected_rows),
+            "top_property": top_row.get("name") if top_row else None,
+            "top_score": top_row.get("score") if top_row else None,
+            "criteria": {
+                "max_distance_to_metro_or_mall_m": 500,
+                "max_distance_to_main_road_m": 150,
+                "excluded_risk_level": "high",
+                "medium_risk_policy": "allowed_with_score_penalty",
+                "requires_allowed_construction_zone": True,
+            },
+        }
+
+        if spatial_enrichment_summary.get("applied"):
+            summary["spatial_enrichment"] = spatial_enrichment_summary
+
+        report = {
+            "title": "گزارش رتبه‌بندی و تحلیل سرمایه‌گذاری املاک",
+            "language": "fa",
+            "summary": summary,
+            "ranking": table_rows,
+            "rejected": rejected_rows,
+            "notes": [
+                "املاک با ریسک high یا خارج از محدوده مجاز ساخت‌وساز حذف شده‌اند.",
+                "ریسک medium در MVP حذف نشده و به‌صورت جریمه امتیازی اعمال شده است.",
+                "امتیاز نهایی بر اساس نزدیکی به مترو/مرکز خرید، خیابان اصلی، ریسک‌ها، محدوده مجاز و قیمت محاسبه شده است.",
+            ],
+        }
+
+        message = (
+            f"رتبه‌بندی املاک انجام شد. از {len(features)} ملک، "
+            f"{len(ranked_features)} ملک واجد شرایط بودند."
+        )
+        if top_row:
+            message += f" بهترین گزینه: {top_row.get('name')} با امتیاز {top_row.get('score')}."
+
+        rid = request_id or f"req-{uuid.uuid4()}"
+
+        documents, document_warnings, render_pdf_trace_step = self._try_render_real_estate_ranking_document(
+            report=report,
+            table_rows=table_rows,
+            ranked_geojson=ranked_geojson,
+            summary=summary,
+            request_id=rid,
+        )
+
+        outputs = {
+            "vectors": [
+                {
+                    "id": "ranked_properties",
+                    "name": "ranked_properties",
+                    "format": "geojson",
+                    "role": "map_layer",
+                    "geojson": ranked_geojson,
+                    "summary": summary,
+                }
+            ],
+            "rasters": [],
+            "tables": [
+                {
+                    "id": "property_ranking",
+                    "name": "property_ranking",
+                    "role": "ranking_table",
+                    "columns": [
+                        "rank",
+                        "id",
+                        "name",
+                        "kind",
+                        "price",
+                        "score",
+                        "best_poi_distance_m",
+                        "distance_to_main_road_m",
+                        "flood_risk",
+                        "earthquake_risk",
+                        "fire_risk",
+                        "in_allowed_zone",
+                    ],
+                    "rows": table_rows,
+                },
+                {
+                    "id": "rejected_properties",
+                    "name": "rejected_properties",
+                    "role": "rejected_items",
+                    "columns": ["id", "name", "score", "reasons"],
+                    "rows": rejected_rows,
+                },
+            ],
+            "reports": [
+                {
+                    "id": "real_estate_ranking_report",
+                    "name": "real_estate_ranking_report",
+                    "format": "json",
+                    "role": "analysis_report",
+                    "data": report,
+                }
+            ],
+            "documents": documents,
+        }
+
+        layers = [
+            {
+                "id": "ranked_properties",
+                "name": "املاک رتبه‌بندی‌شده",
+                "type": "vector",
+                "format": "geojson",
+                "visible": True,
+                "geojson": ranked_geojson,
+                "summary": summary,
+            }
+        ]
+
+        trace = [
+            {
+                "order": 1,
+                "node_id": "node_001_filter_features",
+                "capability_name": "filter_features",
+                "plugin_id": "real_estate_ranking_bridge",
+                "output_kind": "vector",
+                "status": "success",
+            },
+            {
+                "order": 2,
+                "node_id": "node_002_score_features",
+                "capability_name": "score_features",
+                "plugin_id": "real_estate_ranking_bridge",
+                "output_kind": "vector",
+                "status": "success",
+            },
+            {
+                "order": 3,
+                "node_id": "node_003_rank_features",
+                "capability_name": "rank_features",
+                "plugin_id": "real_estate_ranking_bridge",
+                "output_kind": "table",
+                "status": "success",
+            },
+            {
+                "order": 4,
+                "node_id": "node_004_build_report",
+                "capability_name": "build_report",
+                "plugin_id": "real_estate_ranking_bridge",
+                "output_kind": "json",
+                "status": "success",
+            },
+            render_pdf_trace_step,
+        ]
+
+        if spatial_enrichment_summary.get("applied"):
+            trace.insert(
+                0,
+                {
+                    "order": 0,
+                    "node_id": "node_000_spatial_enrichment",
+                    "capability_name": "feature_enrichment",
+                    "plugin_id": "real_estate_spatial_enrichment",
+                    "output_kind": "vector",
+                    "status": "success",
+                    "metrics": spatial_enrichment_summary,
+                },
+            )
+
+        inspector = self._build_real_estate_analysis_inspector(
+            title=report.get("title") or "گزارش رتبه‌بندی املاک",
+            status="succeeded",
+            summary=summary,
+            outputs=outputs,
+            layers=layers,
+            trace=trace,
+            documents=documents,
+            warnings=document_warnings,
+        )
+
+        return {
+            "ok": True,
+            "status": "succeeded",
+            "request_id": rid,
+            "query": query,
+            "answer": message,
+            "message": message,
+            "summary": summary,
+            "inspector": inspector,
+            "outputs": outputs,
+            "layers": layers,
+            "result": {
+                "type": "real_estate_ranking",
+                "summary": summary,
+                "ranking": table_rows,
+                "rejected": rejected_rows,
+                "report": report,
+                "layer_ids": ["ranked_properties"],
+            },
+            "warnings": document_warnings,
+            "next_actions": [
+                "برای تحلیل دقیق‌تر، فاصله‌ها می‌توانند با pluginهای nearest_neighbor و distance_calculator از لایه‌های واقعی محاسبه شوند.",
+                "در صورت نیاز، خروجی PDF/HTML گزارش از outputs.documents قابل استفاده است.",
+            ],
+            "metadata": {
+                "service": "OrchestratorService",
+                "weighted_router": True,
+                "llm_planning_enabled": self._llm_planning_enabled(),
+                "llm_intent": llm_intent,
+                "execution_mode": "real_estate_ranking_bridge",
+                "capabilities": [
+                    "filter_features",
+                    "score_features",
+                    "rank_features",
+                    "build_report",
+                    "render_pdf",
+                ],
+            },
+            "audit_record": {
+                "status": "success",
+                "execution_mode": "real_estate_ranking_bridge",
+                "reason": "real estate ranking query with property features routed through MVP ranking bridge",
+                "query": query,
+                "request_id": rid,
+                "capabilities": [
+                    "filter_features",
+                    "score_features",
+                    "rank_features",
+                    "build_report",
+                    "render_pdf",
+                ],
+                "trace": trace,
+                "outputs": {
+                    "summary": summary,
+                    "ranking_table_id": "property_ranking",
+                    "layer_ids": ["ranked_properties"],
+                    "report_id": "real_estate_ranking_report",
+                    "document_ids": [doc.get("id") for doc in documents],
+                },
+            },
+        }
+
     def handle_query(
             self,
             *,

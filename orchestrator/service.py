@@ -108,6 +108,10 @@ from orchestrator.feedback_proposal_service import (
     FeedbackProposalService,
     FeedbackProposalServiceError,
 )
+from orchestrator.plugin_runtime_service import (
+    PluginRuntimeService,
+    PluginRuntimeServiceError,
+)
 from orchestrator.query_execution_service import QueryExecutionService, QueryExecutionServiceError
 from orchestrator.map_layer_service import MapLayerService, MapLayerServiceError
 from orchestrator.output_service import OutputService, OutputServiceError
@@ -911,6 +915,16 @@ class OrchestratorService:
             )
         )
 
+        self.plugin_runtime_service = PluginRuntimeService(
+            registry_getter=lambda: getattr(self, "registry", None),
+            plugin_state_store=self.plugin_state_store,
+            config_getter=lambda: getattr(self, "config", None),
+            runtime_paths_getter=lambda: getattr(self, "runtime_paths", None),
+            output_storage_getter=lambda: getattr(self, "output_storage", None),
+            upload_storage_getter=lambda: getattr(self, "upload_storage", None),
+            project_store_getter=lambda: getattr(self, "project_store", None),
+        )
+
         self.persistence = RouterWeightStorePersistence(
             WeightStorePersistenceConfig(
                 path=self.config.weights_path,
@@ -1451,138 +1465,23 @@ class OrchestratorService:
     def list_plugins(
         self,
     ) -> list[dict[str, Any]]:
-        """
-        Return grouped plugin inventory for Plugin Manager.
-
-        Read-only in phase 1:
-        - enabled/disabled is read from config/plugin_state.json
-        - plugin-specific YAML config is not mutated here
-        """
-        registry = getattr(self, "registry", None)
-        if registry is None:
-            return []
-
-        inventory = list(getattr(registry, "as_plugin_inventory")() or [])
-        skipped_plugins = list(getattr(registry, "skipped_plugins", []) or [])
-
-        skipped_by_module = {
-            str(item.get("module")): item
-            for item in skipped_plugins
-            if isinstance(item, dict) and item.get("module")
-        }
-
-        items: list[dict[str, Any]] = []
-
-        for item in inventory:
-            plugin_id = str(item.get("plugin_id") or "")
-            capabilities = list(item.get("capabilities") or [])
-
-            module_names = sorted(
-                {
-                    str(cap.get("metadata", {}).get("module_name") or "")
-                    for cap in capabilities
-                    if isinstance(cap, dict)
-                }
-                - {""}
-            )
-
-            enabled = True
-            try:
-                enabled = self.plugin_state_store.is_enabled(plugin_id, default=True)
-            except PluginStateStoreError:
-                enabled = True
-
-            has_config = False
-            config_path = f"config/plugins/{plugin_id}.yaml"
-
-            try:
-                from pathlib import Path as _Path
-                has_config = _Path(config_path).exists()
-            except Exception:
-                has_config = False
-
-            payload = {
-                "plugin_id": plugin_id,
-                "enabled": enabled,
-                "state_source": "config/plugin_state.json",
-                "config_path": config_path,
-                "config_exists": has_config,
-                "module_names": module_names,
-                "capability_count": int(item.get("capability_count") or 0),
-                "capabilities": capabilities,
-                "skipped": False,
-                "skipped_error": None,
-            }
-
-            if not module_names:
-                # Try to infer from skipped plugins if available.
-                for skipped in skipped_plugins:
-                    if not isinstance(skipped, dict):
-                        continue
-                    module_name = str(skipped.get("module") or "")
-                    if plugin_id and plugin_id in module_name:
-                        payload["module_names"] = [module_name]
-                        payload["skipped"] = True
-                        payload["skipped_error"] = skipped.get("error")
-                        break
-
-            items.append(payload)
-
-        items.sort(key=lambda x: str(x.get("plugin_id") or ""))
-        return items
+        return self.plugin_runtime_service.list_plugins()
 
     def _is_plugin_enabled(
         self,
         plugin_id: str,
     ) -> bool:
-        """
-        Return True if plugin is enabled in plugin_state.json.
-        Missing state defaults to enabled.
-        """
-        plugin_id = str(plugin_id or "").strip()
-        if not plugin_id:
-            return False
-
-        try:
-            return bool(self.plugin_state_store.is_enabled(plugin_id, default=True))
-        except PluginStateStoreError:
-            return True
+        return self.plugin_runtime_service.is_plugin_enabled(plugin_id)
 
     def _disabled_plugin_ids(
         self,
     ) -> set[str]:
-        """
-        Return disabled plugin IDs from plugin inventory.
-        """
-        disabled: set[str] = set()
-
-        for item in self.list_plugins():
-            pid = str(item.get("plugin_id") or "").strip()
-            if pid and not bool(item.get("enabled", True)):
-                disabled.add(pid)
-
-        return disabled
+        return self.plugin_runtime_service.disabled_plugin_ids()
 
     def _enabled_capability_names(
         self,
     ) -> list[str]:
-        """
-        Return registered capability names whose source plugin is enabled.
-        """
-        registry = getattr(self, "registry", None)
-        bindings = getattr(registry, "_bindings", {}) or {}
-
-        names: list[str] = []
-
-        if not isinstance(bindings, dict):
-            return names
-
-        for capability_name, binding in bindings.items():
-            plugin_id = str(getattr(binding, "plugin_id", "") or "").strip()
-            if plugin_id and self._is_plugin_enabled(plugin_id):
-                names.append(str(capability_name))
-
-        return sorted(set(names))
+        return self.plugin_runtime_service.enabled_capability_names()
 
     def _build_enabled_registry_view(
         self,
@@ -1638,42 +1537,20 @@ class OrchestratorService:
         self,
         capability_name: str,
     ) -> None:
-        """
-        Raise service error if capability exists but its plugin is disabled.
-        """
-        registry = getattr(self, "registry", None)
-        bindings = getattr(registry, "_bindings", {}) or {}
-
-        if not isinstance(bindings, dict):
-            return
-
-        binding = bindings.get(capability_name)
-        if binding is None:
-            return
-
-        plugin_id = str(getattr(binding, "plugin_id", "") or "").strip()
-        if plugin_id and not self._is_plugin_enabled(plugin_id):
-            raise OrchestratorServiceError(
-                f"Capability '{capability_name}' is disabled because plugin '{plugin_id}' is disabled."
-            )
+        try:
+            self.plugin_runtime_service.assert_capability_enabled(capability_name)
+        except PluginRuntimeServiceError as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
 
 
     def get_plugin(
         self,
         plugin_id: str,
     ) -> dict[str, Any]:
-        """
-        Return one plugin inventory item by plugin_id.
-        """
-        plugin_id = str(plugin_id or "").strip()
-        if not plugin_id:
-            raise OrchestratorServiceError("plugin_id is required.")
-
-        for item in self.list_plugins():
-            if str(item.get("plugin_id")) == plugin_id:
-                return item
-
-        raise OrchestratorServiceError(f"Unknown plugin: {plugin_id}")
+        try:
+            return self.plugin_runtime_service.get_plugin(plugin_id)
+        except PluginRuntimeServiceError as exc:
+            raise OrchestratorServiceError(str(exc)) from exc
 
 
     def update_plugin_state(
@@ -1682,171 +1559,30 @@ class OrchestratorService:
         *,
         enabled: bool | None = None,
     ) -> dict[str, Any]:
-        """
-        Update plugin manager state for one plugin.
-
-        Phase 2 scope:
-        - supports only enabled/disabled
-        - does not mutate plugin YAML config
-        - does not yet rebuild runtime registry/router automatically
-        """
-        plugin = self.get_plugin(plugin_id)
-
-        if enabled is None:
-            raise OrchestratorServiceError("At least one mutable field is required.")
-
         try:
-            self.plugin_state_store.set_enabled(plugin["plugin_id"], bool(enabled))
-        except PluginStateStoreError as exc:
+            return self.plugin_runtime_service.update_plugin_state(
+                plugin_id,
+                enabled=enabled,
+            )
+        except PluginRuntimeServiceError as exc:
             raise OrchestratorServiceError(str(exc)) from exc
-
-        return self.get_plugin(plugin["plugin_id"])
 
 
     def _runtime_paths_metadata(self) -> dict[str, str]:
-        """
-        Return JSON-safe runtime path metadata.
-
-        RuntimePaths defines the canonical runtime layout. Some storage roots may
-        be explicitly overridden by configuration, so this method reports the
-        effective paths used by the service where possible.
-        """
-        runtime_paths = getattr(self, "runtime_paths", None)
-
-        if runtime_paths is None:
-            return {}
-
-        payload = runtime_paths.as_dict()
-
-        output_storage = getattr(self, "output_storage", None)
-        upload_storage = getattr(self, "upload_storage", None)
-        project_store = getattr(self, "project_store", None)
-
-        if output_storage is not None:
-            payload["outputs"] = str(getattr(output_storage, "root_dir", payload["outputs"]))
-
-        if upload_storage is not None:
-            payload["uploads"] = str(getattr(upload_storage, "root_dir", payload["uploads"]))
-
-        if project_store is not None:
-            payload["projects"] = str(getattr(project_store, "root_dir", payload["projects"]))
-
-        return payload
+        return self.plugin_runtime_service.runtime_paths_metadata()
 
 
     def get_runtime_settings(
         self,
     ) -> dict[str, Any]:
-        """
-        Return non-sensitive runtime settings for UI/debugging.
-
-        Secrets such as API keys are never returned.
-        """
-        import os
-
-        config = getattr(self, "config", None)
-
-        plugin_modules = (
-            getattr(config, "plugin_module_names", None)
-            or getattr(config, "plugin_modules", None)
-            or getattr(config, "plugins", None)
-            or []
-        )
-
-        if isinstance(plugin_modules, tuple):
-            plugin_modules = list(plugin_modules)
-
-        if not isinstance(plugin_modules, list):
-            plugin_modules = list(plugin_modules) if plugin_modules else []
-
-        registry = getattr(self, "registry", None)
-        bindings = getattr(registry, "_bindings", {}) or {}
-
-        capability_names: list[str] = []
-        plugin_ids: list[str] = []
-
-        if isinstance(bindings, dict):
-            capability_names = sorted(str(name) for name in bindings.keys())
-
-            for binding in bindings.values():
-                plugin_id = (
-                    getattr(binding, "plugin_id", None)
-                    or getattr(binding, "plugin_name", None)
-                    or getattr(binding, "source_plugin", None)
-                )
-
-                if plugin_id:
-                    plugin_ids.append(str(plugin_id))
-
-        plugin_ids = sorted(set(plugin_ids))
-
-        skipped_plugins = list(getattr(registry, "skipped_plugins", []) or [])
-        enabled_capability_names = self._enabled_capability_names()
-        disabled_plugin_ids = sorted(self._disabled_plugin_ids())
-
-        return {
-            "llm": {
-                "provider": os.getenv("LLM_PROVIDER", "not_configured"),
-                "base_url": os.getenv("OPENAI_BASE_URL") or os.getenv("LLM_BASE_URL"),
-                "fast_model": os.getenv("LLM_FAST_MODEL"),
-                "strong_model": os.getenv("LLM_STRONG_MODEL"),
-                "default_model": os.getenv("LLM_DEFAULT_MODEL"),
-                "temperature": os.getenv("LLM_TEMPERATURE"),
-                "timeout_seconds": os.getenv("LLM_TIMEOUT_SECONDS"),
-                "api_key_configured": bool(
-                    os.getenv("OPENAI_API_KEY")
-                    or os.getenv("AVALAI_API_KEY")
-                    or os.getenv("LLM_API_KEY")
-                ),
-            },
-            "plugins": {
-                "module_names": plugin_modules,
-                "plugin_ids": plugin_ids,
-                "capabilities": capability_names,
-                "capability_count": len(capability_names),
-                "enabled_capabilities": enabled_capability_names,
-                "enabled_capability_count": len(enabled_capability_names),
-                "disabled_plugin_ids": disabled_plugin_ids,
-                "skipped_plugins": skipped_plugins,
-            },
-            "runtime": {
-                "runtime_dir": str(getattr(config, "runtime_dir", None))
-                if getattr(config, "runtime_dir", None) is not None
-                else None,
-                "resolve_upload_refs_with_plugins": getattr(
-                    config,
-                    "resolve_upload_refs_with_plugins",
-                    None,
-                ),
-                "raster_loader_plugin_module": getattr(
-                    config,
-                    "raster_loader_plugin_module",
-                    None,
-                ),
-                "vector_loader_plugin_module": getattr(
-                    config,
-                    "vector_loader_plugin_module",
-                    None,
-                ),
-            },
-            "runtime_paths": self._runtime_paths_metadata(),
-        }
+        return self.plugin_runtime_service.get_runtime_settings()
 
     def run_llm_smoke_test(
         self,
     ) -> dict[str, Any]:
-        """
-        Run a non-sensitive backend LLM connectivity smoke test.
-        """
-        from orchestrator.llm_client import (
-            LLMClientError,
-            LLMConfigError,
-            run_llm_smoke_test,
-        )
-
         try:
-            return run_llm_smoke_test()
-        except (LLMConfigError, LLMClientError) as exc:
+            return self.plugin_runtime_service.run_llm_smoke_test()
+        except PluginRuntimeServiceError as exc:
             raise OrchestratorServiceError(str(exc)) from exc
 
     def plan_intent_with_llm(

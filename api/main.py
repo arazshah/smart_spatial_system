@@ -47,6 +47,7 @@ from api.support import (
     json_safe as _json_safe,
     service as _service,
 )
+from api.routers.system import router as system_router
 
 
 @dataclass(frozen=True)
@@ -105,19 +106,7 @@ def create_app(
         service_config or OrchestratorServiceConfig()
     )
 
-    @app.get("/")
-    def root() -> dict[str, Any]:
-        return {
-            "status": "ok",
-            "service": "Smart Spatial System API",
-            "docs": "/docs",
-            "health": "/health",
-        }
-
-    @app.get("/health")
-    def health(request: Request) -> dict[str, Any]:
-        svc = _service(request)
-        return _json_safe(svc.get_health())
+    app.include_router(system_router)
 
     @app.post("/projects")
     def create_project(

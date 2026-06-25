@@ -2348,9 +2348,8 @@ class OrchestratorService:
             for key in list(self._history.keys())[:overflow]:
                 self._history.pop(key, None)
 
-    @staticmethod
-    def _new_request_id() -> str:
-        return f"req-{uuid.uuid4()}"
+    def _new_request_id(self) -> str:
+        return self.query_execution_service._new_request_id()
 
     @staticmethod
     def _ensure_proposal(

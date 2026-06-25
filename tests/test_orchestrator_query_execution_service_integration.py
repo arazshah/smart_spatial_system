@@ -343,3 +343,18 @@ def test_orchestrator_geojson_discovery_summary_helpers_delegate_to_query_execut
         "return QueryExecutionService._summarize_feature_collection(feature_collection)"
         in source
     )
+
+
+def test_query_execution_service_contains_new_request_id_helper() -> None:
+    source = Path(
+        "smart_spatial_system/application/services/query_execution_service.py"
+    ).read_text(encoding="utf-8")
+
+    assert "def _new_request_id(" in source
+    assert "uuid.uuid4()" in source
+
+
+def test_orchestrator_new_request_id_delegates_to_query_execution_service() -> None:
+    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+
+    assert "return self.query_execution_service._new_request_id()" in source

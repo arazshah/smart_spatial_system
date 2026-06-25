@@ -4419,6 +4419,10 @@ class QueryExecutionService:
             },
         }
 
+    @staticmethod
+    def _new_request_id() -> str:
+        return f"req-{uuid.uuid4()}"
+
     def handle_query(
             self,
             *,

@@ -322,3 +322,24 @@ def test_orchestrator_real_estate_geometry_metric_helpers_delegate_to_query_exec
 
     for helper_name in helper_names:
         assert f"return self.query_execution_service.{helper_name}(" in source
+
+
+def test_query_execution_service_contains_geojson_discovery_summary_helpers() -> None:
+    source = Path(
+        "smart_spatial_system/application/services/query_execution_service.py"
+    ).read_text(encoding="utf-8")
+
+    assert "def _read_geojson_path_if_possible(" in source
+    assert "def _find_geojson_like(" in source
+    assert "def _summarize_feature_collection(" in source
+
+
+def test_orchestrator_geojson_discovery_summary_helpers_delegate_to_query_execution_service() -> None:
+    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+
+    assert "return QueryExecutionService._read_geojson_path_if_possible(value)" in source
+    assert "return QueryExecutionService._find_geojson_like(" in source
+    assert (
+        "return QueryExecutionService._summarize_feature_collection(feature_collection)"
+        in source
+    )

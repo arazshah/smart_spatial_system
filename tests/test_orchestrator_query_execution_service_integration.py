@@ -374,3 +374,59 @@ def test_orchestrator_resolve_input_references_delegates_to_query_execution_serv
     source = Path("orchestrator/service.py").read_text(encoding="utf-8")
 
     assert "return self.query_execution_service._resolve_input_references(inputs)" in source
+
+
+def test_query_execution_service_has_only_expected_orchestrator_context_dependencies() -> None:
+    import ast
+
+    query_path = Path("smart_spatial_system/application/services/query_execution_service.py")
+    orch_path = Path("orchestrator/service.py")
+
+    query_source = query_path.read_text(encoding="utf-8")
+    orch_source = orch_path.read_text(encoding="utf-8")
+
+    query_tree = ast.parse(query_source)
+    orch_tree = ast.parse(orch_source)
+
+    query_methods = set()
+    orch_methods = set()
+
+    for node in query_tree.body:
+        if isinstance(node, ast.ClassDef) and node.name == "QueryExecutionService":
+            for item in node.body:
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    query_methods.add(item.name)
+
+    for node in orch_tree.body:
+        if isinstance(node, ast.ClassDef) and node.name == "OrchestratorService":
+            for item in node.body:
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    orch_methods.add(item.name)
+
+    self_calls = set()
+    for node in ast.walk(query_tree):
+        if (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "self"
+            and node.attr.startswith("_")
+        ):
+            self_calls.add(node.attr)
+
+    external_dependencies = {
+        name
+        for name in self_calls
+        if name not in query_methods
+        and name in orch_methods
+    }
+
+    expected_dependencies = {
+        "_build_enabled_router",
+        "_build_router",
+        "_disabled_plugin_ids",
+        "_enabled_capability_names",
+        "_persist_outputs_for_record",
+        "_remember",
+    }
+
+    assert external_dependencies == expected_dependencies

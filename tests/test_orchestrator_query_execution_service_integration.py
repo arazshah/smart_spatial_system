@@ -230,3 +230,30 @@ def test_orchestrator_real_estate_spatial_scoring_helpers_delegate_to_query_exec
         "return self.query_execution_service._evaluate_real_estate_eligibility("
         in source
     )
+
+
+def test_query_execution_service_contains_real_estate_report_document_helpers() -> None:
+    source = Path(
+        "smart_spatial_system/application/services/query_execution_service.py"
+    ).read_text(encoding="utf-8")
+
+    assert "def _build_real_estate_pdf_report_payload(" in source
+    assert "def _try_render_real_estate_ranking_document(" in source
+    assert "def _build_real_estate_analysis_inspector(" in source
+
+
+def test_orchestrator_real_estate_report_document_helpers_delegate_to_query_execution_service() -> None:
+    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
+
+    assert (
+        "return self.query_execution_service._build_real_estate_pdf_report_payload("
+        in source
+    )
+    assert (
+        "return self.query_execution_service._try_render_real_estate_ranking_document("
+        in source
+    )
+    assert (
+        "return self.query_execution_service._build_real_estate_analysis_inspector("
+        in source
+    )

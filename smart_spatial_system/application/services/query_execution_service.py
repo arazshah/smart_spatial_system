@@ -3133,6 +3133,498 @@ class QueryExecutionService:
 
         return eligible, reasons, metrics
 
+    def _build_real_estate_pdf_report_payload(
+        self,
+        *,
+        report: dict[str, Any],
+        table_rows: list[dict[str, Any]],
+        ranked_geojson: dict[str, Any],
+        summary: dict[str, Any],
+    ) -> dict[str, Any]:
+        pdf_rows: list[dict[str, Any]] = []
+        score_values: list[float] = []
+
+        for row in table_rows:
+            pdf_row = dict(row)
+
+            score_value = pdf_row.get("score")
+            try:
+                numeric_score = float(score_value)
+                score_values.append(numeric_score)
+            except Exception:
+                numeric_score = 0.0
+
+            # Compatibility aliases expected by the default real_estate_report.html template.
+            pdf_row.setdefault("investment_score", numeric_score)
+            pdf_row.setdefault("property_name", pdf_row.get("name"))
+            pdf_row.setdefault("asset_type", pdf_row.get("kind"))
+            pdf_row.setdefault("nearest_poi_distance_m", pdf_row.get("best_poi_distance_m"))
+            pdf_row.setdefault("main_road_distance_m", pdf_row.get("distance_to_main_road_m"))
+            pdf_row.setdefault("allowed_zone", pdf_row.get("in_allowed_zone"))
+
+            pdf_rows.append(pdf_row)
+
+        top_row = pdf_rows[0] if pdf_rows else {}
+        avg_score = round(sum(score_values) / len(score_values), 2) if score_values else None
+        min_score = round(min(score_values), 2) if score_values else None
+        max_score = round(max(score_values), 2) if score_values else None
+
+        pdf_summary = {
+            **summary,
+            "title": report.get("title") or "گزارش رتبه‌بندی املاک",
+            "notes": report.get("notes") or [],
+            # ReportOut/report_builder compatible fields:
+            "total_count": summary.get("eligible_count", len(pdf_rows)),
+            "top_name": summary.get("top_property") or top_row.get("name"),
+            "top_rank": top_row.get("rank"),
+            "top_score_value": summary.get("top_score") or top_row.get("score"),
+            "top_score": summary.get("top_score") or max_score,
+            "avg_score": avg_score,
+            "min_score": min_score,
+            "max_score": max_score,
+            "language": "fa",
+        }
+
+        columns = [
+            {"key": "rank", "field": "rank", "label": "رتبه"},
+            {"key": "name", "field": "name", "label": "نام ملک"},
+            {"key": "kind", "field": "kind", "label": "نوع"},
+            {"key": "price", "field": "price", "label": "قیمت"},
+            {"key": "score", "field": "score", "label": "امتیاز"},
+            {"key": "investment_score", "field": "investment_score", "label": "امتیاز سرمایه‌گذاری"},
+            {"key": "best_poi_distance_m", "field": "best_poi_distance_m", "label": "نزدیک‌ترین فاصله به مترو/مرکز خرید"},
+            {"key": "distance_to_main_road_m", "field": "distance_to_main_road_m", "label": "فاصله تا خیابان اصلی"},
+            {"key": "flood_risk", "field": "flood_risk", "label": "ریسک سیل"},
+            {"key": "earthquake_risk", "field": "earthquake_risk", "label": "ریسک زلزله"},
+            {"key": "fire_risk", "field": "fire_risk", "label": "ریسک آتش‌سوزی"},
+            {"key": "in_allowed_zone", "field": "in_allowed_zone", "label": "محدوده مجاز ساخت"},
+        ]
+
+        return {
+            "meta": {
+                "title": report.get("title") or "گزارش رتبه‌بندی املاک",
+                "language": "fa",
+                "format": "pdf",
+                "domain": "real_estate_spatial_ranking",
+                "score_field": "score",
+                "rank_field": "rank",
+                "name_field": "name",
+            },
+            "summary": pdf_summary,
+            "table": {
+                "title": "جدول رتبه‌بندی املاک",
+                "columns": columns,
+                "rows": pdf_rows,
+                "total_rows": len(pdf_rows),
+            },
+            "map_layers": [
+                {
+                    "id": "ranked_properties",
+                    "name": "املاک رتبه‌بندی‌شده",
+                    "label": "املاک رتبه‌بندی‌شده",
+                    "type": "vector",
+                    "format": "geojson",
+                    "feature_count": len(ranked_geojson.get("features") or []),
+                    "geojson": ranked_geojson,
+                }
+            ],
+            "spec": {
+                "report_type": "real_estate_ranking",
+                "score_field": "score",
+                "rank_field": "rank",
+                "criteria": summary.get("criteria") or {},
+            },
+            "success": True,
+            "errors": [],
+        }
+
+    def _try_render_real_estate_ranking_document(
+        self,
+        *,
+        report: dict[str, Any],
+        table_rows: list[dict[str, Any]],
+        ranked_geojson: dict[str, Any],
+        summary: dict[str, Any],
+        request_id: str,
+    ) -> tuple[list[dict[str, Any]], list[str], dict[str, Any]]:
+        documents: list[dict[str, Any]] = []
+        warnings: list[str] = []
+        trace_step: dict[str, Any] = {
+            "order": 5,
+            "node_id": "node_005_render_pdf",
+            "capability_name": "render_pdf",
+            "plugin_id": "pdf_renderer",
+            "output_kind": "document",
+            "status": "skipped",
+        }
+
+        try:
+            from plugins.pdf_renderer import render_pdf
+        except Exception as exc:
+            warnings.append(f"PDF renderer import failed: {exc}")
+            trace_step.update(
+                {
+                    "status": "failed",
+                    "error": str(exc),
+                }
+            )
+            return documents, warnings, trace_step
+
+        pdf_report = self._build_real_estate_pdf_report_payload(
+            report=report,
+            table_rows=table_rows,
+            ranked_geojson=ranked_geojson,
+            summary=summary,
+        )
+
+        safe_request_id = str(request_id or "request").replace("/", "_")
+        output_dir = Path("artifacts") / "reports"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / f"real_estate_ranking_{safe_request_id}.pdf"
+
+        try:
+            pdf_out = render_pdf(
+                pdf_report,
+                output_path=str(output_path),
+                save_to_disk=True,
+                metadata={
+                    "request_id": request_id,
+                    "domain": "real_estate_spatial_ranking",
+                    "report_id": "real_estate_ranking_report",
+                },
+            )
+        except Exception as exc:
+            warnings.append(f"PDF render failed unexpectedly: {exc}")
+            trace_step.update(
+                {
+                    "status": "failed",
+                    "error": str(exc),
+                }
+            )
+            return documents, warnings, trace_step
+
+        pdf_dict = pdf_out.to_dict() if hasattr(pdf_out, "to_dict") else {}
+
+        if getattr(pdf_out, "success", False) and getattr(pdf_out, "file_path", None):
+            pdf_file_path = str(pdf_out.file_path)
+            pdf_filename = Path(pdf_file_path).name
+            pdf_download_url = f"/requests/{request_id}/documents/{pdf_filename}"
+
+            documents.append(
+                {
+                    "id": "real_estate_ranking_pdf",
+                    "name": "real_estate_ranking_report.pdf",
+                    "filename": pdf_filename,
+                    "format": "pdf",
+                    "role": "downloadable_report",
+                    "mime_type": "application/pdf",
+                    "path": pdf_file_path,
+                    "file_path": pdf_file_path,
+                    "download_url": pdf_download_url,
+                    "preview_url": pdf_download_url,
+                    "size_bytes": len(getattr(pdf_out, "pdf_bytes", b"") or b""),
+                    "meta": getattr(pdf_out, "meta", {}) or pdf_dict.get("meta", {}),
+                }
+            )
+            trace_step.update(
+                {
+                    "status": "success",
+                    "artifact_id": "real_estate_ranking_pdf",
+                    "path": pdf_out.file_path,
+                }
+            )
+            return documents, warnings, trace_step
+
+        html = getattr(pdf_out, "html", "") or ""
+        errors = getattr(pdf_out, "errors", []) or pdf_dict.get("errors", [])
+
+        if html:
+            documents.append(
+                {
+                    "id": "real_estate_ranking_html",
+                    "name": "real_estate_ranking_report.html",
+                    "format": "html",
+                    "role": "printable_report_fallback",
+                    "mime_type": "text/html",
+                    "content": html,
+                    "size_bytes": len(html.encode("utf-8")),
+                    "meta": getattr(pdf_out, "meta", {}) or pdf_dict.get("meta", {}),
+                    "errors": errors,
+                }
+            )
+            warnings.append(
+                "PDF rendering was not completed; HTML fallback document was returned."
+            )
+            trace_step.update(
+                {
+                    "status": "warning",
+                    "artifact_id": "real_estate_ranking_html",
+                    "errors": errors,
+                }
+            )
+            return documents, warnings, trace_step
+
+        warnings.append("PDF rendering failed and no HTML fallback was produced.")
+        trace_step.update(
+            {
+                "status": "failed",
+                "errors": errors,
+            }
+        )
+        return documents, warnings, trace_step
+
+    def _build_real_estate_analysis_inspector(
+        self,
+        *,
+        title: str,
+        status: str,
+        summary: dict[str, Any],
+        outputs: dict[str, Any],
+        layers: list[dict[str, Any]],
+        trace: list[dict[str, Any]],
+        documents: list[dict[str, Any]],
+        warnings: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Build a frontend-friendly Analysis Inspector payload.
+
+        This is intentionally additive/non-breaking:
+        existing response.summary / outputs / layers / audit_record remain unchanged.
+        The frontend can prefer response.inspector when available.
+        """
+
+        def _feature_count_from_vector(vector: dict[str, Any]) -> int:
+            geojson = vector.get("geojson") or {}
+            features = geojson.get("features") if isinstance(geojson, dict) else None
+            return len(features) if isinstance(features, list) else 0
+
+        def _row_count_from_table(table: dict[str, Any]) -> int:
+            rows = table.get("rows")
+            return len(rows) if isinstance(rows, list) else 0
+
+        def _trace_label(step: dict[str, Any]) -> str:
+            capability = step.get("capability_name")
+            labels = {
+                "filter_features": "فیلتر املاک",
+                "score_features": "امتیازدهی",
+                "rank_features": "رتبه‌بندی",
+                "build_report": "ساخت گزارش",
+                "render_pdf": "تولید PDF",
+            }
+            return labels.get(str(capability), str(capability or step.get("node_id") or "مرحله"))
+
+        summary_cards = [
+            {
+                "id": "candidate_count",
+                "label": "کل ملک‌ها",
+                "value": summary.get("candidate_count", 0),
+                "tone": "neutral",
+                "icon": "⌂",
+            },
+            {
+                "id": "eligible_count",
+                "label": "واجد شرایط",
+                "value": summary.get("eligible_count", 0),
+                "tone": "success",
+                "icon": "✓",
+            },
+            {
+                "id": "rejected_count",
+                "label": "رد شده",
+                "value": summary.get("rejected_count", 0),
+                "tone": "warning",
+                "icon": "!",
+            },
+            {
+                "id": "top_property",
+                "label": "بهترین گزینه",
+                "value": summary.get("top_property") or "—",
+                "tone": "primary",
+                "icon": "★",
+            },
+            {
+                "id": "top_score",
+                "label": "امتیاز برتر",
+                "value": summary.get("top_score") if summary.get("top_score") is not None else "—",
+                "tone": "primary",
+                "icon": "↗",
+            },
+        ]
+
+        inspector_outputs: list[dict[str, Any]] = []
+
+        for vector in outputs.get("vectors") or []:
+            if not isinstance(vector, dict):
+                continue
+            inspector_outputs.append(
+                {
+                    "id": vector.get("id") or vector.get("name"),
+                    "type": "vector",
+                    "label": vector.get("label") or vector.get("name") or vector.get("id") or "Vector layer",
+                    "name": vector.get("name") or vector.get("id"),
+                    "role": vector.get("role") or "map_layer",
+                    "format": vector.get("format") or "geojson",
+                    "count": _feature_count_from_vector(vector),
+                    "source": "outputs.vectors",
+                }
+            )
+
+        for table in outputs.get("tables") or []:
+            if not isinstance(table, dict):
+                continue
+            inspector_outputs.append(
+                {
+                    "id": table.get("id") or table.get("name"),
+                    "type": "table",
+                    "label": table.get("label") or table.get("name") or table.get("id") or "Table",
+                    "name": table.get("name") or table.get("id"),
+                    "role": table.get("role") or "table",
+                    "format": "table",
+                    "count": _row_count_from_table(table),
+                    "source": "outputs.tables",
+                }
+            )
+
+        for report_item in outputs.get("reports") or []:
+            if not isinstance(report_item, dict):
+                continue
+            inspector_outputs.append(
+                {
+                    "id": report_item.get("id") or report_item.get("name"),
+                    "type": "report",
+                    "label": report_item.get("label") or report_item.get("name") or report_item.get("id") or "Report",
+                    "name": report_item.get("name") or report_item.get("id"),
+                    "role": report_item.get("role") or "analysis_report",
+                    "format": report_item.get("format") or "json",
+                    "count": 1,
+                    "source": "outputs.reports",
+                }
+            )
+
+        inspector_documents: list[dict[str, Any]] = []
+        primary_actions: list[dict[str, Any]] = []
+
+        for doc in documents or []:
+            if not isinstance(doc, dict):
+                continue
+
+            doc_id = doc.get("id") or doc.get("name") or f"document_{len(inspector_documents) + 1}"
+            doc_format = doc.get("format") or "document"
+            doc_path = (
+                doc.get("download_url")
+                or doc.get("preview_url")
+                or doc.get("url")
+                or doc.get("path")
+                or doc.get("file_path")
+            )
+
+            normalized_doc = {
+                "id": doc_id,
+                "type": "document",
+                "label": doc.get("label") or doc.get("name") or ("گزارش PDF" if doc_format == "pdf" else "سند گزارش"),
+                "name": doc.get("name") or doc_id,
+                "role": doc.get("role") or "document",
+                "format": doc_format,
+                "mime_type": doc.get("mime_type"),
+                "path": doc_path,
+                "file_path": doc.get("file_path"),
+                "download_url": doc.get("download_url"),
+                "preview_url": doc.get("preview_url"),
+                "size_bytes": doc.get("size_bytes"),
+                "source": "outputs.documents",
+            }
+            inspector_documents.append(normalized_doc)
+            inspector_outputs.append(
+                {
+                    "id": doc_id,
+                    "type": "document",
+                    "label": normalized_doc["label"],
+                    "name": normalized_doc["name"],
+                    "role": normalized_doc["role"],
+                    "format": normalized_doc["format"],
+                    "path": normalized_doc["path"],
+                    "download_url": normalized_doc.get("download_url"),
+                    "preview_url": normalized_doc.get("preview_url"),
+                    "count": 1,
+                    "source": "outputs.documents",
+                }
+            )
+
+            if doc_path:
+                action_label = "دانلود گزارش PDF" if doc_format == "pdf" else "مشاهده سند گزارش"
+                primary_actions.append(
+                    {
+                        "id": "download_pdf" if doc_format == "pdf" else f"open_{doc_id}",
+                        "label": action_label,
+                        "type": "download" if doc_format == "pdf" else "open",
+                        "target_output_id": doc_id,
+                        "path": doc_path,
+                        "download_url": doc.get("download_url"),
+                        "preview_url": doc.get("preview_url"),
+                        "mime_type": doc.get("mime_type"),
+                    }
+                )
+
+        inspector_layers: list[dict[str, Any]] = []
+        for layer in layers or []:
+            if not isinstance(layer, dict):
+                continue
+            inspector_layers.append(
+                {
+                    "id": layer.get("id") or layer.get("name"),
+                    "label": layer.get("label") or layer.get("name") or layer.get("id") or "Layer",
+                    "name": layer.get("name") or layer.get("id"),
+                    "type": layer.get("type") or "vector",
+                    "format": layer.get("format") or "geojson",
+                    "visible": layer.get("visible", True),
+                    "count": _feature_count_from_vector(layer),
+                }
+            )
+
+        inspector_trace: list[dict[str, Any]] = []
+        for step in trace or []:
+            if not isinstance(step, dict):
+                continue
+            inspector_trace.append(
+                {
+                    "order": step.get("order"),
+                    "id": step.get("node_id") or step.get("capability_name"),
+                    "label": _trace_label(step),
+                    "capability_name": step.get("capability_name"),
+                    "plugin_id": step.get("plugin_id"),
+                    "output_kind": step.get("output_kind"),
+                    "status": step.get("status") or "unknown",
+                    "artifact_id": step.get("artifact_id"),
+                    "path": step.get("path"),
+                    "errors": step.get("errors") or ([] if not step.get("error") else [step.get("error")]),
+                }
+            )
+
+        return {
+            "kind": "analysis_inspector",
+            "schema_version": "1.0",
+            "domain": "real_estate_spatial_ranking",
+            "title": title,
+            "status": status,
+            "language": "fa",
+            "summary_cards": summary_cards,
+            "outputs": inspector_outputs,
+            "tables": outputs.get("tables") or [],
+            "documents": inspector_documents,
+            "layers": inspector_layers,
+            "trace": inspector_trace,
+            "primary_actions": primary_actions,
+            "warnings": warnings or [],
+            "tabs": [
+                {"id": "summary", "label": "خلاصه", "count": len(summary_cards)},
+                {"id": "outputs", "label": "خروجی‌ها", "count": len(inspector_outputs)},
+                {"id": "tables", "label": "جداول", "count": len(outputs.get("tables") or [])},
+                {"id": "documents", "label": "اسناد", "count": len(inspector_documents)},
+                {"id": "layers", "label": "لایه‌ها", "count": len(inspector_layers)},
+                {"id": "trace", "label": "فرآیند", "count": len(inspector_trace)},
+            ],
+        }
+
     def handle_query(
             self,
             *,

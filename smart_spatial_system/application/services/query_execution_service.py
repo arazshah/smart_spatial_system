@@ -171,6 +171,11 @@ from smart_spatial_system.application.services.planning_response_adapter import 
 )
 
 
+from smart_spatial_system.application.services.planning_execution_policy import (
+    is_kernel_execution_enabled,
+)
+
+
 def _first_mapping_value(*values: Any) -> dict[str, Any] | None:
     for value in values:
         if isinstance(value, dict):
@@ -936,121 +941,13 @@ class QueryExecutionService:
         metadata: dict[str, Any] | None = None,
         final_metadata: dict[str, Any] | None = None,
     ) -> bool:
-        """
-        Return whether experimental kernel execution should be enabled for
-        QuerySpec planning.
-
-        Phase 4 hardening precedence:
-
-          1. If a request explicitly DISABLES kernel execution, it is disabled.
-             A request may always disable it for safety.
-
-          2. If a request explicitly ENABLES kernel execution, it is enabled
-             ONLY when the service allows request-level enabling
-             (config.allow_request_kernel_execution is True). Otherwise the
-             request enable flag is ignored.
-
-          3. Otherwise, a deployment-level environment variable is honored.
-
-          4. Otherwise, the service config default
-             (config.enable_kernel_execution) is used.
-
-          5. Otherwise it defaults to False.
-
-        Accepted truthy values:
-          true, 1, yes, y, on, enabled
-
-        Accepted falsy values:
-          false, 0, no, n, off, disabled
-        """
-        import os
-
-        truthy = {"true", "1", "yes", "y", "on", "enabled"}
-        falsy = {"false", "0", "no", "n", "off", "disabled", ""}
-
-        def _coerce(value: Any) -> bool | None:
-            if isinstance(value, bool):
-                return value
-
-            if value is None:
-                return None
-
-            if isinstance(value, (int, float)):
-                return bool(value)
-
-            if isinstance(value, str):
-                normalized = value.strip().lower()
-                if normalized in truthy:
-                    return True
-                if normalized in falsy:
-                    return False
-
-            return None
-
-        def _request_flag() -> bool | None:
-            for source in (metadata, final_metadata):
-                if not isinstance(source, dict):
-                    continue
-
-                for key in (
-                    "enable_kernel_execution",
-                    "kernel_execution",
-                    "use_kernel_execution",
-                ):
-                    parsed = _coerce(source.get(key))
-                    if parsed is not None:
-                        return parsed
-
-                planning_options = source.get("planning")
-                if isinstance(planning_options, dict):
-                    for key in (
-                        "enable_kernel_execution",
-                        "kernel_execution",
-                        "use_kernel_execution",
-                    ):
-                        parsed = _coerce(planning_options.get(key))
-                        if parsed is not None:
-                            return parsed
-
-            return None
-
-        config = getattr(self, "config", None)
-        allow_request_enable = bool(
-            getattr(config, "allow_request_kernel_execution", False)
+        return is_kernel_execution_enabled(
+            config=getattr(self, "config", None),
+            metadata=metadata,
+            final_metadata=final_metadata,
         )
 
-        request_flag = _request_flag()
 
-        # Request-level override policy.
-        if request_flag is not None:
-            if request_flag is False:
-                # A request may always disable kernel execution.
-                return False
-
-            # request_flag is True.
-            if allow_request_enable:
-                return True
-
-            # Request tried to enable but is not allowed to.
-            # Ignore the enable request and fall through to deployment/config
-            # defaults.
-
-        # Deployment-level environment override.
-        for env_name in (
-            "SMART_SPATIAL_ENABLE_KERNEL_EXECUTION",
-            "ENABLE_KERNEL_EXECUTION",
-        ):
-            parsed = _coerce(os.getenv(env_name))
-            if parsed is not None:
-                return parsed
-
-        # Service config default.
-        parsed = _coerce(getattr(config, "enable_kernel_execution", None))
-        if parsed is not None:
-            return parsed
-
-        # Safe default.
-        return False
 
     def _planning_trace_to_steps(self, trace: list[Any]) -> list[dict[str, Any]]:
         return planning_trace_to_steps(trace)

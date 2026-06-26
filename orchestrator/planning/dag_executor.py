@@ -16,6 +16,9 @@ MVP features:
 
 from __future__ import annotations
 
+import asyncio
+import inspect
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -65,6 +68,43 @@ class DagExecutionResult:
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _run_awaitable_sync(awaitable: Any) -> Any:
+    """
+    Run an awaitable from the synchronous DagExecutor path.
+
+    Most planning execution is synchronous, but some plugin capabilities are
+    async functions. Without this bridge, DagExecutor would store a coroutine
+    object as the node output instead of the actual capability result.
+
+    If no event loop is running in the current thread, use asyncio.run().
+    If an event loop is already running, execute the awaitable in a short-lived
+    worker thread with its own event loop. This keeps the public execute()
+    method synchronous while still supporting async plugin callables.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(awaitable)
+
+    result_box: dict[str, Any] = {}
+    error_box: dict[str, BaseException] = {}
+
+    def runner() -> None:
+        try:
+            result_box["value"] = asyncio.run(awaitable)
+        except BaseException as exc:  # pragma: no cover - defensive bridge
+            error_box["error"] = exc
+
+    thread = threading.Thread(target=runner, name="dag-executor-awaitable-runner")
+    thread.start()
+    thread.join()
+
+    if "error" in error_box:
+        raise error_box["error"]
+
+    return result_box.get("value")
 
 
 def _summarize_output(value: Any) -> dict[str, Any]:
@@ -413,6 +453,8 @@ class DagExecutor:
 
                 stage = "capability_execution"
                 output = capability_fn(**kwargs)
+                if inspect.isawaitable(output):
+                    output = _run_awaitable_sync(output)
                 state[node.id] = output
 
                 node_trace.status = "success"

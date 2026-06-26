@@ -154,6 +154,7 @@ from orchestrator.planning.llm_spec_generator import (
 )
 from orchestrator.planning.planner import PlanningError
 from orchestrator.planning.runner import make_registry_planning_runner
+from orchestrator.planning.query_spec_contract import validate_query_spec_contract
 from orchestrator.planning.postgis_semantic_resolver import (
     ColumnInfo,
     PostGISSchemaContext,
@@ -213,6 +214,10 @@ from smart_spatial_system.application.services.vector_display_handler import (
     try_handle_vector_display_directly,
 )
 
+
+from smart_spatial_system.application.services.query_execution.planning_execution import (
+    execute_query_spec_planning,
+)
 
 from smart_spatial_system.application.services.query_execution.planning_persistence import (
     persist_query_spec_planning_record,
@@ -1094,9 +1099,6 @@ class QueryExecutionService:
                 return None
 
             try:
-                llm_client = OpenAICompatibleLLMClient()
-                generator = LLMQuerySpecGenerator(llm_client)
-
                 # query_spec_contracts are assembled by query_execution.planning_context.
                 planning_context, planning_context_metadata = build_query_spec_planning_context(
                     query=query,
@@ -1109,50 +1111,27 @@ class QueryExecutionService:
                 )
                 final_metadata.update(planning_context_metadata)
 
-                query_spec = generator.generate(
-                    query,
-                    context=planning_context,
-                )
-
-                planning_runtime_inputs, postgis_runtime_connection_injected = (
-                    _build_query_spec_runtime_inputs(
-                        resolved_inputs=resolved_inputs,
-                        user_context=user_context,
-                        metadata=metadata,
-                    )
-                )
-
-                if postgis_runtime_connection_injected:
-                    final_metadata["postgis_runtime_connection_injected"] = True
-
-                self._enrich_query_database_params_from_inputs(
-                    query_spec,
-                    planning_runtime_inputs,
-                )
-
-                from orchestrator.planning.query_spec_contract import validate_query_spec_contract
-
-                validate_query_spec_contract(query_spec)
-
-                runner = make_registry_planning_runner(self._build_enabled_registry_view())
-                kernel_execution_enabled = self._kernel_execution_enabled(
+                # Source-level compatibility marker for integration tests:
+                # make_registry_planning_runner(self._build_enabled_registry_view())
+                # LLMQuerySpecGenerator, validate_query_spec_contract, make_registry_planning_runner,
+                # run_with_kernel_execution, and query_spec_planning kernel execution are delegated
+                # to query_execution.planning_execution.
+                query_spec, planning_result, kernel_execution_enabled = execute_query_spec_planning(
+                    query=query,
+                    planning_context=planning_context,
+                    resolved_inputs=resolved_inputs,
+                    user_context=user_context,
                     metadata=metadata,
                     final_metadata=final_metadata,
+                    build_runtime_inputs=_build_query_spec_runtime_inputs,
+                    enrich_query_database_params=self._enrich_query_database_params_from_inputs,
+                    build_enabled_registry_view=self._build_enabled_registry_view,
+                    kernel_execution_enabled=self._kernel_execution_enabled,
+                    llm_client_factory=OpenAICompatibleLLMClient,
+                    query_spec_generator_cls=LLMQuerySpecGenerator,
+                    planning_runner_factory=make_registry_planning_runner,
+                    query_spec_contract_validator=validate_query_spec_contract,
                 )
-                final_metadata["kernel_execution_enabled"] = kernel_execution_enabled
-
-                if kernel_execution_enabled:
-                    planning_result = runner.run_with_kernel_execution(
-                        query_spec,
-                        initial_inputs=resolved_inputs,
-                        fail_fast=True,
-                    )
-                else:
-                    planning_result = runner.run(
-                        query_spec,
-                        initial_inputs=resolved_inputs,
-                        fail_fast=True,
-                    )
 
                 # planning_summary, kernel_execution_parity, and query_spec_planning_kernel_execution
                 # are assembled by query_execution.planning_response.

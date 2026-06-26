@@ -36,6 +36,13 @@ async def process_ndvi(red_band: RasterIn, nir_band: RasterIn) -> RasterOut:
         metadata={"mean_ndvi": float(np.mean(ndvi[mask]))}
     )
 
+
+# The capability registry resolves runtime callables by capability name.
+# Keep the original function name for compatibility, and expose the registered
+# capability name as a module-level callable.
+ndvi_processor = process_ndvi
+
+
 PLUGIN = auto_collect(
     id="ndvi_enterprise_plugin",
     version="1.0.0",

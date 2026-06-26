@@ -29,3 +29,12 @@ def test_registry_default_plugin_modules_cover_op_catalog() -> None:
     needed = {desc.capability_name for desc in OP_CATALOG.values()}
 
     assert needed <= registered
+
+
+def test_default_plugin_modules_register_strictly_without_skips() -> None:
+    from orchestrator.capability_registry import CapabilityRegistry
+
+    registry = CapabilityRegistry.from_plugin_modules(tolerant=False)
+
+    assert registry.skipped_plugins == []
+    assert "ndvi_processor" in registry.registered_capability_names()

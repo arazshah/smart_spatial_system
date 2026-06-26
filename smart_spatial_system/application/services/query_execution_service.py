@@ -176,6 +176,11 @@ from smart_spatial_system.application.services.planning_execution_policy import 
 )
 
 
+from smart_spatial_system.application.services.query_spec_enrichment import (
+    enrich_query_database_params_from_inputs,
+)
+
+
 def _first_mapping_value(*values: Any) -> dict[str, Any] | None:
     for value in values:
         if isinstance(value, dict):
@@ -963,62 +968,16 @@ class QueryExecutionService:
 
 
     def _enrich_query_database_params_from_inputs(
-            self,
-            query_spec: Any,
-            resolved_inputs: dict[str, Any],
-        ) -> None:
-            """
-            Inject runtime database connection parameters into query_database ops.
+        self,
+        query_spec: Any,
+        resolved_inputs: dict[str, Any],
+    ) -> None:
+        return enrich_query_database_params_from_inputs(
+            query_spec=query_spec,
+            resolved_inputs=resolved_inputs,
+        )
 
-            The LLM should describe *what* to query, not invent secrets or runtime
-            connection details. This method copies safe runtime inputs into the
-            executable QuerySpec before DAG planning.
-            """
-            if not resolved_inputs:
-                return
 
-            runtime_keys = (
-                "host",
-                "port",
-                "database",
-                "user",
-                "password",
-                "connect_timeout",
-                "profile",
-                "dsn",
-                "schema",
-                "table",
-                "geom_col",
-                "limit",
-                "output_srid",
-            )
-
-            operations = getattr(query_spec, "operations", None) or []
-
-            for operation in operations:
-                if getattr(operation, "op", None) != "query_database":
-                    continue
-
-                params = getattr(operation, "params", None)
-
-                if not isinstance(params, dict):
-                    continue
-
-                for key in runtime_keys:
-                    value = resolved_inputs.get(key)
-
-                    if value is None:
-                        continue
-
-                    if key in params and params.get(key) not in (None, "", "<provided-at-runtime>"):
-                        continue
-
-                    params[key] = value
-
-                # SQL mode normally exposes geometry as "AS geom".
-                # If the LLM generated SQL and no geom_col is present, use "geom".
-                if isinstance(params.get("sql"), str) and params.get("sql", "").strip():
-                    params.setdefault("geom_col", "geom")
 
     def _try_handle_query_with_planning(
             self,

@@ -214,6 +214,10 @@ from smart_spatial_system.application.services.vector_display_handler import (
 )
 
 
+from smart_spatial_system.application.services.query_execution.real_estate_missing_inputs import (
+    try_handle_missing_real_estate_inputs,
+)
+
 from smart_spatial_system.application.services.query_execution.real_estate_classifier import (
     has_any_real_estate_payload,
     is_real_estate_analysis_query,
@@ -1589,97 +1593,21 @@ class QueryExecutionService:
         user_context: dict[str, Any] | None = None,
         llm_intent: Any | None = None,
     ) -> dict[str, Any] | None:
-        """
-        Return a controlled response for complex real-estate analysis requests
-        when no useful spatial inputs were provided.
-        """
-        if not self._is_real_estate_analysis_query(query, llm_intent):
-            return None
-
-        if self._has_any_real_estate_payload(resolved_inputs):
-            return None
-
-        required_layers = [
-            "لایه املاک یا نقاط/پلیگون‌های ملک‌ها",
-            "لایه POI شامل ایستگاه‌های مترو و مراکز خرید",
-            "لایه خیابان‌های اصلی یا شبکه معابر",
-            "لایه‌های ریسک سیل، زلزله و آتش‌سوزی",
-            "در صورت نیاز، لایه محدوده مجاز ساخت‌وساز یا کاربری اراضی",
-        ]
-
-        answer = (
-            "برای انجام تحلیل و رتبه‌بندی املاک، داده مکانی کافی ارسال نشده است. "
-            "لطفاً حداقل لایه املاک و لایه‌های مرجع مانند مترو/مرکز خرید، خیابان‌های اصلی "
-            "و ریسک‌ها را در ورودی‌ها اضافه کنید."
+        return try_handle_missing_real_estate_inputs(
+            query=query,
+            inputs=inputs,
+            resolved_inputs=resolved_inputs,
+            final_request_id=final_request_id,
+            final_metadata=final_metadata,
+            band_map=band_map,
+            user_context=user_context,
+            llm_intent=llm_intent,
+            is_real_estate_analysis_query=self._is_real_estate_analysis_query,
+            has_any_real_estate_payload=self._has_any_real_estate_payload,
+            remember=self._remember,
+            attach_request=self.project_service.attach_request,
+            json_safe=_json_safe,
         )
-
-        response = {
-            "ok": False,
-            "status": "failed",
-            "request_id": final_request_id,
-            "query": query,
-            "answer": answer,
-            "message": answer,
-            "outputs": {},
-            "layers": [],
-            "result": {
-                "type": "missing_required_inputs",
-                "domain": "real_estate_spatial_ranking",
-                "required_layers": required_layers,
-            },
-            "confidence": {
-                "level": None,
-                "score": None,
-                "llm_action": "input_validation_guard",
-                "is_ambiguous": False,
-                "competitive_gap": None,
-            },
-            "audit_ref": {
-                "request_id": final_request_id,
-                "query_hash": None,
-                "status": "failed",
-                "plan_steps": 0,
-            },
-            "warnings": [
-                "درخواست تحلیل املاک تشخیص داده شد، اما ورودی مکانی کافی وجود ندارد.",
-                "برای جلوگیری از اجرای pipeline اشتباه، برنامه‌ریز مکانی اجرا نشد.",
-            ],
-            "next_actions": [
-                "لایه املاک را به صورت GeoJSON/Vector اضافه کنید.",
-                "لایه ایستگاه‌های مترو و مراکز خرید را اضافه کنید.",
-                "لایه خیابان‌های اصلی و لایه‌های ریسک را اضافه کنید.",
-                "سپس درخواست رتبه‌بندی و تولید گزارش را دوباره اجرا کنید.",
-            ],
-            "metadata": _json_safe(final_metadata),
-        }
-
-        _resolved_project_id = str(final_metadata.get("project_id") or "").strip() or None
-
-        self._remember(
-            request_id=final_request_id,
-            record={
-                "request_id": final_request_id,
-                "query": query,
-                "inputs": _json_safe(resolved_inputs),
-                "original_inputs": _json_safe(inputs),
-                "band_map": _json_safe(band_map or {}),
-                "user_context": _json_safe(user_context or {}),
-                "metadata": _json_safe(final_metadata),
-                "project_id": _resolved_project_id,
-                "production_response": _json_safe(response),
-            },
-        )
-
-        if _resolved_project_id:
-            try:
-                self.project_service.attach_request(
-                    _resolved_project_id,
-                    final_request_id,
-                )
-            except Exception:
-                pass
-
-        return _json_safe(response)
 
     def _is_real_estate_analysis_query(
         self,

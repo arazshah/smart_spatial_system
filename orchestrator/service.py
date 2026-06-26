@@ -1291,7 +1291,12 @@ class OrchestratorService:
         self,
         planning_result: Any,
     ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any] | None]:
-        return self.query_execution_service._planning_outputs_to_response_payload(planning_result=planning_result)
+        if hasattr(self, "query_execution_service"):
+            return self.query_execution_service._planning_outputs_to_response_payload(planning_result=planning_result)
+
+        return QueryExecutionService(self)._planning_outputs_to_response_payload(
+            planning_result=planning_result
+        )
 
 
     def _enrich_query_database_params_from_inputs(

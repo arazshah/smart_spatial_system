@@ -1374,7 +1374,7 @@ class QueryExecutionService:
 
                 validate_query_spec_contract(query_spec)
 
-                runner = make_registry_planning_runner(self.registry)
+                runner = make_registry_planning_runner(self._build_enabled_registry_view())
                 kernel_execution_enabled = self._kernel_execution_enabled(
                     metadata=metadata,
                     final_metadata=final_metadata,

@@ -215,6 +215,10 @@ from smart_spatial_system.application.services.vector_display_handler import (
 )
 
 
+from smart_spatial_system.application.services.query_execution.natural_query_persistence import (
+    persist_natural_query_record,
+)
+
 from smart_spatial_system.application.services.query_execution.planning_execution import (
     execute_query_spec_planning,
 )
@@ -1865,48 +1869,27 @@ class QueryExecutionService:
                     metadata=final_metadata,
                 )
 
-                self._remember(
+                # _remember, get_request, project_service.attach_request,
+                # _persist_outputs_for_record, and project_service.attach_output
+                # are delegated to query_execution.natural_query_persistence.
+                persist_natural_query_record(
                     request_id=final_request_id,
-                    record={
-                        "request_id": final_request_id,
-                        "query": query,
-                        "inputs": _json_safe(resolved_inputs),
-                        "original_inputs": _json_safe(inputs),
-                        "band_map": _json_safe(band_map or {}),
-                        "user_context": _json_safe(user_context or {}),
-                        "metadata": _json_safe(final_metadata),
-                        "project_id": _resolved_project_id,
-                        "run_result": run_result,
-                        "audit_record": run_result.get("audit_record"),
-                        "production_response": production_response,
-                    },
+                    query=query,
+                    resolved_inputs=resolved_inputs,
+                    original_inputs=inputs,
+                    band_map=band_map,
+                    user_context=user_context,
+                    final_metadata=final_metadata,
+                    project_id=_resolved_project_id,
+                    run_result=run_result,
+                    production_response=production_response,
+                    remember=self._remember,
+                    get_request=self.get_request,
+                    project_service=self.project_service,
+                    persist_outputs_for_record=self._persist_outputs_for_record,
+                    persist_outputs=bool(self.config.persist_outputs),
+                    json_safe=_json_safe,
                 )
-
-                stored_record = self.get_request(final_request_id)
-
-                if stored_record is not None:
-                    project_id = stored_record.get("project_id")
-
-                    if project_id:
-                        try:
-                            self.project_service.attach_request(
-                                project_id,
-                                final_request_id,
-                            )
-                        except Exception:
-                            pass
-
-                    if self.config.persist_outputs:
-                        manifest = self._persist_outputs_for_record(stored_record)
-
-                        if project_id and isinstance(manifest, dict):
-                            try:
-                                self.project_service.attach_output(
-                                    project_id,
-                                    final_request_id,
-                                )
-                            except Exception:
-                                pass
 
                 return production_response
 

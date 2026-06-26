@@ -214,6 +214,10 @@ from smart_spatial_system.application.services.vector_display_handler import (
 )
 
 
+from smart_spatial_system.application.services.query_execution.planning_persistence import (
+    persist_query_spec_planning_record,
+)
+
 from smart_spatial_system.application.services.query_execution.planning_response import (
     build_query_spec_planning_response,
 )
@@ -1170,72 +1174,33 @@ class QueryExecutionService:
                     redact_sensitive_json=_redact_sensitive_json,
                 )
 
-                self._remember(
+                # _remember, project_service.attach_request, _persist_outputs_for_record,
+                # and project_service.attach_output are delegated to query_execution.planning_persistence.
+                persist_query_spec_planning_record(
                     request_id=final_request_id,
-                    record={
-                        "request_id": final_request_id,
-                        "query": query,
-                        "inputs": _json_safe(resolved_inputs),
-                        "original_inputs": _json_safe(original_inputs or {}),
-                        "band_map": _json_safe(band_map or {}),
-                        "user_context": _json_safe(user_context or {}),
-                        "metadata": _json_safe(metadata or {}),
-                        "final_metadata": _json_safe(planning_metadata),
-                        "project_id": project_id,
-                        "query_spec": _redact_sensitive_json(query_spec_to_dict(query_spec)),
-                        "planning_result": {
-                            "success": success,
-                            "error": planning_error,
-                            "structured_error": _json_safe(planning_structured_error),
-                            "outputs": _json_safe(getattr(planning_result, "outputs", {})),
-                            "output_nodes": _json_safe(
-                                getattr(planning_result, "output_nodes", {})
-                            ),
-                            "trace": _json_safe(
-                                [
-                                    {
-                                        "node_id": getattr(t, "node_id", None),
-                                        "capability_name": getattr(t, "capability_name", None),
-                                        "status": getattr(t, "status", None),
-                                        "started_at": getattr(t, "started_at", None),
-                                        "finished_at": getattr(t, "finished_at", None),
-                                        "error": getattr(t, "error", None),
-                                        "input_keys": getattr(t, "input_keys", None),
-                                        "output_summary": getattr(t, "output_summary", None),
-                                    }
-                                    for t in (getattr(planning_result, "trace", []) or [])
-                                ]
-                            ),
-                        },
-                        "production_response": production_response,
-                    },
+                    query=query,
+                    resolved_inputs=resolved_inputs,
+                    original_inputs=original_inputs,
+                    band_map=band_map,
+                    user_context=user_context,
+                    metadata=metadata,
+                    planning_metadata=planning_metadata,
+                    project_id=project_id,
+                    query_spec=query_spec,
+                    planning_result=planning_result,
+                    production_response=production_response,
+                    success=success,
+                    planning_error=planning_error,
+                    planning_structured_error=planning_structured_error,
+                    remember=self._remember,
+                    get_request=self.get_request,
+                    project_service=self.project_service,
+                    persist_outputs_for_record=self._persist_outputs_for_record,
+                    persist_outputs=bool(self.config.persist_outputs),
+                    json_safe=_json_safe,
+                    redact_sensitive_json=_redact_sensitive_json,
+                    query_spec_to_dict_func=query_spec_to_dict,
                 )
-
-                stored_record = self.get_request(final_request_id)
-
-                if stored_record is not None:
-                    stored_project_id = stored_record.get("project_id")
-
-                    if stored_project_id:
-                        try:
-                            self.project_service.attach_request(
-                                stored_project_id,
-                                final_request_id,
-                            )
-                        except Exception:
-                            pass
-
-                    if self.config.persist_outputs:
-                        manifest = self._persist_outputs_for_record(stored_record)
-
-                        if stored_project_id and isinstance(manifest, dict):
-                            try:
-                                self.project_service.attach_output(
-                                    stored_project_id,
-                                    final_request_id,
-                                )
-                            except Exception:
-                                pass
 
                 return production_response
 

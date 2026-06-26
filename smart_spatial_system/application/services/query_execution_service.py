@@ -215,6 +215,10 @@ from smart_spatial_system.application.services.vector_display_handler import (
 )
 
 
+from smart_spatial_system.application.services.query_execution.natural_query_failure import (
+    build_and_persist_failed_natural_query_response,
+)
+
 from smart_spatial_system.application.services.query_execution.natural_query_persistence import (
     persist_natural_query_record,
 )
@@ -1894,41 +1898,20 @@ class QueryExecutionService:
                 return production_response
 
             except Exception as exc:
-                service_structured_error = _service_exception_to_structured_error(
-                    exc,
-                    stage="handle_query",
-                )
-                final_metadata["structured_error"] = service_structured_error
-                final_metadata["service_structured_error"] = service_structured_error
-
-                failed_response = self.response_builder.build_dict(
-                    response={
-                        "status": "failed",
-                        "request_id": final_request_id,
-                    },
-                    error=exc,
-                    metadata=final_metadata,
-                )
-
-                failed_response["structured_error"] = _json_safe(service_structured_error)
-                failed_metadata = failed_response.setdefault("metadata", {})
-                if isinstance(failed_metadata, dict):
-                    failed_metadata["structured_error"] = _json_safe(service_structured_error)
-                    failed_metadata["service_structured_error"] = _json_safe(service_structured_error)
-
-                self._remember(
+                # _service_exception_to_structured_error, response_builder.build_dict,
+                # structured_error metadata, and failed _remember are delegated
+                # to query_execution.natural_query_failure.
+                return build_and_persist_failed_natural_query_response(
+                    exc=exc,
                     request_id=final_request_id,
-                    record={
-                        "request_id": final_request_id,
-                        "query": query,
-                        "inputs": _json_safe(inputs),
-                        "band_map": _json_safe(band_map or {}),
-                        "user_context": _json_safe(user_context or {}),
-                        "metadata": _json_safe(final_metadata),
-                        "error": repr(exc),
-                        "production_response": failed_response,
-                        "project_id": _resolved_project_id,
-                    },
+                    query=query,
+                    inputs=inputs,
+                    band_map=band_map,
+                    user_context=user_context,
+                    final_metadata=final_metadata,
+                    project_id=_resolved_project_id,
+                    response_builder=self.response_builder,
+                    remember=self._remember,
+                    json_safe=_json_safe,
+                    service_exception_to_structured_error=_service_exception_to_structured_error,
                 )
-
-                return failed_response

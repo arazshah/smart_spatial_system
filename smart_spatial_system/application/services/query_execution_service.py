@@ -214,6 +214,10 @@ from smart_spatial_system.application.services.vector_display_handler import (
 )
 
 
+from smart_spatial_system.application.services.query_execution.real_estate_ranking_execution import (
+    execute_real_estate_ranking,
+)
+
 from smart_spatial_system.application.services.query_execution.real_estate_ranking_artifacts import (
     build_real_estate_ranking_artifacts,
 )
@@ -1842,46 +1846,11 @@ class QueryExecutionService:
         if not isinstance(features, list):
             features = []
 
-        ranked_features: list[dict[str, Any]] = []
-        rejected_rows: list[dict[str, Any]] = []
-
-        for feature in features:
-            if not isinstance(feature, dict):
-                continue
-
-            props = dict(feature.get("properties") or {})
-            eligible, rejection_reasons, metrics = self._evaluate_real_estate_eligibility(props)
-            score, score_details = self._score_real_estate_property(props)
-
-            enriched_props = dict(props)
-            enriched_props.update(
-                {
-                    "eligible": eligible,
-                    "eligibility_reasons": rejection_reasons,
-                    "score": score,
-                    "score_details": score_details,
-                    "best_poi_distance_m": metrics.get("best_poi_distance_m"),
-                    "risk_summary": metrics.get("risk_levels"),
-                }
-            )
-
-            enriched_feature = {
-                "type": "Feature",
-                "geometry": feature.get("geometry"),
-                "properties": enriched_props,
-            }
-
-            if eligible:
-                ranked_features.append(enriched_feature)
-            else:
-                rejected_rows.append(
-                    {
-                        "id": props.get("id"),
-                        "name": props.get("name"),
-                        "score": score,
-                        "reasons": rejection_reasons,
-                    }
-                )
+        ranked_features, rejected_rows = execute_real_estate_ranking(
+            features=features,
+            evaluate_eligibility=self._evaluate_real_estate_eligibility,
+            score_property=self._score_real_estate_property,
+        )
 
         table_rows, ranked_geojson, summary, report, message = build_real_estate_ranking_artifacts(
             features=features,

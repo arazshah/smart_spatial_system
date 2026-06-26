@@ -11,6 +11,16 @@ import os
 from typing import Any
 
 
+def is_query_spec_planning_enabled() -> bool:
+    """
+    Whether QuerySpec-based planning is enabled for /query.
+
+    This is separate from legacy LLM intent planning.
+    """
+    value = os.getenv("QUERY_SPEC_PLANNING_ENABLED", "false").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
 def is_kernel_execution_enabled(
     *,
     config: Any,

@@ -173,6 +173,7 @@ from smart_spatial_system.application.services.planning_response_adapter import 
 
 from smart_spatial_system.application.services.planning_execution_policy import (
     is_kernel_execution_enabled,
+    is_query_spec_planning_enabled,
 )
 
 
@@ -934,16 +935,11 @@ class QueryExecutionService:
 
 
     @staticmethod
+    @staticmethod
     def _query_spec_planning_enabled() -> bool:
-        """
-        Whether QuerySpec-based planning is enabled for /query.
+        return is_query_spec_planning_enabled()
 
-        This is separate from legacy LLM intent planning.
-        """
-        import os
 
-        value = os.getenv("QUERY_SPEC_PLANNING_ENABLED", "false").strip().lower()
-        return value in {"1", "true", "yes", "on"}
 
     def _kernel_execution_enabled(
         self,

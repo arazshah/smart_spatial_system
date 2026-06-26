@@ -87,3 +87,33 @@ def test_kernel_execution_config_default(monkeypatch) -> None:
     )
 
     assert is_kernel_execution_enabled(config=config) is True
+
+
+def test_query_spec_planning_enabled_defaults_false(monkeypatch) -> None:
+    monkeypatch.delenv("QUERY_SPEC_PLANNING_ENABLED", raising=False)
+
+    from smart_spatial_system.application.services.planning_execution_policy import (
+        is_query_spec_planning_enabled,
+    )
+
+    assert is_query_spec_planning_enabled() is False
+
+
+def test_query_spec_planning_enabled_truthy_values(monkeypatch) -> None:
+    from smart_spatial_system.application.services.planning_execution_policy import (
+        is_query_spec_planning_enabled,
+    )
+
+    for value in ("1", "true", "yes", "on", " TRUE "):
+        monkeypatch.setenv("QUERY_SPEC_PLANNING_ENABLED", value)
+        assert is_query_spec_planning_enabled() is True
+
+
+def test_query_spec_planning_enabled_non_truthy_values(monkeypatch) -> None:
+    from smart_spatial_system.application.services.planning_execution_policy import (
+        is_query_spec_planning_enabled,
+    )
+
+    for value in ("0", "false", "no", "off", ""):
+        monkeypatch.setenv("QUERY_SPEC_PLANNING_ENABLED", value)
+        assert is_query_spec_planning_enabled() is False

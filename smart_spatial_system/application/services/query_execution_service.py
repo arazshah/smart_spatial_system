@@ -215,6 +215,10 @@ from smart_spatial_system.application.services.vector_display_handler import (
 )
 
 
+from smart_spatial_system.application.services.query_execution.natural_query_dispatch import (
+    try_dispatch_natural_query_direct_response,
+)
+
 from smart_spatial_system.application.services.query_execution.natural_query_failure import (
     build_and_persist_failed_natural_query_response,
 )
@@ -1801,8 +1805,12 @@ class QueryExecutionService:
                 router = self._build_router()
                 resolved_inputs = self._resolve_input_references(inputs)
 
-                missing_real_estate_inputs_response = self._try_handle_missing_real_estate_inputs(
+                # _try_handle_missing_real_estate_inputs, _try_handle_real_estate_ranking_directly,
+                # _try_handle_vector_display_directly, final_metadata["query_spec_planning_enabled"],
+                # and _try_handle_query_with_planning are delegated to query_execution.natural_query_dispatch.
+                direct_or_planning_response = try_dispatch_natural_query_direct_response(
                     query=query,
+                    effective_query=effective_query,
                     inputs=inputs,
                     resolved_inputs=resolved_inputs,
                     final_request_id=final_request_id,
@@ -1810,54 +1818,17 @@ class QueryExecutionService:
                     band_map=band_map,
                     user_context=user_context,
                     llm_intent=llm_intent,
+                    metadata=metadata,
+                    project_id=_resolved_project_id,
+                    missing_real_estate_inputs_handler=self._try_handle_missing_real_estate_inputs,
+                    real_estate_ranking_handler=self._try_handle_real_estate_ranking_directly,
+                    vector_display_handler=self._try_handle_vector_display_directly,
+                    query_spec_planning_enabled=self._query_spec_planning_enabled,
+                    query_spec_planning_handler=self._try_handle_query_with_planning,
                 )
 
-                if missing_real_estate_inputs_response is not None:
-                    return missing_real_estate_inputs_response
-
-                # Try real-estate ranking again after upload/input references are resolved.
-                # UI auto_project_data often provides only upload refs at first.
-                real_estate_ranking_response = self._try_handle_real_estate_ranking_directly(
-                    query=query,
-                    inputs=resolved_inputs,
-                    request_id=final_request_id,
-                    llm_intent=llm_intent,
-                )
-                if real_estate_ranking_response is not None:
-                    return real_estate_ranking_response
-
-                direct_vector_response = self._try_handle_vector_display_directly(
-                    query=query,
-                    inputs=inputs,
-                    resolved_inputs=resolved_inputs,
-                    final_request_id=final_request_id,
-                    final_metadata=final_metadata,
-                    band_map=band_map,
-                    user_context=user_context,
-                    llm_intent=llm_intent,
-                )
-
-                if direct_vector_response is not None:
-                    return direct_vector_response
-
-                query_spec_planning_enabled = self._query_spec_planning_enabled()
-                final_metadata["query_spec_planning_enabled"] = query_spec_planning_enabled
-
-                if query_spec_planning_enabled:
-                    planning_response = self._try_handle_query_with_planning(
-                        query=effective_query,
-                        resolved_inputs=resolved_inputs,
-                        final_request_id=final_request_id,
-                        final_metadata=final_metadata,
-                        user_context=user_context,
-                        original_inputs=inputs,
-                        band_map=band_map,
-                        metadata=metadata,
-                        project_id=_resolved_project_id,
-                    )
-
-                    if planning_response is not None:
-                        return planning_response
+                if direct_or_planning_response is not None:
+                    return direct_or_planning_response
 
                 run_result = run_natural_query_with_routing_evidence(
                     effective_query,

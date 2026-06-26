@@ -181,6 +181,14 @@ from smart_spatial_system.application.services.query_spec_enrichment import (
 )
 
 
+from smart_spatial_system.application.services.llm_intent_adapter import (
+    LLMIntentAdapterError,
+    apply_intent_to_query,
+    is_llm_planning_enabled,
+    plan_intent_with_llm as run_llm_intent_planner,
+)
+
+
 def _first_mapping_value(*values: Any) -> dict[str, Any] | None:
     for value in values:
         if isinstance(value, dict):
@@ -919,14 +927,11 @@ class QueryExecutionService:
         return getattr(self._context, name)
 
     @staticmethod
+    @staticmethod
     def _llm_planning_enabled() -> bool:
-        """
-        Whether LLM-based intent planning is enabled for /query.
-        """
-        import os
+        return is_llm_planning_enabled()
 
-        value = os.getenv("LLM_PLANNING_ENABLED", "false").strip().lower()
-        return value in {"1", "true", "yes", "on"}
+
 
     @staticmethod
     def _query_spec_planning_enabled() -> bool:
@@ -1382,47 +1387,14 @@ class QueryExecutionService:
         return planned.get("intent")
 
     @staticmethod
+    @staticmethod
     def _apply_intent_to_query(
         query: str,
         intent: dict[str, Any] | None,
     ) -> str:
-        """
-        Rewrite the natural query so the current deterministic parser
-        can trigger the right workflow.
+        return apply_intent_to_query(query, intent)
 
-        Currently specialized for vegetation_extraction (NDVI pipeline).
-        """
-        if not intent or not isinstance(intent, dict):
-            return query
 
-        intent_name = str(intent.get("intent_name") or "")
-
-        if intent_name == "vegetation_extraction":
-            params = intent.get("parameters") or {}
-
-            try:
-                threshold = float(params.get("threshold", 0.3))
-            except Exception:
-                threshold = 0.3
-
-            vectorize = bool(params.get("vectorize", False))
-
-            parts = [
-                "NDVI vegetation extraction.",
-                f"greater than {threshold}.",
-            ]
-
-            if vectorize:
-                parts.append("polygon vectorize استخراج کن.")
-
-            parts.append(f"original_query: {query}")
-
-            return " ".join(parts)
-
-        if intent_name == "raster_vectorization":
-            return "NDVI raster_to_vector polygon استخراج کن. " + f"original_query: {query}"
-
-        return query
 
     def plan_intent_with_llm(
         self,
@@ -1433,21 +1405,17 @@ class QueryExecutionService:
 
         This method does not execute plugins.
         """
-        from orchestrator.llm_client import LLMClientError, LLMConfigError
-        from orchestrator.llm_intent_planner import (
-            LLMIntentPlannerError,
-            plan_intent_with_llm,
-        )
-
         capability_names = self._enabled_capability_names()
 
         try:
-            return plan_intent_with_llm(
+            return run_llm_intent_planner(
                 query=query,
                 available_capabilities=capability_names,
             )
-        except (LLMConfigError, LLMClientError, LLMIntentPlannerError) as exc:
+        except LLMIntentAdapterError as exc:
             raise QueryExecutionServiceError(str(exc)) from exc
+
+
 
     def _try_handle_system_status_query(
         self,

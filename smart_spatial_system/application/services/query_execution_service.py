@@ -214,6 +214,10 @@ from smart_spatial_system.application.services.vector_display_handler import (
 )
 
 
+from smart_spatial_system.application.services.query_execution.planning_context import (
+    build_query_spec_planning_context,
+)
+
 from smart_spatial_system.application.services.query_execution.real_estate_ranking_execution import (
     execute_real_estate_ranking,
 )
@@ -1085,73 +1089,17 @@ class QueryExecutionService:
                 llm_client = OpenAICompatibleLLMClient()
                 generator = LLMQuerySpecGenerator(llm_client)
 
-                semantic_planning_context, semantic_planning_context_error = (
-                    _extract_semantic_planning_context_from_sources(
-                        query=query,
-                        resolved_inputs=resolved_inputs,
-                        user_context=user_context,
-                        metadata=metadata,
-                    )
+                # query_spec_contracts are assembled by query_execution.planning_context.
+                planning_context, planning_context_metadata = build_query_spec_planning_context(
+                    query=query,
+                    resolved_inputs=resolved_inputs,
+                    user_context=user_context,
+                    metadata=metadata,
+                    project_id=project_id,
+                    response_language=getattr(self.config, "response_language", None),
+                    extract_semantic_planning_context=_extract_semantic_planning_context_from_sources,
                 )
-
-                planning_context: dict[str, Any] = {
-                    "available_inputs": sorted((resolved_inputs or {}).keys()),
-                    "response_language": getattr(self.config, "response_language", None),
-                    "project_id": project_id,
-                    "query_spec_contracts": {
-                        "query_database": {
-                            "contract": "query_database.postgis.v1",
-                            "required_format": {
-                                "source_type": "postgis",
-                                "mode": "select_table",
-                                "schema": "public",
-                                "table": "table_name_without_schema",
-                                "columns": ["property_column_1", "property_column_2"],
-                                "geom_col": "real_geometry_column",
-                                "geom_alias": "geom",
-                                "where": "optional safe where clause",
-                                "limit": 1000,
-                                "output_srid": 4326
-                            },
-                            "rules": [
-                                "Do not use sql.",
-                                "Do not use select.",
-                                "Do not use fields.",
-                                "Do not use projection.",
-                                "Do not invent parameter names.",
-                                "columns must contain only property column names.",
-                                "Do not put geometry expressions like 'way AS geom' in columns.",
-                                "Use geom_col for the real geometry column and geom_alias for the output geometry alias."
-                            ],
-                            "valid_example": {
-                                "op": "query_database",
-                                "inputs": {},
-                                "params": {
-                                    "source_type": "postgis",
-                                    "mode": "select_table",
-                                    "schema": "public",
-                                    "table": "osm_tehran_parks",
-                                    "columns": ["osm_id", "name"],
-                                    "geom_col": "way",
-                                    "geom_alias": "geom",
-                                    "where": "way IS NOT NULL",
-                                    "limit": 10,
-                                    "output_srid": 4326
-                                },
-                                "output": "parks_layer"
-                            }
-                        }
-                    },
-                }
-
-                if semantic_planning_context is not None:
-                    planning_context["semantic_planning_context"] = semantic_planning_context
-                    final_metadata["semantic_planning_context_attached"] = True
-
-                if semantic_planning_context_error:
-                    final_metadata["semantic_planning_context_error"] = (
-                        semantic_planning_context_error
-                    )
+                final_metadata.update(planning_context_metadata)
 
                 query_spec = generator.generate(
                     query,

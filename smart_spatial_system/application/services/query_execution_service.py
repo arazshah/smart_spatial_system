@@ -223,6 +223,10 @@ from smart_spatial_system.application.services.query_execution.natural_query_dis
     try_dispatch_natural_query_direct_response,
 )
 
+from smart_spatial_system.application.services.query_execution.natural_query_execution import (
+    execute_and_persist_natural_query_success_path,
+)
+
 from smart_spatial_system.application.services.query_execution.natural_query_failure import (
     build_and_persist_failed_natural_query_response,
 )
@@ -1808,71 +1812,40 @@ class QueryExecutionService:
                 return status_guard_response
 
             try:
-                router = self._build_router()
-                resolved_inputs = self._resolve_input_references(inputs)
-
-                # _try_handle_missing_real_estate_inputs, _try_handle_real_estate_ranking_directly,
-                # _try_handle_vector_display_directly, final_metadata["query_spec_planning_enabled"],
-                # and _try_handle_query_with_planning are delegated to query_execution.natural_query_dispatch.
-                direct_or_planning_response = try_dispatch_natural_query_direct_response(
+                # self._build_router(), self._resolve_input_references(inputs),
+                # try_dispatch_natural_query_direct_response,
+                # run_natural_query_with_routing_evidence, response_builder.build_dict,
+                # and persist_natural_query_record are delegated
+                # to query_execution.natural_query_execution.
+                return execute_and_persist_natural_query_success_path(
                     query=query,
                     effective_query=effective_query,
                     inputs=inputs,
-                    resolved_inputs=resolved_inputs,
-                    final_request_id=final_request_id,
-                    final_metadata=final_metadata,
                     band_map=band_map,
                     user_context=user_context,
-                    llm_intent=llm_intent,
                     metadata=metadata,
+                    min_score=min_score,
+                    final_request_id=final_request_id,
+                    final_metadata=final_metadata,
                     project_id=_resolved_project_id,
+                    llm_intent=llm_intent,
+                    config_min_score=self.config.min_score,
+                    persist_outputs=bool(self.config.persist_outputs),
+                    response_builder=self.response_builder,
+                    project_service=self.project_service,
+                    build_router=self._build_router,
+                    resolve_input_references=self._resolve_input_references,
+                    natural_query_runner=run_natural_query_with_routing_evidence,
                     missing_real_estate_inputs_handler=self._try_handle_missing_real_estate_inputs,
                     real_estate_ranking_handler=self._try_handle_real_estate_ranking_directly,
                     vector_display_handler=self._try_handle_vector_display_directly,
                     query_spec_planning_enabled=self._query_spec_planning_enabled,
                     query_spec_planning_handler=self._try_handle_query_with_planning,
-                )
-
-                if direct_or_planning_response is not None:
-                    return direct_or_planning_response
-
-                run_result = run_natural_query_with_routing_evidence(
-                    effective_query,
-                    inputs=resolved_inputs,
-                    band_map=band_map or {},
-                    router=router,
-                    min_score=self.config.min_score if min_score is None else min_score,
-                    request_id=final_request_id,
-                )
-
-                production_response = self.response_builder.build_dict(
-                    run_result=run_result,
-                    metadata=final_metadata,
-                )
-
-                # _remember, get_request, project_service.attach_request,
-                # _persist_outputs_for_record, and project_service.attach_output
-                # are delegated to query_execution.natural_query_persistence.
-                persist_natural_query_record(
-                    request_id=final_request_id,
-                    query=query,
-                    resolved_inputs=resolved_inputs,
-                    original_inputs=inputs,
-                    band_map=band_map,
-                    user_context=user_context,
-                    final_metadata=final_metadata,
-                    project_id=_resolved_project_id,
-                    run_result=run_result,
-                    production_response=production_response,
                     remember=self._remember,
                     get_request=self.get_request,
-                    project_service=self.project_service,
                     persist_outputs_for_record=self._persist_outputs_for_record,
-                    persist_outputs=bool(self.config.persist_outputs),
                     json_safe=_json_safe,
                 )
-
-                return production_response
 
             except Exception as exc:
                 # _service_exception_to_structured_error, response_builder.build_dict,

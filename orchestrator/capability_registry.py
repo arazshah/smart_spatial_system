@@ -32,20 +32,7 @@ from typing import Any
 
 from orchestrator.models import CapabilityBinding
 from orchestrator.plugin_error_mapping import plugin_exception_to_structured_error
-
-
-DEFAULT_SAFE_PLUGIN_MODULES = [
-    "plugins.spectral_indices",
-    "plugins.raster_threshold",
-    "plugins.raster_to_vector",
-    "plugins.core_vector",
-    "plugins.spatial_predicate",
-    "plugins.feature_scoring",
-    "plugins.feature_enrichment",
-    "plugins.risk_enrichment",
-    "plugins.report_builder",
-    "plugins.pdf_renderer",
-]
+from orchestrator.plugin_modules import DEFAULT_SAFE_PLUGIN_MODULES
 
 
 class CapabilityRegistry:

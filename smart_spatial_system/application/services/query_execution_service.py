@@ -215,6 +215,10 @@ from smart_spatial_system.application.services.vector_display_handler import (
 )
 
 
+from smart_spatial_system.application.services.query_execution.natural_query_context import (
+    prepare_natural_query_context,
+)
+
 from smart_spatial_system.application.services.query_execution.natural_query_dispatch import (
     try_dispatch_natural_query_direct_response,
 )
@@ -1752,25 +1756,27 @@ class QueryExecutionService:
 
             This is the main method API/Frontend should use.
             """
-            final_request_id = request_id or self._new_request_id()
-
-            final_metadata = {
-                "service": "OrchestratorService",
-                "weighted_router": self.config.use_weighted_router,
-            }
-
-            # Propagate project_id so _remember can link this request to its project.
-            _resolved_project_id = str(project_id or "").strip() or None
-            if _resolved_project_id:
-                final_metadata["project_id"] = _resolved_project_id
-
-            if user_context:
-                final_metadata["user_context"] = _json_safe(user_context)
-
-            if metadata:
-                final_metadata.update(dict(metadata))
-
-            llm_intent = self._maybe_plan_llm_intent(query)
+            # self._new_request_id(), self._maybe_plan_llm_intent(query),
+            # self._apply_intent_to_query(query, llm_intent), and self._llm_planning_enabled()
+            # are delegated to query_execution.natural_query_context.
+            natural_query_context = prepare_natural_query_context(
+                query=query,
+                request_id=request_id,
+                user_context=user_context,
+                metadata=metadata,
+                project_id=project_id,
+                use_weighted_router=self.config.use_weighted_router,
+                new_request_id=self._new_request_id,
+                maybe_plan_llm_intent=self._maybe_plan_llm_intent,
+                apply_intent_to_query=self._apply_intent_to_query,
+                llm_planning_enabled=self._llm_planning_enabled,
+                json_safe=_json_safe,
+            )
+            final_request_id = natural_query_context["final_request_id"]
+            final_metadata = natural_query_context["final_metadata"]
+            _resolved_project_id = natural_query_context["resolved_project_id"]
+            llm_intent = natural_query_context["llm_intent"]
+            effective_query = natural_query_context["effective_query"]
             real_estate_ranking_response = self._try_handle_real_estate_ranking_directly(
                 query=query,
                 inputs=inputs,

@@ -43,3 +43,52 @@ def test_buffer_alias_exists():
     assert op.capability_name == "buffer_vector_features"
     assert op.input_map["vector"] == "features"
     assert op.param_map["distance"] == "distance"
+
+
+def test_op_catalog_exposes_core_raster_capabilities() -> None:
+    from orchestrator.planning.op_catalog import OP_CATALOG
+
+    catalog_capabilities = {desc.capability_name for desc in OP_CATALOG.values()}
+
+    expected = {
+        "calculate_ndvi",
+        "ndvi_processor",
+        "calculate_spectral_index",
+        "calculate_band_math",
+        "threshold_raster",
+        "raster_to_vector",
+        "reclassify_raster",
+        "clip_mask_raster",
+        "calculate_slope_aspect",
+        "calculate_zonal_statistics",
+        "calculate_raster_statistics",
+    }
+
+    assert expected <= catalog_capabilities
+
+
+def test_op_catalog_core_raster_operations_reference_registered_capabilities() -> None:
+    from orchestrator.capability_registry import CapabilityRegistry
+    from orchestrator.planning.op_catalog import OP_CATALOG
+
+    registry = CapabilityRegistry.from_plugin_modules(tolerant=False)
+    registered = set(registry.registered_capability_names())
+
+    raster_ops = {
+        "ndvi",
+        "calculate_ndvi",
+        "ndvi_from_bands",
+        "spectral_index",
+        "band_math",
+        "raster_threshold",
+        "raster_to_vector",
+        "raster_reclassify",
+        "raster_clip",
+        "slope_aspect",
+        "zonal_statistics",
+        "raster_stats",
+    }
+
+    for op_name in raster_ops:
+        assert op_name in OP_CATALOG
+        assert OP_CATALOG[op_name].capability_name in registered

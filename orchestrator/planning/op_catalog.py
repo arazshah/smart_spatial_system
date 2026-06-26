@@ -432,6 +432,325 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         output_type="json",
     ),
 
+    "ndvi": OpDescriptor(
+        op_name="ndvi",
+        capability_name="calculate_ndvi",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "red_band": "red_band",
+            "nir_band": "nir_band",
+            "nodata": "nodata",
+            "division_by_zero_value": "division_by_zero_value",
+            "clip_output": "clip_output",
+            "output_min": "output_min",
+            "output_max": "output_max",
+            "engine": "engine",
+            "precision": "precision",
+            "source_crs": "source_crs",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Calculate NDVI from a multi-band raster. Prefer this operation for "
+            "standard NDVI workflows. red_band and nir_band may be provided as "
+            "band indexes when they are known."
+        ),
+    ),
+
+    "calculate_ndvi": OpDescriptor(
+        op_name="calculate_ndvi",
+        capability_name="calculate_ndvi",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "red_band": "red_band",
+            "nir_band": "nir_band",
+            "nodata": "nodata",
+            "division_by_zero_value": "division_by_zero_value",
+            "clip_output": "clip_output",
+            "output_min": "output_min",
+            "output_max": "output_max",
+            "engine": "engine",
+            "precision": "precision",
+            "source_crs": "source_crs",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes="Explicit alias for ndvi.",
+    ),
+
+    "ndvi_from_bands": OpDescriptor(
+        op_name="ndvi_from_bands",
+        capability_name="ndvi_processor",
+        input_map={
+            "red_band": "red_band",
+            "nir_band": "nir_band",
+        },
+        input_types={
+            "red_band": "raster",
+            "nir_band": "raster",
+        },
+        param_map={},
+        output_type="raster",
+        notes=(
+            "Enterprise NDVI processor that expects separate RED and NIR raster "
+            "inputs. Use only when the planner has distinct red_band and nir_band "
+            "artifacts."
+        ),
+    ),
+
+    "spectral_index": OpDescriptor(
+        op_name="spectral_index",
+        capability_name="calculate_spectral_index",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "index_name": "index_name",
+            "band_map": "band_map",
+            "params": "params",
+            "nodata": "nodata",
+            "output_nodata": "output_nodata",
+            "division_by_zero_value": "division_by_zero_value",
+            "clip_output": "clip_output",
+            "output_min": "output_min",
+            "output_max": "output_max",
+            "engine": "engine",
+            "precision": "precision",
+            "source_crs": "source_crs",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Calculate remote-sensing spectral indices such as NDVI, NDWI, NDBI, "
+            "NDMI, MNDWI, GNDVI, SAVI, EVI, and NBR. Use index_name to select the "
+            "index."
+        ),
+    ),
+
+    "band_math": OpDescriptor(
+        op_name="band_math",
+        capability_name="calculate_band_math",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "expression": "expression",
+            "preset": "preset",
+            "output_dtype": "output_dtype",
+            "nodata": "nodata",
+            "engine": "engine",
+            "precision": "precision",
+            "source_crs": "source_crs",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Apply safe mathematical expressions to raster bands. Use for custom "
+            "band formulas when no named spectral index operation is sufficient."
+        ),
+    ),
+
+    "raster_threshold": OpDescriptor(
+        op_name="raster_threshold",
+        capability_name="threshold_raster",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "band_index": "band_index",
+            "operator": "operator",
+            "threshold": "threshold",
+            "min_value": "min_value",
+            "max_value": "max_value",
+            "inclusive_min": "inclusive_min",
+            "inclusive_max": "inclusive_max",
+            "true_value": "true_value",
+            "false_value": "false_value",
+            "nodata": "nodata",
+            "output_nodata": "output_nodata",
+            "engine": "engine",
+            "precision": "precision",
+            "source_crs": "source_crs",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Create raster masks/classes from threshold conditions. Use after "
+            "NDVI/spectral-index/band-math operations to extract vegetation, "
+            "water, slope, elevation or similar masks."
+        ),
+    ),
+
+    "raster_to_vector": OpDescriptor(
+        op_name="raster_to_vector",
+        capability_name="raster_to_vector",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "band_index": "band_index",
+            "include_values": "include_values",
+            "exclude_values": "exclude_values",
+            "mode": "mode",
+            "connectivity": "connectivity",
+            "nodata": "nodata",
+            "engine": "engine",
+            "precision": "precision",
+            "source_crs": "source_crs",
+            "metadata": "metadata",
+            "include_pixel_properties": "include_pixel_properties",
+            "include_component_cells": "include_component_cells",
+            "max_features": "max_features",
+        },
+        output_type="vector",
+        notes=(
+            "Polygonize selected raster pixels/classes into vector features. "
+            "Commonly used after raster_threshold or raster_reclassify."
+        ),
+    ),
+
+    "raster_reclassify": OpDescriptor(
+        op_name="raster_reclassify",
+        capability_name="reclassify_raster",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "rules": "rules",
+            "band_index": "band_index",
+            "nodata": "nodata",
+            "output_nodata": "output_nodata",
+            "keep_unmatched": "keep_unmatched",
+            "unmatched_value": "unmatched_value",
+            "engine": "engine",
+            "precision": "precision",
+            "source_crs": "source_crs",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Reclassify raster values using exact, list, or range rules. Use for "
+            "terrain/NDVI/class maps."
+        ),
+    ),
+
+    "raster_clip": OpDescriptor(
+        op_name="raster_clip",
+        capability_name="clip_mask_raster",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "bbox": "bbox",
+            "mask_geometry": "mask_geometry",
+            "transform": "transform",
+            "crop": "crop",
+            "apply_mask": "apply_mask",
+            "all_touched": "all_touched",
+            "nodata": "nodata",
+            "engine": "engine",
+            "precision": "precision",
+            "source_crs": "source_crs",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Clip or mask raster data by bbox or GeoJSON geometry. Use before "
+            "analysis when the user restricts processing to an area of interest."
+        ),
+    ),
+
+    "slope_aspect": OpDescriptor(
+        op_name="slope_aspect",
+        capability_name="calculate_slope_aspect",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "band_index": "band_index",
+            "output": "output",
+            "slope_unit": "slope_unit",
+            "nodata": "nodata",
+            "output_nodata": "output_nodata",
+            "x_resolution": "x_resolution",
+            "y_resolution": "y_resolution",
+            "flat_aspect_value": "flat_aspect_value",
+            "engine": "engine",
+            "precision": "precision",
+            "source_crs": "source_crs",
+            "metadata": "metadata",
+        },
+        output_type="json",
+        notes=(
+            "Calculate slope and aspect from DEM raster. Use for terrain analysis "
+            "and elevation-derived slope/aspect requests."
+        ),
+    ),
+
+    "zonal_statistics": OpDescriptor(
+        op_name="zonal_statistics",
+        capability_name="calculate_zonal_statistics",
+        input_map={
+            "raster": "raster",
+            "zones": "zones",
+        },
+        input_types={
+            "raster": "raster",
+            "zones": "vector",
+        },
+        param_map={
+            "stats": "stats",
+            "band_index": "band_index",
+            "zone_id_field": "zone_id_field",
+            "transform": "transform",
+            "nodata": "nodata",
+            "all_touched": "all_touched",
+            "include_zone_geometry": "include_zone_geometry",
+            "stat_prefix": "stat_prefix",
+            "engine": "engine",
+            "precision": "precision",
+            "source_crs": "source_crs",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Calculate raster statistics inside vector zone geometries. Use for "
+            "requests like mean NDVI per district, DEM statistics per polygon, "
+            "or raster summaries by administrative areas."
+        ),
+    ),
+
     # ---------------------------------------------------------------------
     # Scoring / ranking / top-N
     # ---------------------------------------------------------------------

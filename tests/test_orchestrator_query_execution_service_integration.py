@@ -422,7 +422,6 @@ def test_query_execution_service_has_only_expected_orchestrator_context_dependen
 
     expected_dependencies = {
         "_build_enabled_registry_view",
-        "_build_enabled_router",
         "_build_router",
         "_enabled_capability_names",
         "_persist_outputs_for_record",

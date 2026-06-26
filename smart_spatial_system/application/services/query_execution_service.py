@@ -219,20 +219,12 @@ from smart_spatial_system.application.services.query_execution.natural_query_con
     prepare_natural_query_context,
 )
 
-from smart_spatial_system.application.services.query_execution.natural_query_dispatch import (
-    try_dispatch_natural_query_direct_response,
-)
-
 from smart_spatial_system.application.services.query_execution.natural_query_execution import (
     execute_and_persist_natural_query_success_path,
 )
 
 from smart_spatial_system.application.services.query_execution.natural_query_failure import (
     build_and_persist_failed_natural_query_response,
-)
-
-from smart_spatial_system.application.services.query_execution.natural_query_persistence import (
-    persist_natural_query_record,
 )
 
 from smart_spatial_system.application.services.query_execution.planning_execution import (

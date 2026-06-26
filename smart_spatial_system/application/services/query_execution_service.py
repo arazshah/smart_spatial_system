@@ -214,6 +214,12 @@ from smart_spatial_system.application.services.vector_display_handler import (
 )
 
 
+from smart_spatial_system.application.services.query_execution.real_estate_classifier import (
+    has_any_real_estate_payload,
+    is_real_estate_analysis_query,
+    looks_like_real_estate_ranking_query,
+)
+
 from smart_spatial_system.application.services.query_execution.real_estate_context import (
     enrich_property_feature_collection_with_spatial_context,
     extract_property_feature_collection_from_inputs,
@@ -1680,147 +1686,16 @@ class QueryExecutionService:
         query: str,
         llm_intent: Any | None = None,
     ) -> bool:
-        text = str(query or "").strip().lower()
-
-        if not text:
-            return False
-
-        intent_name = None
-
-        if isinstance(llm_intent, dict):
-            intent_name = str(llm_intent.get("intent_name") or "").lower()
-        else:
-            intent_name = str(getattr(llm_intent, "intent_name", "") or "").lower()
-
-        real_estate_tokens = [
-            "ملک",
-            "املاک",
-            "آپارتمان",
-            "ویلا",
-            "زمین",
-            "ساخت و ساز",
-            "ساخت‌وساز",
-            "real estate",
-            "property",
-            "properties",
-        ]
-
-        analysis_tokens = [
-            "مترو",
-            "مرکز خرید",
-            "خیابان اصلی",
-            "ریسک",
-            "سیل",
-            "زلزله",
-            "آتش",
-            "امتیاز",
-            "رتبه",
-            "رتبه‌بندی",
-            "گزارش",
-            "نزدیک",
-            "۵۰۰",
-            "500",
-        ]
-
-        if intent_name in {
-            "real_estate_ranking",
-            "property_ranking",
-            "vector_filter",
-            "investment_analysis",
-        }:
-            return any(token in text for token in real_estate_tokens)
-
-        return (
-            any(token in text for token in real_estate_tokens)
-            and any(token in text for token in analysis_tokens)
-        )
+        return is_real_estate_analysis_query(query, llm_intent)
 
     def _has_any_real_estate_payload(
         self,
         resolved_inputs: dict[str, Any],
     ) -> bool:
-        if not isinstance(resolved_inputs, dict) or not resolved_inputs:
-            return False
-
-        useful_keys = {
-            "vector",
-            "vectors",
-            "properties",
-            "property_layer",
-            "real_estate",
-            "pois",
-            "poi",
-            "metro",
-            "shopping_centers",
-            "roads",
-            "main_roads",
-            "risk_layers",
-            "flood_risk",
-            "earthquake_risk",
-            "fire_risk",
-            "zoning",
-            "landuse",
-            "land_use",
-        }
-
-        if any(key in resolved_inputs and resolved_inputs.get(key) not in (None, {}, []) for key in useful_keys):
-            return True
-
-        vector = resolved_inputs.get("vector")
-
-        if isinstance(vector, dict):
-            features = vector.get("features")
-            if isinstance(features, list) and features:
-                return True
-
-        vectors = resolved_inputs.get("vectors")
-
-        if isinstance(vectors, list) and vectors:
-            return True
-
-        return False
+        return has_any_real_estate_payload(resolved_inputs)
 
     def _looks_like_real_estate_ranking_query(self, query: str) -> bool:
-        q = (query or "").lower()
-
-        property_terms = [
-            "ملک",
-            "املاک",
-            "زمین",
-            "آپارتمان",
-            "ویلا",
-            "property",
-            "real estate",
-        ]
-        ranking_terms = [
-            "رتبه",
-            "رتبه‌بندی",
-            "رتبه بندی",
-            "امتیاز",
-            "score",
-            "rank",
-            "ranking",
-            "گزارش",
-            "report",
-        ]
-        constraint_terms = [
-            "مترو",
-            "مرکز خرید",
-            "خیابان اصلی",
-            "ریسک",
-            "سیل",
-            "زلزله",
-            "آتش",
-            "۵۰۰",
-            "500",
-            "متر",
-        ]
-
-        return (
-            any(term in q for term in property_terms)
-            and any(term in q for term in ranking_terms)
-            and any(term in q for term in constraint_terms)
-        )
+        return looks_like_real_estate_ranking_query(query)
 
     def _extract_property_feature_collection_from_inputs(self, inputs: dict[str, Any] | None) -> dict[str, Any] | None:
         return extract_property_feature_collection_from_inputs(inputs)

@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from smart_spatial_system.application.services.query_execution.natural_query_dispatch import (
-    try_dispatch_natural_query_direct_response,
+from smart_spatial_system.application.services.query_execution.direct_query_dispatch import (
+    try_dispatch_direct_query_response,
 )
 from smart_spatial_system.application.services.query_execution.natural_query_persistence import (
     persist_natural_query_record,
@@ -44,7 +44,7 @@ def execute_and_persist_natural_query_success_path(
     router = build_router()
     resolved_inputs = resolve_input_references(inputs)
 
-    direct_or_planning_response = try_dispatch_natural_query_direct_response(
+    direct_or_planning_response = try_dispatch_direct_query_response(
         query=query,
         effective_query=effective_query,
         inputs=inputs,

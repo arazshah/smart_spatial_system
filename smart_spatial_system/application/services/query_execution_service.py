@@ -1773,15 +1773,6 @@ class QueryExecutionService:
             _resolved_project_id = natural_query_context["resolved_project_id"]
             llm_intent = natural_query_context["llm_intent"]
             effective_query = natural_query_context["effective_query"]
-            real_estate_ranking_response = self._try_handle_real_estate_ranking_directly(
-                query=query,
-                inputs=inputs,
-                request_id=locals().get("request_id"),
-                llm_intent=llm_intent,
-            )
-            if real_estate_ranking_response is not None:
-                return real_estate_ranking_response
-
             effective_query = self._apply_intent_to_query(query, llm_intent)
 
             final_metadata["llm_planning_enabled"] = self._llm_planning_enabled()
@@ -1805,7 +1796,7 @@ class QueryExecutionService:
 
             try:
                 # self._build_router(), self._resolve_input_references(inputs),
-                # try_dispatch_natural_query_direct_response,
+                # try_dispatch_direct_query_response,
                 # run_natural_query_with_routing_evidence, response_builder.build_dict,
                 # and persist_natural_query_record are delegated
                 # to query_execution.natural_query_execution.

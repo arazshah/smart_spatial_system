@@ -9,9 +9,33 @@ Later it should be replaced with a registry-backed router that scores capabiliti
 
 from __future__ import annotations
 
-from plugins.raster_threshold import threshold_raster
-from plugins.raster_to_vector import raster_to_vector
-from plugins.spectral_indices import calculate_spectral_index
+
+def _default_capability_handlers() -> dict[str, Any]:
+    """
+    Build default handlers through the centralized capability registry.
+
+    This avoids importing concrete plugin modules directly from core router code.
+    """
+    from orchestrator.capability_registry import CapabilityRegistry
+    from orchestrator.plugin_modules import DEFAULT_SAFE_PLUGIN_MODULES
+
+    registry = CapabilityRegistry.from_plugin_modules(DEFAULT_SAFE_PLUGIN_MODULES)
+
+    names = (
+        "calculate_spectral_index",
+        "threshold_raster",
+        "raster_to_vector",
+    )
+
+    handlers: dict[str, Any] = {}
+    for name in names:
+        try:
+            handlers[name] = registry.resolve(name)
+        except Exception:
+            continue
+
+    return handlers
+
 
 from orchestrator.models import CapabilityBinding
 

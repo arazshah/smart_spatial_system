@@ -17,6 +17,49 @@ from orchestrator.service import OrchestratorServiceError
 router = APIRouter()
 
 
+def _resolve_service_capability(
+    svc: Any,
+    candidate_names: tuple[str, ...],
+) -> Any:
+    """
+    Resolve a callable capability through the service registry.
+
+    API routers must not import concrete plugin implementation modules.
+    They should go through the service/registry/capability boundary.
+    """
+    registry = getattr(svc, "registry", None)
+    if registry is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Capability registry is not available.",
+        )
+
+    last_error: Exception | None = None
+
+    for capability_name in candidate_names:
+        try:
+            assert_enabled = getattr(svc, "_assert_capability_enabled", None)
+            if callable(assert_enabled):
+                assert_enabled(capability_name)
+
+            capability = registry.resolve(capability_name)
+            if callable(capability):
+                return capability
+
+        except Exception as exc:
+            last_error = exc
+            continue
+
+    detail = "Capability is not available: " + ", ".join(candidate_names)
+    if last_error is not None:
+        detail = f"{detail}. Last error: {last_error}"
+
+    raise HTTPException(
+        status_code=400,
+        detail=detail,
+    )
+
+
 @router.post("/data-sources/csv-table")
 def register_csv_table_source(
     request: Request,
@@ -86,7 +129,14 @@ def register_postgis_source(
         )
 
     try:
-        from plugins.postgis_connector import fetch_postgis_layer
+        fetch_postgis_layer = _resolve_service_capability(
+            svc,
+            (
+                "fetch_postgis_layer",
+                "query_database_postgis",
+                "load_postgis_layer",
+            ),
+        )
 
         result = fetch_postgis_layer(
             table=str(table).strip(),
@@ -105,6 +155,8 @@ def register_postgis_source(
             connect_timeout=payload.get("connect_timeout"),
         )
 
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=400,
@@ -205,7 +257,14 @@ def register_wfs_source(
         )
 
     try:
-        from plugins.wms_wfs_fetcher import fetch_wfs_features
+        fetch_wfs_features = _resolve_service_capability(
+            svc,
+            (
+                "fetch_wfs_features",
+                "load_wfs_features",
+                "load_wfs_layer",
+            ),
+        )
 
         result = fetch_wfs_features(
             service=payload.get("service"),
@@ -221,6 +280,8 @@ def register_wfs_source(
             timeout=payload.get("timeout"),
         )
 
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=400,

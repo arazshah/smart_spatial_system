@@ -17,13 +17,31 @@ from smart_spatial_system.application.services.vector_query_classifier import (
     is_vector_display_query,
     is_vector_summary_query,
 )
+from smart_spatial_system.application.services.query_execution.real_estate_classifier import (
+    is_real_estate_analysis_query as default_is_real_estate_analysis_query,
+)
 
 
 JsonSafe = Callable[[Any], Any]
 
 
+def _noop_remember(*args: Any, **kwargs: Any) -> None:
+    return None
+
+
+def _call_real_estate_analysis_query_checker(
+    checker: Callable[..., bool],
+    query: str,
+    llm_intent: dict[str, Any] | None,
+) -> bool:
+    try:
+        return bool(checker(query, llm_intent))
+    except TypeError:
+        return bool(checker(query))
+
+
 def try_handle_vector_display_directly(
-    context: Any,
+    context: Any | None = None,
     *,
     query: str,
     inputs: dict[str, Any],
@@ -34,6 +52,9 @@ def try_handle_vector_display_directly(
     band_map: dict[str, int] | None = None,
     user_context: dict[str, Any] | None = None,
     llm_intent: dict[str, Any] | None = None,
+    build_enabled_router: Callable[[], Any] | None = None,
+    remember: Callable[..., Any] | None = None,
+    is_real_estate_analysis_query: Callable[..., bool] | None = None,
 ) -> dict[str, Any] | None:
     """
     Capability-backed bridge for simple vector display/summary queries.
@@ -47,6 +68,26 @@ def try_handle_vector_display_directly(
             - display_vector_layer
             - summarize_vector_layer
     """
+    analysis_query_checker = is_real_estate_analysis_query
+    if analysis_query_checker is None and context is not None:
+        analysis_query_checker = getattr(
+            context,
+            "_is_real_estate_analysis_query",
+            None,
+        )
+    if analysis_query_checker is None:
+        analysis_query_checker = default_is_real_estate_analysis_query
+
+    router_builder = build_enabled_router
+    if router_builder is None and context is not None:
+        router_builder = getattr(context, "_build_enabled_router", None)
+
+    remember_callback = remember
+    if remember_callback is None and context is not None:
+        remember_callback = getattr(context, "_remember", None)
+    if remember_callback is None:
+        remember_callback = _noop_remember
+
     # Do not let simple vector display/summary swallow real-estate
     # ranking/report/PDF queries. These must be handled by the
     # real-estate ranking/report pipeline.
@@ -65,7 +106,11 @@ def try_handle_vector_display_directly(
     )
 
     if (
-        context._is_real_estate_analysis_query(query)
+        _call_real_estate_analysis_query_checker(
+            analysis_query_checker,
+            query,
+            llm_intent,
+        )
         and any(
             term in normalized_query_for_vector_guard
             for term in real_estate_ranking_terms
@@ -93,7 +138,13 @@ def try_handle_vector_display_directly(
         else "display_vector_layer"
     )
 
-    router = context._build_enabled_router()
+    if router_builder is None:
+        raise ValueError(
+            "Vector display handler requires a build_enabled_router callback "
+            "or a context with _build_enabled_router()."
+        )
+
+    router = router_builder()
 
     inspect_binding = router.resolve("inspect_vector")
     target_binding = router.resolve(target_capability)
@@ -313,7 +364,7 @@ def try_handle_vector_display_directly(
         "audit_record": audit_record,
     }
 
-    context._remember(
+    remember_callback(
         request_id=final_request_id,
         record={
             "request_id": final_request_id,

@@ -1398,7 +1398,6 @@ class QueryExecutionService:
         llm_intent: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         return try_handle_vector_display_directly(
-            self,
             query=query,
             inputs=inputs,
             resolved_inputs=resolved_inputs,
@@ -1407,6 +1406,8 @@ class QueryExecutionService:
             band_map=band_map,
             user_context=user_context,
             llm_intent=llm_intent,
+            build_enabled_router=getattr(self, "_build_enabled_router"),
+            remember=self._remember,
             json_safe=_json_safe,
         )
 

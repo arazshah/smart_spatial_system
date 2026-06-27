@@ -17,13 +17,13 @@ def try_dispatch_direct_query_response(
     llm_intent: Any,
     metadata: dict[str, Any] | None,
     project_id: str | None,
-    missing_real_estate_inputs_handler: Callable[..., dict[str, Any] | None],
-    real_estate_ranking_handler: Callable[..., dict[str, Any] | None],
+    preflight_direct_response_handler: Callable[..., dict[str, Any] | None],
+    direct_response_handler: Callable[..., dict[str, Any] | None],
     vector_display_handler: Callable[..., dict[str, Any] | None],
     query_spec_planning_enabled: Callable[[], bool],
     query_spec_planning_handler: Callable[..., dict[str, Any] | None],
 ) -> dict[str, Any] | None:
-    missing_real_estate_inputs_response = missing_real_estate_inputs_handler(
+    preflight_direct_response = preflight_direct_response_handler(
         query=query,
         inputs=inputs,
         resolved_inputs=resolved_inputs,
@@ -34,19 +34,19 @@ def try_dispatch_direct_query_response(
         llm_intent=llm_intent,
     )
 
-    if missing_real_estate_inputs_response is not None:
-        return missing_real_estate_inputs_response
+    if preflight_direct_response is not None:
+        return preflight_direct_response
 
     # Try real-estate ranking after upload/input references are resolved.
     # UI auto_project_data often provides only upload refs at first.
-    real_estate_ranking_response = real_estate_ranking_handler(
+    direct_response = direct_response_handler(
         query=query,
         inputs=resolved_inputs,
         request_id=final_request_id,
         llm_intent=llm_intent,
     )
-    if real_estate_ranking_response is not None:
-        return real_estate_ranking_response
+    if direct_response is not None:
+        return direct_response
 
     direct_vector_response = vector_display_handler(
         query=query,

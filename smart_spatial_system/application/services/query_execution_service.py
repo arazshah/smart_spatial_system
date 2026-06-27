@@ -243,16 +243,8 @@ from smart_spatial_system.application.services.query_execution.planning_context 
     build_query_spec_planning_context,
 )
 
-from smart_spatial_system.application.services.query_execution.real_estate_ranking_execution import (
-    execute_real_estate_ranking,
-)
-
-from smart_spatial_system.application.services.query_execution.real_estate_ranking_artifacts import (
-    build_real_estate_ranking_artifacts,
-)
-
-from smart_spatial_system.application.services.query_execution.real_estate_ranking_response import (
-    build_real_estate_ranking_response,
+from smart_spatial_system.application.services.query_execution.real_estate_ranking_direct_handler import (
+    try_handle_real_estate_ranking_directly,
 )
 
 from smart_spatial_system.application.services.query_execution.real_estate_analysis_inspector import (
@@ -1042,13 +1034,11 @@ class QueryExecutionService:
         return getattr(self._context, name)
 
     @staticmethod
-    @staticmethod
     def _llm_planning_enabled() -> bool:
         return is_llm_planning_enabled()
 
 
 
-    @staticmethod
     @staticmethod
     def _query_spec_planning_enabled() -> bool:
         return is_query_spec_planning_enabled()
@@ -1289,7 +1279,6 @@ class QueryExecutionService:
         return planned.get("intent")
 
     @staticmethod
-    @staticmethod
     def _apply_intent_to_query(
         query: str,
         intent: dict[str, Any] | None,
@@ -1372,13 +1361,11 @@ class QueryExecutionService:
 
 
     @staticmethod
-    @staticmethod
     def _read_geojson_path_if_possible(value: Any) -> dict[str, Any] | None:
         return read_geojson_path_if_possible(value)
 
 
 
-    @classmethod
     @classmethod
     def _find_geojson_like(
         cls,
@@ -1390,7 +1377,6 @@ class QueryExecutionService:
 
 
 
-    @staticmethod
     @staticmethod
     def _summarize_feature_collection(
         feature_collection: dict[str, Any],
@@ -1639,7 +1625,7 @@ class QueryExecutionService:
             warnings=warnings,
         )
 
-    # real_estate_ranking_bridge is delegated to query_execution.real_estate_ranking_response.
+    # real_estate_ranking_bridge is delegated to query_execution.real_estate_ranking_direct_handler.
     def _try_handle_real_estate_ranking_directly(
         self,
         *,
@@ -1648,65 +1634,19 @@ class QueryExecutionService:
         request_id: str | None = None,
         llm_intent: Any = None,
     ) -> dict[str, Any] | None:
-        if not self._looks_like_real_estate_ranking_query(query):
-            return None
-
-        feature_collection = self._extract_property_feature_collection_from_inputs(inputs)
-        if not isinstance(feature_collection, dict):
-            return None
-
-        spatial_context = self._extract_real_estate_spatial_context_from_inputs(inputs)
-        feature_collection, spatial_enrichment_summary = (
-            self._enrich_property_feature_collection_with_spatial_context(
-                feature_collection,
-                spatial_context,
-            )
-        )
-
-        features = feature_collection.get("features") or []
-        if not isinstance(features, list):
-            features = []
-
-        ranked_features, rejected_rows = execute_real_estate_ranking(
-            features=features,
-            evaluate_eligibility=self._evaluate_real_estate_eligibility,
-            score_property=self._score_real_estate_property,
-        )
-
-        table_rows, ranked_geojson, summary, report, message = build_real_estate_ranking_artifacts(
-            features=features,
-            ranked_features=ranked_features,
-            rejected_rows=rejected_rows,
-            spatial_enrichment_summary=spatial_enrichment_summary,
-        )
-
-        rid = request_id or f"req-{uuid.uuid4()}"
-
-        documents, document_warnings, render_pdf_trace_step = self._try_render_real_estate_ranking_document(
-            report=report,
-            table_rows=table_rows,
-            ranked_geojson=ranked_geojson,
-            summary=summary,
-            request_id=rid,
-        )
-
-        return build_real_estate_ranking_response(
+        return try_handle_real_estate_ranking_directly(
             query=query,
-            rid=rid,
-            message=message,
-            features=features,
-            ranked_features=ranked_features,
-            ranked_geojson=ranked_geojson,
-            rejected_rows=rejected_rows,
-            table_rows=table_rows,
-            summary=summary,
-            report=report,
-            documents=documents,
-            document_warnings=document_warnings,
-            render_pdf_trace_step=render_pdf_trace_step,
-            spatial_enrichment_summary=spatial_enrichment_summary,
+            inputs=inputs,
+            request_id=request_id,
             llm_intent=llm_intent,
-            build_analysis_inspector=self._build_real_estate_analysis_inspector,
+            looks_like_real_estate_ranking_query=self._looks_like_real_estate_ranking_query,
+            extract_property_feature_collection_from_inputs=self._extract_property_feature_collection_from_inputs,
+            extract_real_estate_spatial_context_from_inputs=self._extract_real_estate_spatial_context_from_inputs,
+            enrich_property_feature_collection_with_spatial_context=self._enrich_property_feature_collection_with_spatial_context,
+            evaluate_real_estate_eligibility=self._evaluate_real_estate_eligibility,
+            score_real_estate_property=self._score_real_estate_property,
+            try_render_real_estate_ranking_document=self._try_render_real_estate_ranking_document,
+            build_real_estate_analysis_inspector=self._build_real_estate_analysis_inspector,
             llm_planning_enabled=self._llm_planning_enabled,
         )
 

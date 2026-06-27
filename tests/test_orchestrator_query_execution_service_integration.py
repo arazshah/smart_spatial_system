@@ -175,31 +175,6 @@ def test_query_execution_service_contains_real_estate_detector_input_helpers() -
     assert "def _extract_property_feature_collection_from_inputs(" in source
 
 
-def test_orchestrator_real_estate_detector_input_helpers_delegate_to_query_execution_service() -> None:
-    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
-
-    assert (
-        "return self.query_execution_service._try_handle_missing_real_estate_inputs("
-        in source
-    )
-    assert (
-        "return self.query_execution_service._is_real_estate_analysis_query("
-        in source
-    )
-    assert (
-        "return self.query_execution_service._has_any_real_estate_payload("
-        in source
-    )
-    assert (
-        "return self.query_execution_service._looks_like_real_estate_ranking_query("
-        in source
-    )
-    assert (
-        "return self.query_execution_service._extract_property_feature_collection_from_inputs("
-        in source
-    )
-
-
 def test_query_execution_service_contains_real_estate_spatial_scoring_helpers() -> None:
     source = Path(
         "smart_spatial_system/application/services/query_execution_service.py"
@@ -209,27 +184,6 @@ def test_query_execution_service_contains_real_estate_spatial_scoring_helpers() 
     assert "def _enrich_property_feature_collection_with_spatial_context(" in source
     assert "def _score_real_estate_property(" in source
     assert "def _evaluate_real_estate_eligibility(" in source
-
-
-def test_orchestrator_real_estate_spatial_scoring_helpers_delegate_to_query_execution_service() -> None:
-    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
-
-    assert (
-        "return self.query_execution_service._extract_real_estate_spatial_context_from_inputs("
-        in source
-    )
-    assert (
-        "return self.query_execution_service._enrich_property_feature_collection_with_spatial_context("
-        in source
-    )
-    assert (
-        "return self.query_execution_service._score_real_estate_property("
-        in source
-    )
-    assert (
-        "return self.query_execution_service._evaluate_real_estate_eligibility("
-        in source
-    )
 
 
 def test_query_execution_service_contains_real_estate_report_document_helpers() -> None:
@@ -242,23 +196,6 @@ def test_query_execution_service_contains_real_estate_report_document_helpers() 
     assert "def _build_real_estate_analysis_inspector(" in source
 
 
-def test_orchestrator_real_estate_report_document_helpers_delegate_to_query_execution_service() -> None:
-    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
-
-    assert (
-        "return self.query_execution_service._build_real_estate_pdf_report_payload("
-        in source
-    )
-    assert (
-        "return self.query_execution_service._try_render_real_estate_ranking_document("
-        in source
-    )
-    assert (
-        "return self.query_execution_service._build_real_estate_analysis_inspector("
-        in source
-    )
-
-
 def test_query_execution_service_contains_real_estate_ranking_direct_handler() -> None:
     source = Path(
         "smart_spatial_system/application/services/query_execution_service.py"
@@ -267,15 +204,6 @@ def test_query_execution_service_contains_real_estate_ranking_direct_handler() -
     assert "def _try_handle_real_estate_ranking_directly(" in source
     assert "real_estate_ranking_bridge" in source
     assert "real_estate_ranking" in source
-
-
-def test_orchestrator_real_estate_ranking_direct_handler_delegates_to_query_execution_service() -> None:
-    source = Path("orchestrator/service.py").read_text(encoding="utf-8")
-
-    assert (
-        "return self.query_execution_service._try_handle_real_estate_ranking_directly("
-        in source
-    )
 
 
 def test_query_execution_service_contains_real_estate_geometry_metric_helpers() -> None:

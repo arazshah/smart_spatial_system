@@ -659,40 +659,8 @@ class OrchestratorService:
             llm_intent=llm_intent,
         )
 
-    def _try_handle_missing_real_estate_inputs(self, *args: Any, **kwargs: Any) -> Any:
-        return self.query_execution_service._try_handle_missing_real_estate_inputs(
-            *args,
-            **kwargs,
-        )
-
-    def _is_real_estate_analysis_query(self, *args: Any, **kwargs: Any) -> Any:
-        return self.query_execution_service._is_real_estate_analysis_query(
-            *args,
-            **kwargs,
-        )
-
-    def _has_any_real_estate_payload(self, *args: Any, **kwargs: Any) -> Any:
-        return self.query_execution_service._has_any_real_estate_payload(
-            *args,
-            **kwargs,
-        )
-
-
-    def _looks_like_real_estate_ranking_query(self, *args: Any, **kwargs: Any) -> Any:
-        return self.query_execution_service._looks_like_real_estate_ranking_query(
-            *args,
-            **kwargs,
-        )
-
     def _extract_property_feature_collection_from_inputs(self, *args: Any, **kwargs: Any) -> Any:
         return self.query_execution_service._extract_property_feature_collection_from_inputs(
-            *args,
-            **kwargs,
-        )
-
-
-    def _extract_real_estate_spatial_context_from_inputs(self, *args: Any, **kwargs: Any) -> Any:
-        return self.query_execution_service._extract_real_estate_spatial_context_from_inputs(
             *args,
             **kwargs,
         )
@@ -772,46 +740,6 @@ class OrchestratorService:
 
     def _to_float_or_none(self, *args: Any, **kwargs: Any) -> Any:
         return self.query_execution_service._to_float_or_none(
-            *args,
-            **kwargs,
-        )
-
-    def _score_real_estate_property(self, *args: Any, **kwargs: Any) -> Any:
-        return self.query_execution_service._score_real_estate_property(
-            *args,
-            **kwargs,
-        )
-
-    def _evaluate_real_estate_eligibility(self, *args: Any, **kwargs: Any) -> Any:
-        return self.query_execution_service._evaluate_real_estate_eligibility(
-            *args,
-            **kwargs,
-        )
-
-
-    def _build_real_estate_pdf_report_payload(self, *args: Any, **kwargs: Any) -> Any:
-        return self.query_execution_service._build_real_estate_pdf_report_payload(
-            *args,
-            **kwargs,
-        )
-
-    def _try_render_real_estate_ranking_document(self, *args: Any, **kwargs: Any) -> Any:
-        return self.query_execution_service._try_render_real_estate_ranking_document(
-            *args,
-            **kwargs,
-        )
-
-
-
-    def _build_real_estate_analysis_inspector(self, *args: Any, **kwargs: Any) -> Any:
-        return self.query_execution_service._build_real_estate_analysis_inspector(
-            *args,
-            **kwargs,
-        )
-
-
-    def _try_handle_real_estate_ranking_directly(self, *args: Any, **kwargs: Any) -> Any:
-        return self.query_execution_service._try_handle_real_estate_ranking_directly(
             *args,
             **kwargs,
         )

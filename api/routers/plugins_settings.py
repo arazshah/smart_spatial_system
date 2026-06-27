@@ -9,6 +9,11 @@ from api.support import (
     json_safe as _json_safe,
     service as _service,
 )
+from orchestrator.plugin_config_store import (
+    PluginConfigStoreError,
+    read_plugin_config,
+    write_plugin_config,
+)
 from orchestrator.service import OrchestratorServiceError
 
 

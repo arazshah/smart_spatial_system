@@ -25,6 +25,8 @@ Main responsibilities:
 """
 
 from __future__ import annotations
+
+import importlib
 import os
 
 import uuid
@@ -236,43 +238,6 @@ from smart_spatial_system.application.services.query_execution.planning_context 
 from smart_spatial_system.application.services.query_execution.postgis_planning_context import (
     _build_query_spec_runtime_inputs,
     _extract_semantic_planning_context_from_sources,
-)
-
-from smart_spatial_system.application.services.query_execution.real_estate_ranking_direct_handler import (
-    try_handle_real_estate_ranking_directly,
-)
-
-from smart_spatial_system.application.services.query_execution.real_estate_analysis_inspector import (
-    build_real_estate_analysis_inspector,
-)
-
-from smart_spatial_system.application.services.query_execution.real_estate_document_renderer import (
-    try_render_real_estate_ranking_document,
-)
-
-from smart_spatial_system.application.services.query_execution.real_estate_report_payload import (
-    build_real_estate_pdf_report_payload,
-)
-
-from smart_spatial_system.application.services.query_execution.real_estate_missing_inputs import (
-    try_handle_missing_real_estate_inputs,
-)
-
-from smart_spatial_system.application.services.query_execution.real_estate_classifier import (
-    has_any_real_estate_payload,
-    is_real_estate_analysis_query,
-    looks_like_real_estate_ranking_query,
-)
-
-from smart_spatial_system.application.services.query_execution.real_estate_context import (
-    enrich_property_feature_collection_with_spatial_context,
-    extract_property_feature_collection_from_inputs,
-    extract_real_estate_spatial_context_from_inputs,
-)
-
-from smart_spatial_system.application.services.query_execution.real_estate_scoring import (
-    evaluate_real_estate_eligibility,
-    score_real_estate_property,
 )
 
 from smart_spatial_system.application.services.real_estate_spatial_helpers import (
@@ -561,6 +526,19 @@ def _json_safe(value: Any) -> Any:
 
 class QueryExecutionServiceError(RuntimeError):
     """Raised when a query execution service operation fails."""
+
+
+
+_QUERY_EXECUTION_DOMAIN_MODULE_PREFIX = (
+    "smart_spatial_system.application.services.query_execution"
+)
+
+
+def _query_execution_domain_callable(module_name: str, callable_name: str):
+    module = importlib.import_module(
+        f"{_QUERY_EXECUTION_DOMAIN_MODULE_PREFIX}.{module_name}"
+    )
+    return getattr(module, callable_name)
 
 
 class QueryExecutionService:
@@ -966,7 +944,7 @@ class QueryExecutionService:
         user_context: dict[str, Any] | None = None,
         llm_intent: Any | None = None,
     ) -> dict[str, Any] | None:
-        return try_handle_missing_real_estate_inputs(
+        return _query_execution_domain_callable("real_estate_missing_inputs", "try_handle_missing_real_estate_inputs")(
             query=query,
             inputs=inputs,
             resolved_inputs=resolved_inputs,
@@ -985,22 +963,22 @@ class QueryExecutionService:
         query: str,
         llm_intent: Any | None = None,
     ) -> bool:
-        return is_real_estate_analysis_query(query, llm_intent)
+        return _query_execution_domain_callable("real_estate_classifier", "is_real_estate_analysis_query")(query, llm_intent)
 
     def _has_any_real_estate_payload(
         self,
         resolved_inputs: dict[str, Any],
     ) -> bool:
-        return has_any_real_estate_payload(resolved_inputs)
+        return _query_execution_domain_callable("real_estate_classifier", "has_any_real_estate_payload")(resolved_inputs)
 
     def _looks_like_real_estate_ranking_query(self, query: str) -> bool:
-        return looks_like_real_estate_ranking_query(query)
+        return _query_execution_domain_callable("real_estate_classifier", "looks_like_real_estate_ranking_query")(query)
 
     def _extract_property_feature_collection_from_inputs(self, inputs: dict[str, Any] | None) -> dict[str, Any] | None:
         return extract_property_feature_collection_from_inputs(inputs)
 
     def _extract_real_estate_spatial_context_from_inputs(self, inputs: dict[str, Any] | None) -> dict[str, Any]:
-        return extract_real_estate_spatial_context_from_inputs(inputs)
+        return _query_execution_domain_callable("real_estate_context", "extract_real_estate_spatial_context_from_inputs")(inputs)
 
     def _feature_point_lonlat(self, feature: dict[str, Any]) -> tuple[float, float] | None:
         return feature_point_lonlat(feature)
@@ -1104,10 +1082,10 @@ class QueryExecutionService:
         )
 
     def _score_real_estate_property(self, props: dict[str, Any]) -> tuple[float, dict[str, Any]]:
-        return score_real_estate_property(props)
+        return _query_execution_domain_callable("real_estate_scoring", "score_real_estate_property")(props)
 
     def _evaluate_real_estate_eligibility(self, props: dict[str, Any]) -> tuple[bool, list[str], dict[str, Any]]:
-        return evaluate_real_estate_eligibility(props)
+        return _query_execution_domain_callable("real_estate_scoring", "evaluate_real_estate_eligibility")(props)
 
     def _build_real_estate_pdf_report_payload(
         self,
@@ -1117,7 +1095,7 @@ class QueryExecutionService:
         ranked_geojson: dict[str, Any],
         summary: dict[str, Any],
     ) -> dict[str, Any]:
-        return build_real_estate_pdf_report_payload(
+        return _query_execution_domain_callable("real_estate_report_payload", "build_real_estate_pdf_report_payload")(
             report=report,
             table_rows=table_rows,
             ranked_geojson=ranked_geojson,
@@ -1133,7 +1111,7 @@ class QueryExecutionService:
         summary: dict[str, Any],
         request_id: str,
     ) -> tuple[list[dict[str, Any]], list[str], dict[str, Any]]:
-        return try_render_real_estate_ranking_document(
+        return _query_execution_domain_callable("real_estate_document_renderer", "try_render_real_estate_ranking_document")(
             report=report,
             table_rows=table_rows,
             ranked_geojson=ranked_geojson,
@@ -1154,7 +1132,7 @@ class QueryExecutionService:
         documents: list[dict[str, Any]],
         warnings: list[str] | None = None,
     ) -> dict[str, Any]:
-        return build_real_estate_analysis_inspector(
+        return _query_execution_domain_callable("real_estate_analysis_inspector", "build_real_estate_analysis_inspector")(
             title=title,
             status=status,
             summary=summary,
@@ -1174,7 +1152,7 @@ class QueryExecutionService:
         request_id: str | None = None,
         llm_intent: Any = None,
     ) -> dict[str, Any] | None:
-        return try_handle_real_estate_ranking_directly(
+        return _query_execution_domain_callable("real_estate_ranking_direct_handler", "try_handle_real_estate_ranking_directly")(
             query=query,
             inputs=inputs,
             request_id=request_id,

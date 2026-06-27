@@ -4,14 +4,42 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from smart_spatial_system.application.services.query_execution.real_estate_ranking_execution import (
-    execute_real_estate_ranking,
+from smart_spatial_system.application.services.query_execution.real_estate_analysis_inspector import (
+    build_real_estate_analysis_inspector,
+)
+from smart_spatial_system.application.services.query_execution.real_estate_classifier import (
+    looks_like_real_estate_ranking_query,
+)
+from smart_spatial_system.application.services.query_execution.real_estate_context import (
+    enrich_property_feature_collection_with_spatial_context,
+    extract_property_feature_collection_from_inputs,
+    extract_real_estate_spatial_context_from_inputs,
+)
+from smart_spatial_system.application.services.query_execution.real_estate_document_renderer import (
+    try_render_real_estate_ranking_document,
 )
 from smart_spatial_system.application.services.query_execution.real_estate_ranking_artifacts import (
     build_real_estate_ranking_artifacts,
 )
+from smart_spatial_system.application.services.query_execution.real_estate_ranking_execution import (
+    execute_real_estate_ranking,
+)
 from smart_spatial_system.application.services.query_execution.real_estate_ranking_response import (
     build_real_estate_ranking_response,
+)
+from smart_spatial_system.application.services.query_execution.real_estate_report_payload import (
+    build_real_estate_pdf_report_payload,
+)
+from smart_spatial_system.application.services.query_execution.real_estate_scoring import (
+    evaluate_real_estate_eligibility,
+    score_real_estate_property,
+)
+from smart_spatial_system.application.services.real_estate_spatial_helpers import (
+    feature_point_lonlat,
+    has_bool_like_value,
+    has_metric_value,
+    nearest_distance_to_features_m,
+    point_in_polygon_feature_lonlat,
 )
 
 
@@ -21,29 +49,6 @@ def try_handle_real_estate_ranking_directly(
     inputs: dict[str, Any] | None,
     request_id: str | None = None,
     llm_intent: Any = None,
-    looks_like_real_estate_ranking_query: Callable[[str], bool],
-    extract_property_feature_collection_from_inputs: Callable[
-        [dict[str, Any] | None],
-        dict[str, Any] | None,
-    ],
-    extract_real_estate_spatial_context_from_inputs: Callable[
-        [dict[str, Any] | None],
-        dict[str, Any],
-    ],
-    enrich_property_feature_collection_with_spatial_context: Callable[
-        [dict[str, Any], dict[str, list[dict[str, Any]]] | None],
-        tuple[dict[str, Any], dict[str, Any]],
-    ],
-    evaluate_real_estate_eligibility: Callable[
-        [dict[str, Any]],
-        tuple[bool, list[str], dict[str, Any]],
-    ],
-    score_real_estate_property: Callable[
-        [dict[str, Any]],
-        tuple[float, dict[str, Any]],
-    ],
-    try_render_real_estate_ranking_document: Callable[..., tuple[list[dict[str, Any]], list[str], dict[str, Any]]],
-    build_real_estate_analysis_inspector: Callable[..., dict[str, Any]],
     llm_planning_enabled: Callable[[], bool],
 ) -> dict[str, Any] | None:
     if not looks_like_real_estate_ranking_query(query):
@@ -58,6 +63,11 @@ def try_handle_real_estate_ranking_directly(
         enrich_property_feature_collection_with_spatial_context(
             feature_collection,
             spatial_context,
+            feature_point_lonlat=feature_point_lonlat,
+            has_metric_value=has_metric_value,
+            nearest_distance_to_features_m=nearest_distance_to_features_m,
+            has_bool_like_value=has_bool_like_value,
+            point_in_polygon_feature_lonlat=point_in_polygon_feature_lonlat,
         )
     )
 
@@ -86,6 +96,7 @@ def try_handle_real_estate_ranking_directly(
         ranked_geojson=ranked_geojson,
         summary=summary,
         request_id=rid,
+        build_pdf_report_payload=build_real_estate_pdf_report_payload,
     )
 
     return build_real_estate_ranking_response(

@@ -1639,14 +1639,6 @@ class QueryExecutionService:
             inputs=inputs,
             request_id=request_id,
             llm_intent=llm_intent,
-            looks_like_real_estate_ranking_query=self._looks_like_real_estate_ranking_query,
-            extract_property_feature_collection_from_inputs=self._extract_property_feature_collection_from_inputs,
-            extract_real_estate_spatial_context_from_inputs=self._extract_real_estate_spatial_context_from_inputs,
-            enrich_property_feature_collection_with_spatial_context=self._enrich_property_feature_collection_with_spatial_context,
-            evaluate_real_estate_eligibility=self._evaluate_real_estate_eligibility,
-            score_real_estate_property=self._score_real_estate_property,
-            try_render_real_estate_ranking_document=self._try_render_real_estate_ranking_document,
-            build_real_estate_analysis_inspector=self._build_real_estate_analysis_inspector,
             llm_planning_enabled=self._llm_planning_enabled,
         )
 

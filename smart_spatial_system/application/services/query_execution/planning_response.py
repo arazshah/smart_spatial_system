@@ -89,7 +89,14 @@ def build_query_spec_planning_response(
         },
     }
 
+    documents = (
+        outputs.get("documents", [])
+        if isinstance(outputs, dict)
+        else []
+    )
+
     production_response = {
+        "ok": success,
         "status": "succeeded" if success else "failed",
         "request_id": final_request_id,
         "query_hash": None,
@@ -98,9 +105,11 @@ def build_query_spec_planning_response(
         "structured_error": planning_structured_error,
         "outputs": outputs,
         "layers": layers,
-        "artifacts": outputs.get("artifacts", []),
+        "documents": documents,
+        "artifacts": outputs.get("artifacts", []) if isinstance(outputs, dict) else [],
         "kernel_plan": kernel_plan_summary,
         "kernel_execution": kernel_execution_summary,
+        "trace": steps,
         "steps": steps,
         "confidence": {
             "level": None,

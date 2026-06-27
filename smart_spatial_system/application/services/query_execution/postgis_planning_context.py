@@ -7,10 +7,62 @@ and runtime connection input flattening out of QueryExecutionService.
 
 from __future__ import annotations
 
+import importlib
+
+import sys
+
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from orchestrator.planning.postgis_semantic_resolver import PostGISSchemaContext
+
+
+
+
+_POSTGIS_SCHEMA_MODEL_NAMES = {
+    "ColumnInfo",
+    "PostGISSchemaContext",
+    "PostGISTableInfo",
+}
+
+
+def _postgis_semantic_resolver_module():
+    return importlib.import_module("orchestrator.planning.postgis_semantic_resolver")
+
+
+def _semantic_planning_context_module():
+    return importlib.import_module("orchestrator.planning.semantic_planning_context")
+
+
+def _column_info_type():
+    return getattr(_postgis_semantic_resolver_module(), "ColumnInfo")
+
+
+def _postgis_table_info_type():
+    return getattr(_postgis_semantic_resolver_module(), "PostGISTableInfo")
+
+
+def _postgis_schema_context_type():
+    return getattr(_postgis_semantic_resolver_module(), "PostGISSchemaContext")
+
+
+def _discover_postgis_schema(connection_config):
+    return getattr(_postgis_semantic_resolver_module(), "discover_postgis_schema")(
+        connection_config
+    )
+
+
+def _build_semantic_planning_context(*args, **kwargs):
+    return getattr(
+        _semantic_planning_context_module(),
+        "build_semantic_planning_context",
+    )(*args, **kwargs)
+
+
+def __getattr__(name: str):
+    if name in _POSTGIS_SCHEMA_MODEL_NAMES:
+        return getattr(_postgis_semantic_resolver_module(), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _first_mapping_value(*values: Any) -> dict[str, Any] | None:
@@ -50,7 +102,7 @@ def _coerce_postgis_schema_context(value: Any) -> PostGISSchemaContext | None:
         PostGISTableInfo,
     )
 
-    if isinstance(value, PostGISSchemaContext):
+    if isinstance(value, _postgis_schema_context_type()):
         return value
 
     if not isinstance(value, dict):
@@ -83,14 +135,14 @@ def _coerce_postgis_schema_context(value: Any) -> PostGISSchemaContext | None:
                     if not name:
                         continue
                     columns.append(
-                        ColumnInfo(
+                        _column_info_type()(
                             name=name,
                             data_type=str(raw_col.get("data_type") or ""),
                             udt_name=str(raw_col.get("udt_name") or ""),
                         )
                     )
                 elif isinstance(raw_col, str) and raw_col.strip():
-                    columns.append(ColumnInfo(name=raw_col.strip()))
+                    columns.append(_column_info_type()(name=raw_col.strip()))
 
         srid_value = raw_table.get("srid")
         try:
@@ -109,7 +161,7 @@ def _coerce_postgis_schema_context(value: Any) -> PostGISSchemaContext | None:
             estimated_rows = None
 
         tables.append(
-            PostGISTableInfo(
+            _postgis_table_info_type()(
                 schema=schema,
                 table=table,
                 geom_col=geom_col,
@@ -123,7 +175,7 @@ def _coerce_postgis_schema_context(value: Any) -> PostGISSchemaContext | None:
     if not tables:
         return None
 
-    return PostGISSchemaContext(tables=tuple(tables))
+    return _postgis_schema_context_type()(tables=tuple(tables))
 
 
 _POSTGIS_CONNECTION_KEYS = (
@@ -310,7 +362,7 @@ def _discover_postgis_schema_context_from_connection_config(
         conn = psycopg2.connect(**kwargs)
 
     try:
-        return discover_postgis_schema(
+        return _discover_postgis_schema(
             conn,
             schemas=schemas,
         )
@@ -367,6 +419,32 @@ def _build_query_spec_runtime_inputs(
     return runtime_inputs, True
 
 
+
+def _resolve_postgis_schema_discoverer():
+    """
+    Resolve the PostGIS schema discoverer.
+
+    The implementation lives in this module, but older tests/callers may
+    monkeypatch orchestrator.service._discover_postgis_schema_context_from_connection_config.
+    Honor that monkeypatch without moving the implementation back to
+    orchestrator.service.
+    """
+    service_module = sys.modules.get("orchestrator.service")
+    service_discoverer = getattr(
+        service_module,
+        "_discover_postgis_schema_context_from_connection_config",
+        None,
+    )
+
+    if (
+        callable(service_discoverer)
+        and service_discoverer is not _discover_postgis_schema_context_from_connection_config
+    ):
+        return service_discoverer
+
+    return _discover_postgis_schema_context_from_connection_config
+
+
 def _extract_semantic_planning_context_from_sources(
     *,
     query: str,
@@ -418,7 +496,7 @@ def _extract_semantic_planning_context_from_sources(
             if connection_config is None:
                 return None, None
 
-            schema_context = _discover_postgis_schema_context_from_connection_config(
+            schema_context = _resolve_postgis_schema_discoverer()(
                 connection_config
             )
 
@@ -433,7 +511,7 @@ def _extract_semantic_planning_context_from_sources(
             build_semantic_planning_context,
         )
 
-        context = build_semantic_planning_context(
+        context = _build_semantic_planning_context(
             query,
             schema_context,
             explicit_concepts=explicit_concepts,

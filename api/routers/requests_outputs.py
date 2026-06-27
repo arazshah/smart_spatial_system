@@ -171,7 +171,7 @@ def download_request_document(
     Security policy:
     - only serves files from artifacts/reports
     - blocks path traversal
-    - currently allows the real-estate ranking PDF generated for the same request_id
+    - requires the filename to be associated with the same request_id
     """
     safe_filename = Path(filename).name
     if safe_filename != filename:
@@ -180,8 +180,7 @@ def download_request_document(
             detail="Unknown document file.",
         )
 
-    expected_filename = f"real_estate_ranking_{request_id}.pdf"
-    if safe_filename != expected_filename:
+    if not request_id or request_id not in safe_filename:
         raise HTTPException(
             status_code=404,
             detail="Unknown document file.",
@@ -208,9 +207,22 @@ def download_request_document(
             detail="Unknown document file.",
         )
 
+    media_types = {
+        ".pdf": "application/pdf",
+        ".html": "text/html",
+        ".json": "application/json",
+        ".geojson": "application/geo+json",
+        ".csv": "text/csv",
+        ".txt": "text/plain",
+    }
+    media_type = media_types.get(
+        resolved_file_path.suffix.lower(),
+        "application/octet-stream",
+    )
+
     return FileResponse(
         path=resolved_file_path,
-        media_type="application/pdf",
+        media_type=media_type,
         filename=safe_filename,
     )
 

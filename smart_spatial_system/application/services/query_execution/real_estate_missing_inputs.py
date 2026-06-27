@@ -3,6 +3,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from smart_spatial_system.application.services.query_execution.real_estate_classifier import (
+    has_any_real_estate_payload as default_has_any_real_estate_payload,
+    is_real_estate_analysis_query as default_is_real_estate_analysis_query,
+)
+
 
 def try_handle_missing_real_estate_inputs(
     *,
@@ -11,23 +16,33 @@ def try_handle_missing_real_estate_inputs(
     resolved_inputs: dict[str, Any],
     final_request_id: str,
     final_metadata: dict[str, Any],
-    band_map: dict[str, int] | None = None,
-    user_context: dict[str, Any] | None = None,
-    llm_intent: Any | None = None,
-    is_real_estate_analysis_query: Callable[[str, Any | None], bool],
-    has_any_real_estate_payload: Callable[[dict[str, Any]], bool],
     remember: Callable[..., Any],
     attach_request: Callable[[str, str], Any] | None,
     json_safe: Callable[[Any], Any],
+    band_map: dict[str, int] | None = None,
+    user_context: dict[str, Any] | None = None,
+    llm_intent: Any | None = None,
+    is_real_estate_analysis_query: Callable[[str, Any | None], bool] | None = None,
+    has_any_real_estate_payload: Callable[[dict[str, Any]], bool] | None = None,
 ) -> dict[str, Any] | None:
     """
     Return a controlled response for complex real-estate analysis requests
     when no useful spatial inputs were provided.
+
+    The classifier callbacks are optional for backward compatibility. If they
+    are not provided, the real-estate classifier module is used directly.
     """
-    if not is_real_estate_analysis_query(query, llm_intent):
+    analysis_query_checker = (
+        is_real_estate_analysis_query or default_is_real_estate_analysis_query
+    )
+    payload_checker = (
+        has_any_real_estate_payload or default_has_any_real_estate_payload
+    )
+
+    if not analysis_query_checker(query, llm_intent):
         return None
 
-    if has_any_real_estate_payload(resolved_inputs):
+    if payload_checker(resolved_inputs):
         return None
 
     required_layers = [

@@ -1433,8 +1433,6 @@ class QueryExecutionService:
             band_map=band_map,
             user_context=user_context,
             llm_intent=llm_intent,
-            is_real_estate_analysis_query=self._is_real_estate_analysis_query,
-            has_any_real_estate_payload=self._has_any_real_estate_payload,
             remember=self._remember,
             attach_request=self.project_service.attach_request,
             json_safe=_json_safe,

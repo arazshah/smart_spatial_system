@@ -312,6 +312,31 @@ def try_handle_vector_display_directly(
                 }
             ]
 
+    if isinstance(outputs, dict):
+        outputs.setdefault("vectors", [])
+        outputs.setdefault("rasters", [])
+        outputs.setdefault("tables", [])
+        outputs.setdefault("documents", [])
+        outputs.setdefault("reports", [])
+        outputs.setdefault("files", [])
+        outputs.setdefault("artifacts", [])
+
+    documents = (
+        outputs.get("documents", [])
+        if isinstance(outputs, dict) and isinstance(outputs.get("documents", []), list)
+        else []
+    )
+    artifacts = (
+        outputs.get("artifacts", [])
+        if isinstance(outputs, dict) and isinstance(outputs.get("artifacts", []), list)
+        else []
+    )
+    files = (
+        outputs.get("files", [])
+        if isinstance(outputs, dict) and isinstance(outputs.get("files", []), list)
+        else []
+    )
+
     metadata = dict(final_metadata)
     metadata["execution_mode"] = "capability_bridge"
     metadata["legacy_handler_name"] = handler_name
@@ -360,7 +385,9 @@ def try_handle_vector_display_directly(
         "metadata": json_safe(metadata),
         "outputs": outputs,
         "layers": layers,
-        "documents": [],
+        "documents": documents,
+        "artifacts": artifacts,
+        "files": files,
         "trace": trace,
         "result": result_payload,
         "audit_record": audit_record,

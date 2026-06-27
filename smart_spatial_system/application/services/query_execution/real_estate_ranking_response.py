@@ -75,6 +75,8 @@ def build_real_estate_ranking_response(
             }
         ],
         "documents": documents,
+        "files": [],
+        "artifacts": [],
     }
 
     layers = [
@@ -162,6 +164,9 @@ def build_real_estate_ranking_response(
         "outputs": outputs,
         "layers": layers,
         "documents": documents,
+        "artifacts": outputs.get("artifacts", []),
+        "files": outputs.get("files", []),
+        "report": report,
         "trace": trace,
         "result": {
             "type": "real_estate_ranking",

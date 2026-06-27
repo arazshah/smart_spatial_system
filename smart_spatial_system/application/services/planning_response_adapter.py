@@ -119,6 +119,8 @@ def planning_outputs_to_response_payload(
         "vectors": [],
         "tables": [],
         "rasters": [],
+        "documents": [],
+        "reports": [],
         "artifacts": [],
     }
     primary_report: dict[str, Any] | None = None

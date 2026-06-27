@@ -161,6 +161,8 @@ def build_real_estate_ranking_response(
         "inspector": inspector,
         "outputs": outputs,
         "layers": layers,
+        "documents": documents,
+        "trace": trace,
         "result": {
             "type": "real_estate_ranking",
             "summary": summary,

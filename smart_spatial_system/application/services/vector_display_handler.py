@@ -360,6 +360,8 @@ def try_handle_vector_display_directly(
         "metadata": json_safe(metadata),
         "outputs": outputs,
         "layers": layers,
+        "documents": [],
+        "trace": trace,
         "result": result_payload,
         "audit_record": audit_record,
     }

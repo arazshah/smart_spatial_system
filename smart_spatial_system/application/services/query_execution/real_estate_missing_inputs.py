@@ -68,6 +68,8 @@ def try_handle_missing_real_estate_inputs(
         "message": answer,
         "outputs": {},
         "layers": [],
+        "documents": [],
+        "trace": [],
         "result": {
             "type": "missing_required_inputs",
             "domain": "real_estate_spatial_ranking",

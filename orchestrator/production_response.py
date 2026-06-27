@@ -251,8 +251,73 @@ class ProductionResponseBuilder:
     ) -> dict[str, Any]:
         """
         Build and return JSON-like dict.
+
+        The dataclass model intentionally keeps the historical production
+        response shape.  The dict contract is enriched here for API/frontend
+        consumers so natural-query responses expose the same top-level fields
+        as direct and planning responses.
         """
-        return self.build(**kwargs).to_dict()
+        production_response = self.build(**kwargs).to_dict()
+
+        normalized_artifacts = self._normalize_artifacts(
+            run_result=kwargs.get("run_result"),
+            audit_record=kwargs.get("audit_record"),
+            response=kwargs.get("response"),
+            plan=kwargs.get("plan"),
+            outputs=kwargs.get("outputs"),
+        )
+
+        final_audit = normalized_artifacts["audit_record"]
+        final_response = normalized_artifacts["response"]
+        final_outputs = normalized_artifacts["outputs"]
+
+        raw_status = production_response.get("status")
+        production_response.setdefault(
+            "ok",
+            raw_status not in {"failed", "error", "failure"},
+        )
+        production_response.setdefault("message", production_response.get("answer"))
+
+        layers: list[Any] = []
+        response_map = final_response.get("map") if isinstance(final_response, dict) else None
+        if isinstance(final_response.get("layers"), list):
+            layers = final_response["layers"]
+        elif isinstance(final_outputs.get("layers"), list):
+            layers = final_outputs["layers"]
+        elif isinstance(response_map, dict) and isinstance(response_map.get("layers"), list):
+            layers = response_map["layers"]
+
+        documents: list[Any] = []
+        if isinstance(final_response.get("documents"), list):
+            documents = final_response["documents"]
+        elif isinstance(final_outputs.get("documents"), list):
+            documents = final_outputs["documents"]
+
+        artifacts: list[Any] = []
+        if isinstance(final_response.get("artifacts"), list):
+            artifacts = final_response["artifacts"]
+        elif isinstance(final_outputs.get("artifacts"), list):
+            artifacts = final_outputs["artifacts"]
+
+        trace: list[Any] = []
+        if isinstance(final_response.get("trace"), list):
+            trace = final_response["trace"]
+        elif isinstance(final_audit.get("trace"), list):
+            trace = final_audit["trace"]
+
+        steps: list[Any] = []
+        if isinstance(final_response.get("steps"), list):
+            steps = final_response["steps"]
+        else:
+            steps = trace
+
+        production_response.setdefault("layers", _json_safe(layers))
+        production_response.setdefault("documents", _json_safe(documents))
+        production_response.setdefault("artifacts", _json_safe(artifacts))
+        production_response.setdefault("trace", _json_safe(trace))
+        production_response.setdefault("steps", _json_safe(steps))
+
+        return production_response
 
     @staticmethod
     def _normalize_artifacts(

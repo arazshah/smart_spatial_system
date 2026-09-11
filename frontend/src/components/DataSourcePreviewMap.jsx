@@ -115,7 +115,7 @@ function collectGeoJsonCandidates(payload) {
   ];
 }
 
-export function extractPreviewFeatureCollection(payload) {
+function extractPreviewFeatureCollection(payload) {
   const candidates = collectGeoJsonCandidates(payload);
 
   for (const candidate of candidates) {

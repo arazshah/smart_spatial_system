@@ -1,5 +1,5 @@
 import "./App.css";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   createProject,
   getHealth,
@@ -29,7 +29,6 @@ import WorkbenchDrawer from "./components/WorkbenchDrawer";
 import WorkbenchSidebar from "./components/WorkbenchSidebar";
 import {
   getDataSourceBBox,
-  getDataSourceCrs,
   getDataSourceCrsLabel,
   getDataSourceFeatureCount,
   getDataSourceGeometryType,
@@ -132,10 +131,6 @@ function getPreviewPropertyKeys(payload) {
 
 function getPreviewFeatureCount(payload) {
   return getDataSourceFeatureCount(payload);
-}
-
-function getPreviewCrs(payload) {
-  return getDataSourceCrsLabel(payload) || "—";
 }
 
 function getPreviewBBox(payload) {
@@ -406,41 +401,38 @@ const [dsmUploadKind, setDsmUploadKind] = useState("vector");
     setRequests(asList(payload, ["requests"]));
   }
 
-  async function bootstrap() {
-    try {
-      setBootLoading(true);
-      setGlobalError("");
-
-      const healthPayload = await getHealth();
-      setHealth(healthPayload);
-
-      await refreshProjects();
-      await refreshUploads();
-      await refreshRequests();
-    } catch (err) {
-      setGlobalError(err.message);
-    } finally {
-      setBootLoading(false);
-    }
-  }
-
   useEffect(() => {
-    bootstrap();
+    (async () => {
+      try {
+        const healthPayload = await getHealth();
+        setHealth(healthPayload);
+
+        await refreshProjects();
+        await refreshUploads();
+        await refreshRequests();
+      } catch (err) {
+        setGlobalError(err.message);
+      } finally {
+        setBootLoading(false);
+      }
+    })();
   }, []);
 
-  useEffect(() => {
-    if (!activeProject?.uploads?.length) {
-      setSelectedUpload(null);
-      return;
-    }
+  const [selectionCheckedForProject, setSelectionCheckedForProject] =
+    useState(activeProject);
 
-    if (
+  if (selectionCheckedForProject !== activeProject) {
+    setSelectionCheckedForProject(activeProject);
+
+    const stillValid =
+      activeProject?.uploads?.length &&
       selectedUpload?.upload_id &&
-      !activeProject.uploads.includes(selectedUpload.upload_id)
-    ) {
+      activeProject.uploads.includes(selectedUpload.upload_id);
+
+    if (!stillValid) {
       setSelectedUpload(null);
     }
-  }, [activeProject, selectedUpload]);
+  }
 
   function findBestUploadForActiveProject() {
     if (!activeProject?.uploads?.length) return null;
@@ -632,10 +624,6 @@ const [dsmUploadKind, setDsmUploadKind] = useState("vector");
     }
   }
 
-  const outputFiles = useMemo(() => {
-    return outputManifest?.files || [];
-  }, [outputManifest]);
-
   if (bootLoading) {
     return <div className="wb-loader">در حال آماده‌سازی محیط کاری...</div>;
   }
@@ -779,20 +767,8 @@ const [dsmUploadKind, setDsmUploadKind] = useState("vector");
   }
 
   function getDsmUploadProjectId() {
-    const candidates = [];
-
-    if (typeof activeProject !== "undefined" && activeProject) candidates.push(activeProject);
-    if (typeof selectedProject !== "undefined" && selectedProject) candidates.push(selectedProject);
-    if (typeof currentProject !== "undefined" && currentProject) candidates.push(currentProject);
-
-    const project = candidates.find(Boolean);
-    if (project?.id) return project.id;
-    if (project?.project_id) return project.project_id;
-
-    if (typeof activeProjectId !== "undefined" && activeProjectId) return activeProjectId;
-    if (typeof selectedProjectId !== "undefined" && selectedProjectId) return selectedProjectId;
-    if (typeof currentProjectId !== "undefined" && currentProjectId) return currentProjectId;
-
+    if (activeProject?.id) return activeProject.id;
+    if (activeProject?.project_id) return activeProject.project_id;
     return undefined;
   }
 

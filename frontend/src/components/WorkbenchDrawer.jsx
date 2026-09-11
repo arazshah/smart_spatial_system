@@ -230,11 +230,6 @@ function EmptyDrawerState({ icon, title, text }) {
   );
 }
 
-function SystemStatusDot({ status }) {
-  const online = String(status || "").toLowerCase() === "ok";
-  return <span className={`system-dot ${online ? "online" : "offline"}`} />;
-}
-
 function DataSourceTypeTile({ icon, title, text, active, disabled, onClick }) {
   return (
     <button
@@ -357,7 +352,6 @@ export default function WorkbenchDrawer({
   uploads,
   selectedUpload,
   onSelectUpload,
-  onUploadFile,
   requests,
   activeRequest,
   onSelectRequest,
@@ -368,61 +362,11 @@ export default function WorkbenchDrawer({
   onAddExternalSource,
 }) {
 
-  function resolveDsmTabFromTileText(value = "") {
-    const raw = String(value).toLowerCase();
-
-    if (raw.includes("wfs")) return "wfs";
-
-    if (
-      raw.includes("url") ||
-      raw.includes("api") ||
-      raw.includes("wms") ||
-      raw.includes("service") ||
-      raw.includes("external")
-    ) {
-      return "url";
-    }
-
-    if (
-      raw.includes("file") ||
-      raw.includes("upload") ||
-      raw.includes("vector") ||
-      raw.includes("raster") ||
-      raw.includes("فایل") ||
-      raw.includes("آپلود") ||
-      raw.includes("وکتور") ||
-      raw.includes("رستر")
-    ) {
-      return "file";
-    }
-
-    if (
-      raw.includes("postgis") ||
-      raw.includes("database") ||
-      raw.includes("db") ||
-      raw.includes("دیتابیس")
-    ) {
-      return "postgis";
-    }
-
-    return "postgis";
-  }
-
-  function handleDsmTileClick(event, fallback = "") {
-    const text = event?.currentTarget?.textContent || fallback;
-    const tab = resolveDsmTabFromTileText(text);
-    if (typeof onAddExternalSource === "function") {
-      onAddExternalSource(tab);
-    }
-  }
-
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
-  const [uploadKind, setUploadKind] = useState("vector");
-  const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [dataSourceMode, setDataSourceMode] = useState("file");
+  const dataSourceMode = "file";
   const [dataSourceQuery, setDataSourceQuery] = useState("");
   const [dataSourceFilter, setDataSourceFilter] = useState("all");
   const [dataSourceSort, setDataSourceSort] = useState("newest");
@@ -581,36 +525,6 @@ export default function WorkbenchDrawer({
       });
       setProjectName("");
       setProjectDescription("");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleUpload(event) {
-    event.preventDefault();
-    setError("");
-
-    if (!activeProject?.project_id) {
-      setError("ابتدا یک پروژه فعال انتخاب کنید.");
-      return;
-    }
-
-    if (!file) {
-      setError("ابتدا فایل را انتخاب کنید.");
-      return;
-    }
-
-    if (!["raster", "vector"].includes(uploadKind)) {
-      setError("در این نسخه فقط آپلود Raster و Vector به backend متصل است.");
-      return;
-    }
-
-    try {
-      setBusy(true);
-      await onUploadFile(uploadKind, file);
-      setFile(null);
     } catch (err) {
       setError(err.message);
     } finally {

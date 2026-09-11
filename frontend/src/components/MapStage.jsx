@@ -484,16 +484,22 @@ export default function MapStage({
       .join("|");
   }, [rawLayers]);
 
-  useEffect(() => {
+  const fitTriggerCounterRef = useRef(0);
+
+  const [trackedLayersSignature, setTrackedLayersSignature] = useState(
+    rawLayersSignature
+  );
+  if (trackedLayersSignature !== rawLayersSignature) {
+    setTrackedLayersSignature(rawLayersSignature);
     setHiddenLayerKeys(new Set());
     setRemovedLayerKeys(new Set());
     setStyleLayerKey(null);
     setFitRequest({
       key: null,
       featureId: null,
-      trigger: Date.now(),
+      trigger: rawLayersSignature,
     });
-  }, [rawLayersSignature]);
+  }
 
   const getDefaultStyle = (color) => ({
     color,
@@ -594,13 +600,7 @@ export default function MapStage({
     const target = allRenderableLayers.find((layer) => layer.key === fitRequest.key);
 
     return target?.geojson ? [target.geojson] : collections;
-  }, [
-    fitRequest?.key,
-    fitRequest?.featureId,
-    selectedFeatureId,
-    allRenderableLayers,
-    collections,
-  ]);
+  }, [fitRequest, selectedFeatureId, allRenderableLayers, collections]);
 
   const fitSignature = useMemo(() => {
     return `${visibleSignature}|fit:${fitRequest.key || "all"}:${fitRequest.featureId || "none"}:${fitRequest.trigger}`;
@@ -671,18 +671,20 @@ export default function MapStage({
   };
 
   const zoomToAllVisibleLayers = () => {
+    fitTriggerCounterRef.current += 1;
     setFitRequest({
       key: null,
       featureId: null,
-      trigger: Date.now(),
+      trigger: fitTriggerCounterRef.current,
     });
   };
 
   const zoomToLayer = (layerKey) => {
+    fitTriggerCounterRef.current += 1;
     setFitRequest({
       key: layerKey,
       featureId: null,
-      trigger: Date.now(),
+      trigger: fitTriggerCounterRef.current,
     });
   };
 
@@ -922,7 +924,7 @@ export default function MapStage({
                     <div className="map-layer-chip-actions-pro">
                       <button
                         type="button"
-                        onClick={() => { console.log("ZOOM CLICK", item.key); zoomToLayer(item.key); }}
+                        onClick={() => zoomToLayer(item.key)}
                         title="Zoom to this layer"
                       >
                         ⌖

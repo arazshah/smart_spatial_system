@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 function createRequestId() {
   const suffix = Math.random().toString(16).slice(2, 8);
@@ -152,19 +152,23 @@ export default function QueryPanel({
 
   const selectedUploadKind = normalizeUploadKind(activeUpload?.kind);
 
-  useEffect(() => {
+  const [trackedUpload, setTrackedUpload] = useState(upload);
+  if (trackedUpload !== upload) {
+    setTrackedUpload(upload);
     if (upload?.upload_id) {
       setUploadRef(upload.upload_id);
       setInputMode("selected_upload");
     }
-  }, [upload]);
+  }
 
-  useEffect(() => {
+  const [trackedSelectedUpload, setTrackedSelectedUpload] = useState(selectedUpload);
+  if (trackedSelectedUpload !== selectedUpload) {
+    setTrackedSelectedUpload(selectedUpload);
     if (selectedUpload?.upload_id) {
       setUploadRef(selectedUpload.upload_id);
       setInputMode("selected_upload");
     }
-  }, [selectedUpload]);
+  }
 
   function handlePresetChange(nextPresetId) {
     const nextPreset =
@@ -235,7 +239,7 @@ export default function QueryPanel({
       try {
         return JSON.parse(inputsText);
       } catch (err) {
-        throw new Error(`JSON ورودی‌ها معتبر نیست: ${err.message}`);
+        throw new Error(`JSON ورودی‌ها معتبر نیست: ${err.message}`, { cause: err });
       }
     }
 
@@ -252,7 +256,7 @@ export default function QueryPanel({
 
       return value;
     } catch (err) {
-      throw new Error(`JSON band_map معتبر نیست: ${err.message}`);
+      throw new Error(`JSON band_map معتبر نیست: ${err.message}`, { cause: err });
     }
   }
 
@@ -298,7 +302,7 @@ export default function QueryPanel({
     }
   }
 
-  let previewPayload = null;
+  let previewPayload;
 
   try {
     previewPayload = buildPayload();

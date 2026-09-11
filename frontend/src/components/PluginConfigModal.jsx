@@ -41,8 +41,15 @@ function ModalContent({ pluginId, onClose }) {
   const [configPath, setConfigPath] = useState("");
   const backdropRef = useRef(null);
 
+  const [trackedPluginId, setTrackedPluginId] = useState(pluginId);
+  if (trackedPluginId !== pluginId) {
+    setTrackedPluginId(pluginId);
+    setLoading(true);
+    setError("");
+    setSaveResult(null);
+  }
+
   useEffect(() => {
-    setLoading(true); setError(""); setSaveResult(null);
     getPluginConfig(pluginId)
       .then(data => {
         const yaml = data?.raw_yaml || "";

@@ -4,7 +4,7 @@ const API_BASE_URL =
 async function parseResponse(response) {
   const text = await response.text();
 
-  let data = null;
+  let data;
 
   try {
     data = text ? JSON.parse(text) : null;

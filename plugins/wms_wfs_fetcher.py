@@ -42,6 +42,7 @@ from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.raster import RasterOut
 from geochat_sdk.types.vector import VectorOut
 
+from orchestrator.provider_error_mapping import redact_provider_error_message
 from plugins._shared.numeric_validation import to_int as _shared_to_int
 from plugins._shared.plugin_config import (
     load_plugin_config,
@@ -481,7 +482,10 @@ def _http_get_json(base_url: str, params: dict[str, Any], timeout: int) -> Any:
         response.raise_for_status()
         return response.json()
     except Exception as exc:
-        raise RuntimeError(f"Failed to fetch JSON from WFS service. Error: {exc}") from exc
+        message = redact_provider_error_message(
+            f"Failed to fetch JSON from WFS service. Error: {exc}"
+        )
+        raise RuntimeError(message) from exc
 
 
 def _http_get_bytes(base_url: str, params: dict[str, Any], timeout: int) -> tuple[bytes, dict[str, Any]]:
@@ -518,7 +522,10 @@ def _http_get_bytes(base_url: str, params: dict[str, Any], timeout: int) -> tupl
         }
 
     except Exception as exc:
-        raise RuntimeError(f"Failed to fetch bytes from WMS service. Error: {exc}") from exc
+        message = redact_provider_error_message(
+            f"Failed to fetch bytes from WMS service. Error: {exc}"
+        )
+        raise RuntimeError(message) from exc
 
 
 def _build_wfs_params(

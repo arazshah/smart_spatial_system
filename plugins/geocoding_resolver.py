@@ -47,6 +47,7 @@ from geochat_sdk.decorators import capability
 from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.vector import VectorOut
 
+from orchestrator.provider_error_mapping import redact_provider_error_message
 from plugins._shared.numeric_validation import to_int as _shared_to_int
 from plugins._shared.plugin_config import (
     load_plugin_config,
@@ -1132,7 +1133,7 @@ def geocode_place(
         except Exception as exc:
             provider_errors.append({
                 "provider": provider_name,
-                "error": str(exc),
+                "error": redact_provider_error_message(str(exc)),
             })
 
             if not continue_on_error or len(chain) == 1:
@@ -1291,7 +1292,7 @@ def reverse_geocode_point(
         except Exception as exc:
             provider_errors.append({
                 "provider": provider_name,
-                "error": str(exc),
+                "error": redact_provider_error_message(str(exc)),
             })
 
             if not continue_on_error or len(chain) == 1:

@@ -11,12 +11,36 @@ the original phase text where they disagree):
   than planned - `orchestrator/kernel_artifacts.py` bridges current
   planning/direct outputs to `geochat_kernel.models.GeoArtifact`, not a new
   `orchestrator/artifacts.py`.
-- Phase 2 (unified response assembler): NOT done. `SimpleResponseBuilder`
-  (orchestrator/response_builder.py) and `ProductionResponseBuilder`
-  (orchestrator/production_response.py) are still separate. Highest-risk
-  remaining phase - touches every response shape the frontend depends on.
-  Do this as its own dedicated effort with golden tests, not bundled with
-  anything else.
+- Phase 2 (unified response assembler): done, per the migration steps in
+  docs/PHASE2_UNIFIED_RESPONSE_PLAN.md. `orchestrator/response_assembler.py`
+  (`assemble_response`) is now wired into all four response sources -
+  `ProductionResponseBuilder`/legacy fallback (both the success and
+  exception paths), QuerySpec planning, vector display, and real-estate
+  ranking (wired last, per the plan, since it's the README's flagship demo
+  workflow) - each landed as its own commit gated on
+  tests/test_query_response_shape_golden.py (added first, before any
+  wiring) still passing except for the specific, intentional
+  normalization at each step. The concrete inconsistency the plan called
+  out - top-level `"status": "succeeded"` on three of the four sources vs.
+  `ProductionResponseBuilder`'s `"status": "success"` - is closed: all
+  four now normalize through the same `success`/`partial_success`/`failed`
+  vocabulary, and `schema_version`/`success`/`artifacts` are always
+  present. `SimpleResponseBuilder` (orchestrator/response_builder.py) was
+  not touched directly - it is not one of the four dispatch sources, but
+  it is not dead either: `run_natural_query_with_routing_evidence` (the
+  live `natural_query_runner` callable, still using
+  `SimpleCapabilityRouter`'s routing-evidence sibling per Phase 7's own
+  note below) builds `run_result["response"]` with it, and
+  `ProductionResponseBuilder.build_dict` falls back to that field when no
+  explicit `response=` is passed - so its output is already covered
+  transitively by step 3.1's wiring into `ProductionResponseBuilder`, one
+  layer up. What's still open, and intentionally deferred as
+  optional (step 4 of the plan): whether `direct_query_dispatch.py`'s
+  handlers still need to return full response dicts at all, versus a
+  smaller intermediate shape the assembler builds from, plus the
+  frontend's defensive fallback-chasing in `InspectorPanel.jsx` (still
+  works unchanged against the now-unified backend shape, but could be
+  simplified as separate follow-up work).
 - Phase 3 (planning default config): done - `OrchestratorServiceConfig`
   now has `query_spec_planning_enabled`/`llm_planning_enabled` fields,
   env vars remain a deployment-level override on top of them.

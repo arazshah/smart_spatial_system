@@ -57,15 +57,32 @@ the original phase text where they disagree):
   default or routing this specific query type through the DAG needs the
   Phase 2 unified response first, since the DAG path and this direct
   handler currently return different response shapes.
-- Phase 5 (real estate to plugin): NOT done and larger than the text
-  below suggests. Real-estate ranking is a fully separate direct-dispatch
-  path (`direct_response_handler`/`preflight_direct_response_handler` in
-  query_execution_service.py) with ZERO representation in OP_CATALOG -
-  there is no `real_estate_rank` op today, so this phase requires
-  designing the op/capability contract from scratch, not just moving
-  code. This is also the real-estate site-ranking + PDF report workflow,
-  one of the two workflows the README documents as a primary demo
-  feature - real regression risk. Treat as its own planned effort.
+- Phase 5 (real estate to plugin): steps 1-5 of 6 done, per
+  docs/PHASE5_REAL_ESTATE_PLUGIN_PLAN.md's migration plan. The MVP
+  scoring/eligibility formula (`real_estate_scoring.py`) and the spatial
+  enrichment additive-fallback (`real_estate_context.py`) are now exposed
+  as plugin capabilities (`plugins/real_estate_scoring.py`,
+  `plugins/real_estate_spatial_enrichment.py`, unchanged formula/logic
+  underneath) and registered in `OP_CATALOG` as `real_estate_score`/
+  `real_estate_spatial_enrich`. Real-estate ranking queries can now be
+  routed through the same QuerySpec/DAG path as other planning queries -
+  `real_estate_spatial_enrich -> real_estate_score -> filter_attribute
+  (eligible=true) -> rank_features -> build_report`, the last three being
+  already-registered generic ops, not new real-estate-specific ones -
+  gated behind a new `real_estate_query_spec_planning_enabled` config
+  flag (default `False`, same env-override-config precedence pattern as
+  Phase 3's flags). Verified end-to-end parity with the legacy direct
+  handler (same top score, ranked order, eligible/rejected split) through
+  a real `OrchestratorService` instance with the flag on.
+  What's NOT done: step 6, removing
+  `real_estate_ranking_direct_handler.py`'s registration from
+  `direct_query_dispatch.py`. Per this plan's own rule ("remove legacy
+  only after a tested replacement exists") and Phase 7's identical rule,
+  that removal should wait until the new path has actually been enabled
+  and used, not just verified in tests - the flag stays off by default
+  for now, so production behavior for this workflow (one of the two the
+  README documents as a primary demo feature) is unchanged from before
+  this phase.
 - Phase 6 (source abstraction): partial. Deduplicated the one piece that
   was genuinely unsafe to leave duplicated: local_vector_loader.py and
   local_raster_loader.py each carried a byte-identical copy of path/

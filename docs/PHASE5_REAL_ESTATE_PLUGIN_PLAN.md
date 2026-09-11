@@ -2,8 +2,25 @@
 
 ## Status
 
-Planned, not started. This is a plan document only — REFACTOR_PLAN.md's
-Phase 5 stays "NOT done" until this is executed and merged.
+Steps 1-5 of 6 done (verified 2026-09). See `docs/REFACTOR_PLAN.md`'s
+Phase 5 status note for the up-to-date summary of what landed and what's
+still open. Step 6 (removing the legacy direct handler) is deliberately
+not done yet: the new path is opt-in via
+`real_estate_query_spec_planning_enabled` (default `False`), and per this
+plan's own rule ("remove legacy only after a tested replacement exists"),
+that removal should wait until the flag has been enabled and verified in
+real usage, not just in tests.
+
+One resolution worth calling out explicitly: Open Question 3 (how DAG
+ranking preserves both ranked and rejected properties) was resolved
+*against* adding a monolithic `real_estate_rank` op as sketched in the
+original target table below. Instead, `real_estate_score` only annotates
+every feature with `eligible`/`score` (it does not split or sort) — the
+already-registered generic `filter_attribute` (`where eligible=true`) and
+`rank_features` ops handle the split and ranking. This turned out simpler
+and more reusable than the original sketch, so the "Target shape" section
+below is superseded by `orchestrator/planning/op_catalog.py`'s actual
+`real_estate_score`/`real_estate_spatial_enrich` entries and their notes.
 
 ## Correction to the earlier assessment
 

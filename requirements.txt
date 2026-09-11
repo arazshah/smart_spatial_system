@@ -1,0 +1,30 @@
+# Inferred from the imports in this repository (2026-09). Pin versions with
+# `pip freeze > requirements.lock` once you have a working environment.
+
+# GeoChat kernel + SDK (https://github.com/arazshah/geochat-platform)
+geochat-sdk @ git+https://github.com/arazshah/geochat-platform.git#subdirectory=geochat-sdk
+geochat-kernel @ git+https://github.com/arazshah/geochat-platform.git#subdirectory=geochat-kernel
+
+# API
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+pyyaml
+httpx
+jinja2
+
+# Geospatial
+shapely
+pyproj
+numpy
+rasterio
+geopandas
+psycopg[binary]
+requests            # WMS/WFS fetcher
+
+# Optional
+weasyprint          # PDF reports (pdf_renderer plugin)
+
+# Development
+pytest

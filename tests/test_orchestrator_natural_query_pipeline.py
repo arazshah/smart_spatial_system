@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -21,7 +20,6 @@ from orchestrator.capability_router import SimpleCapabilityRouter  # noqa: E402
 from orchestrator.natural_query_runner import run_natural_query  # noqa: E402
 from orchestrator.plan_builder import SimplePlanBuilder  # noqa: E402
 from orchestrator.query_parser import SimpleNaturalLanguageParser  # noqa: E402
-
 
 SATELLITE_RASTER_2BAND = {
     "data": [

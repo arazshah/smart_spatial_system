@@ -27,13 +27,9 @@ Main responsibilities:
 from __future__ import annotations
 
 import importlib
-import os
-
 import uuid
 from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
-
-from orchestrator.runtime_paths import RuntimePaths
 from typing import Any
 
 from orchestrator.error_contract import CATEGORY_INTERNAL, exception_to_error
@@ -90,64 +86,9 @@ class _EnabledOnlyCapabilityRouter:
         return sorted(self._bindings.keys())
 
 
-from orchestrator.capability_registry import CapabilityRegistry
-from orchestrator.plugin_modules import DEFAULT_SAFE_PLUGIN_MODULES
-from orchestrator.plugin_state import (
-    PluginStateStore,
-    PluginStateStoreConfig,
-    PluginStateStoreError,
-)
-from orchestrator.capability_scoring import KeywordScoringCapabilityRouter
-from orchestrator.feedback import FeedbackCollector, UserFeedbackInput
-from orchestrator.learning_signals import RouterLearningSignalBuilder
-from orchestrator.map_layers import MapLayerBuilder
 from orchestrator.input_reference_resolver import (
-    UploadReferenceResolver,
-    UploadReferenceResolverConfig,
     UploadReferenceResolverError,
 )
-from orchestrator.data_source_service import DataSourceService, DataSourceServiceError
-from orchestrator.map_layer_service import MapLayerService, MapLayerServiceError
-from orchestrator.output_service import OutputService, OutputServiceError
-from orchestrator.output_storage import (
-    OutputStorage,
-    OutputStorageConfig,
-    OutputStorageError,
-)
-from orchestrator.project_store import (
-    ProjectStore,
-    ProjectStoreConfig,
-)
-from orchestrator.project_service import (
-    ProjectService,
-    ProjectServiceError,
-)
-from orchestrator.production_response import (
-    ProductionResponseBuilder,
-    ProductionResponseConfig,
-)
-from orchestrator.routing_aware_natural_query_runner import (
-    run_natural_query_with_routing_evidence,
-)
-from orchestrator.upload_service import UploadService, UploadServiceError
-from orchestrator.upload_storage import (
-    UploadStorage,
-    UploadStorageConfig,
-    UploadStorageError,
-)
-from orchestrator.weight_proposals import (
-    InMemoryRouterWeightStore,
-    RouterWeightProposalCollector,
-    RouterWeightProposalEngine,
-    WeightProposal,
-    WeightStoreConfig,
-)
-from orchestrator.weight_store_persistence import (
-    RouterWeightStorePersistence,
-    WeightStorePersistenceConfig,
-    WeightStorePersistenceError,
-)
-from orchestrator.weighted_router import WeightedCapabilityRouter, WeightedRouterConfig
 from orchestrator.planning.dag_executor import DagExecutionError, DagValidationError
 from orchestrator.planning.llm_spec_generator import (
     LLMQuerySpecGenerator,
@@ -156,90 +97,56 @@ from orchestrator.planning.llm_spec_generator import (
     query_spec_to_dict,
 )
 from orchestrator.planning.planner import PlanningError
-from orchestrator.planning.runner import make_registry_planning_runner
 from orchestrator.planning.query_spec_contract import validate_query_spec_contract
-from smart_spatial_system.application.services.planning_response_adapter import (
-    planning_outputs_to_response_payload,
-    planning_trace_to_steps,
+from orchestrator.planning.runner import make_registry_planning_runner
+from orchestrator.plugin_modules import DEFAULT_SAFE_PLUGIN_MODULES
+from orchestrator.routing_aware_natural_query_runner import (
+    run_natural_query_with_routing_evidence,
 )
-
-
-from smart_spatial_system.application.services.planning_execution_policy import (
-    is_kernel_execution_enabled,
-    is_query_spec_planning_enabled,
-)
-
-
-from smart_spatial_system.application.services.query_spec_enrichment import (
-    enrich_query_database_params_from_inputs,
-)
-
-
 from smart_spatial_system.application.services.llm_intent_adapter import (
     LLMIntentAdapterError,
     apply_intent_to_query,
     is_llm_planning_enabled,
+)
+from smart_spatial_system.application.services.llm_intent_adapter import (
     plan_intent_with_llm as run_llm_intent_planner,
 )
-
-
-from smart_spatial_system.application.services.system_status_query_handler import (
-    is_system_status_query,
-    try_handle_system_status_query,
+from smart_spatial_system.application.services.planning_execution_policy import (
+    is_kernel_execution_enabled,
+    is_query_spec_planning_enabled,
 )
-
-
-from smart_spatial_system.application.services.vector_geojson_helpers import (
-    find_geojson_like,
-    read_geojson_path_if_possible,
-    summarize_feature_collection,
+from smart_spatial_system.application.services.planning_response_adapter import (
+    planning_outputs_to_response_payload,
+    planning_trace_to_steps,
 )
-
-
-from smart_spatial_system.application.services.vector_query_classifier import (
-    is_vector_display_query,
-    is_vector_summary_query,
-)
-
-
-from smart_spatial_system.application.services.vector_display_handler import (
-    try_handle_vector_display_directly,
-)
-
-
 from smart_spatial_system.application.services.query_execution.natural_query_context import (
     prepare_natural_query_context,
 )
-
 from smart_spatial_system.application.services.query_execution.natural_query_execution import (
     execute_and_persist_natural_query_success_path,
 )
-
 from smart_spatial_system.application.services.query_execution.natural_query_failure import (
     build_and_persist_failed_natural_query_response,
 )
-
-from smart_spatial_system.application.services.query_execution.planning_execution import (
-    execute_query_spec_planning,
-)
-
-from smart_spatial_system.application.services.query_execution.planning_persistence import (
-    persist_query_spec_planning_record,
-)
-
-from smart_spatial_system.application.services.query_execution.planning_response import (
-    build_query_spec_planning_response,
-)
-
 from smart_spatial_system.application.services.query_execution.planning_context import (
     build_query_spec_planning_context,
 )
-
+from smart_spatial_system.application.services.query_execution.planning_execution import (
+    execute_query_spec_planning,
+)
+from smart_spatial_system.application.services.query_execution.planning_persistence import (
+    persist_query_spec_planning_record,
+)
+from smart_spatial_system.application.services.query_execution.planning_response import (
+    build_query_spec_planning_response,
+)
 from smart_spatial_system.application.services.query_execution.postgis_planning_context import (
     _build_query_spec_runtime_inputs,
     _extract_semantic_planning_context_from_sources,
 )
-
+from smart_spatial_system.application.services.query_spec_enrichment import (
+    enrich_query_database_params_from_inputs,
+)
 from smart_spatial_system.application.services.real_estate_spatial_helpers import (
     distance_point_to_geometry_m,
     distance_point_to_point_m,
@@ -253,6 +160,22 @@ from smart_spatial_system.application.services.real_estate_spatial_helpers impor
     point_in_polygon_feature_lonlat,
     point_in_ring_lonlat,
     to_float_or_none,
+)
+from smart_spatial_system.application.services.system_status_query_handler import (
+    is_system_status_query,
+    try_handle_system_status_query,
+)
+from smart_spatial_system.application.services.vector_display_handler import (
+    try_handle_vector_display_directly,
+)
+from smart_spatial_system.application.services.vector_geojson_helpers import (
+    find_geojson_like,
+    read_geojson_path_if_possible,
+    summarize_feature_collection,
+)
+from smart_spatial_system.application.services.vector_query_classifier import (
+    is_vector_display_query,
+    is_vector_summary_query,
 )
 
 
@@ -975,7 +898,7 @@ class QueryExecutionService:
         return _query_execution_domain_callable("real_estate_classifier", "looks_like_real_estate_ranking_query")(query)
 
     def _extract_property_feature_collection_from_inputs(self, inputs: dict[str, Any] | None) -> dict[str, Any] | None:
-        return extract_property_feature_collection_from_inputs(inputs)
+        return _query_execution_domain_callable("real_estate_context", "extract_property_feature_collection_from_inputs")(inputs)
 
     def _extract_real_estate_spatial_context_from_inputs(self, inputs: dict[str, Any] | None) -> dict[str, Any]:
         return _query_execution_domain_callable("real_estate_context", "extract_real_estate_spatial_context_from_inputs")(inputs)
@@ -1071,7 +994,9 @@ class QueryExecutionService:
         feature_collection: dict[str, Any],
         spatial_context: dict[str, list[dict[str, Any]]] | None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        return enrich_property_feature_collection_with_spatial_context(
+        return _query_execution_domain_callable(
+            "real_estate_context", "enrich_property_feature_collection_with_spatial_context"
+        )(
             feature_collection,
             spatial_context,
             feature_point_lonlat=self._feature_point_lonlat,

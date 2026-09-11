@@ -86,15 +86,16 @@ export default function MapViewer({ response }) {
 
   const requestId = response?.request_id;
 
-  useEffect(() => {
-    if (!requestId) {
-      setMapLayersPayload(null);
-      setError("");
-      return;
-    }
-
-    setLoading(true);
+  const [trackedRequestId, setTrackedRequestId] = useState(requestId);
+  if (trackedRequestId !== requestId) {
+    setTrackedRequestId(requestId);
+    setMapLayersPayload(null);
     setError("");
+    if (requestId) setLoading(true);
+  }
+
+  useEffect(() => {
+    if (!requestId) return;
 
     getMapLayers(requestId)
       .then(setMapLayersPayload)

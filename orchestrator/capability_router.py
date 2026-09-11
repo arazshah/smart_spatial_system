@@ -9,6 +9,8 @@ Later it should be replaced with a registry-backed router that scores capabiliti
 
 from __future__ import annotations
 
+from typing import Any
+
 
 def _default_capability_handlers() -> dict[str, Any]:
     """
@@ -30,7 +32,7 @@ def _default_capability_handlers() -> dict[str, Any]:
     handlers: dict[str, Any] = {}
     for name in names:
         try:
-            handlers[name] = registry.resolve(name)
+            handlers[name] = registry.resolve(name).callable
         except Exception:
             continue
 
@@ -48,11 +50,12 @@ class SimpleCapabilityRouter:
     """
 
     def __init__(self) -> None:
+        handlers = _default_capability_handlers()
         self._bindings: dict[str, CapabilityBinding] = {
             "calculate_spectral_index": CapabilityBinding(
                 name="calculate_spectral_index",
                 plugin_id="spectral_indices",
-                callable=calculate_spectral_index,
+                callable=handlers["calculate_spectral_index"],
                 output_kind="raster",
                 keywords=[
                     "ndvi",
@@ -64,7 +67,7 @@ class SimpleCapabilityRouter:
             "threshold_raster": CapabilityBinding(
                 name="threshold_raster",
                 plugin_id="raster_threshold",
-                callable=threshold_raster,
+                callable=handlers["threshold_raster"],
                 output_kind="raster",
                 keywords=[
                     "threshold",
@@ -77,7 +80,7 @@ class SimpleCapabilityRouter:
             "raster_to_vector": CapabilityBinding(
                 name="raster_to_vector",
                 plugin_id="raster_to_vector",
-                callable=raster_to_vector,
+                callable=handlers["raster_to_vector"],
                 output_kind="vector",
                 keywords=[
                     "polygon",

@@ -25,12 +25,15 @@ from pathlib import Path
 from typing import Any
 
 from geochat_sdk.decorators import capability
+from geochat_sdk.exceptions import SDKDependencyError
 from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.vector import VectorOut
-from geochat_sdk.exceptions import SDKDependencyError
 
-from plugins._shared.plugin_config import load_plugin_config, pick_first, resolve_env_refs
-
+from plugins._shared.plugin_config import (
+    load_plugin_config,
+    pick_first,
+    resolve_env_refs,
+)
 
 PLUGIN_ID = "local_vector_loader"
 
@@ -355,6 +358,7 @@ def _load_with_geopandas(
     """
     try:
         import json as _json
+
         import geopandas as gpd
     except ImportError as exc:
         raise SDKDependencyError(

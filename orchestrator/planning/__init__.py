@@ -2,10 +2,14 @@
 Planning kernel for smart spatial query execution.
 """
 
-from orchestrator.planning.spec import EntitySpec, OperationSpec, OutputSpec, QuerySpec
 from orchestrator.planning.dag import DagNode, DagPlan
+from orchestrator.planning.llm_spec_generator import (
+    LLMQuerySpecGenerator,
+    OpenAICompatibleLLMClient,
+    StaticLLMClient,
+    normalize_llm_query_spec_for_planning,
+)
 from orchestrator.planning.planner import DeterministicPlanner, PlanningError
-from orchestrator.planning.runner import PlanningRunner, PlanningRunResult
 from orchestrator.planning.report_spec import (
     MapLayerSpec,
     ReportSpec,
@@ -15,13 +19,8 @@ from orchestrator.planning.report_spec import (
     default_real_estate_report_spec,
     report_spec_from_dict,
 )
-
-from orchestrator.planning.llm_spec_generator import (
-    LLMQuerySpecGenerator,
-    OpenAICompatibleLLMClient,
-    StaticLLMClient,
-    normalize_llm_query_spec_for_planning,
-)
+from orchestrator.planning.runner import PlanningRunner, PlanningRunResult
+from orchestrator.planning.spec import EntitySpec, OperationSpec, OutputSpec, QuerySpec
 
 __all__ = [
     "EntitySpec",

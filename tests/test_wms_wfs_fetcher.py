@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -41,6 +40,8 @@ class FakeJsonResponse:
         self.url = url
         self.headers = {"Content-Type": "application/json"}
         self.content = b""
+        self.is_redirect = False
+        self.is_permanent_redirect = False
 
     def raise_for_status(self):
         return None
@@ -54,6 +55,8 @@ class FakeBytesResponse:
         self.content = content
         self.url = url
         self.headers = {"Content-Type": "image/geotiff"}
+        self.is_redirect = False
+        self.is_permanent_redirect = False
 
     def raise_for_status(self):
         return None
@@ -62,7 +65,7 @@ class FakeBytesResponse:
 def install_fake_requests_json(monkeypatch, data, call_store=None):
     fake_module = types.ModuleType("requests")
 
-    def get(url, params=None, timeout=None):
+    def get(url, params=None, timeout=None, allow_redirects=True):
         if call_store is not None:
             call_store["url"] = url
             call_store["params"] = params
@@ -76,7 +79,7 @@ def install_fake_requests_json(monkeypatch, data, call_store=None):
 def install_fake_requests_bytes(monkeypatch, content=b"FAKE_TIFF_BYTES", call_store=None):
     fake_module = types.ModuleType("requests")
 
-    def get(url, params=None, timeout=None):
+    def get(url, params=None, timeout=None, allow_redirects=True):
         if call_store is not None:
             call_store["url"] = url
             call_store["params"] = params
@@ -85,6 +88,26 @@ def install_fake_requests_bytes(monkeypatch, content=b"FAKE_TIFF_BYTES", call_st
 
     fake_module.get = get
     monkeypatch.setitem(sys.modules, "requests", fake_module)
+
+
+@pytest.fixture(autouse=True)
+def _stub_dns_for_example_com(monkeypatch):
+    """
+    _validate_url resolves hostnames to check for SSRF against private/
+    internal networks. Stub DNS resolution so these tests don't depend on
+    real network access to a real "example.com" - they only need a stable
+    public-looking IP for the test host used throughout this file.
+    """
+    import socket
+
+    real_getaddrinfo = socket.getaddrinfo
+
+    def fake_getaddrinfo(host, *args, **kwargs):
+        if host in {"example.com", "www.example.com"}:
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))]
+        return real_getaddrinfo(host, *args, **kwargs)
+
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
 
 
 @pytest.fixture
@@ -128,13 +151,42 @@ def test_plugin_manifest_basic_fields() -> None:
 
 def test_validate_url_success() -> None:
     assert _validate_url("https://example.com/geoserver/wfs") == "https://example.com/geoserver/wfs"
-    assert _validate_url("http://localhost:8080/geoserver/wms") == "http://localhost:8080/geoserver/wms"
+
+    assert (
+        _validate_url("http://localhost:8080/geoserver/wms", allow_private_network=True)
+        == "http://localhost:8080/geoserver/wms"
+    )
 
 
 @pytest.mark.parametrize("url", ["", " ", "ftp://example.com", "example.com/wfs", "http:///bad"])
 def test_validate_url_rejects_invalid(url: str) -> None:
     with pytest.raises(ValueError):
         _validate_url(url)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://localhost:8080/geoserver/wms",
+        "http://127.0.0.1/geoserver/wms",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://0.0.0.0/",
+    ],
+)
+def test_validate_url_blocks_private_network_targets_by_default(url: str) -> None:
+    # Caller-supplied URLs (the untrusted default) must not be able to reach
+    # loopback/link-local/private addresses - this is the SSRF guard.
+    with pytest.raises(ValueError):
+        _validate_url(url)
+
+
+def test_validate_url_allows_private_network_when_trusted() -> None:
+    # Only URLs resolved from the deployer's own plugin config should opt
+    # into targeting internal addresses (e.g. a local dev GeoServer).
+    assert (
+        _validate_url("http://127.0.0.1:8080/geoserver/wfs", allow_private_network=True)
+        == "http://127.0.0.1:8080/geoserver/wfs"
+    )
 
 
 def test_bbox_to_string_from_list() -> None:

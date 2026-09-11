@@ -1,5 +1,5 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -7,9 +7,6 @@ if str(ROOT) not in sys.path:
 
 from orchestrator.planning.report_spec import (
     MapLayerSpec,
-    ReportSpec,
-    SummarySpec,
-    TableColumnSpec,
     TableSpec,
     default_real_estate_report_spec,
     report_spec_from_dict,
@@ -39,7 +36,7 @@ def test_default_real_estate_report_spec_structure():
     assert "ranked_properties" in sources
 
     # Ranked layer must be choropleth
-    choropleth = next(l for l in spec.map_layers if l.kind == "choropleth")
+    choropleth = next(layer for layer in spec.map_layers if layer.kind == "choropleth")
     assert choropleth.source == "ranked_properties"
     assert choropleth.style["color_field"] == "investment_score"
 

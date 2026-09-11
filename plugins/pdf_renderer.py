@@ -21,7 +21,6 @@ Output:
 from __future__ import annotations
 
 import io
-import os
 import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -32,7 +31,6 @@ from geochat_sdk.decorators import capability
 from geochat_sdk.plugin import auto_collect
 
 from plugins.report_builder import ReportOut
-
 
 PLUGIN_ID = "pdf_renderer"
 

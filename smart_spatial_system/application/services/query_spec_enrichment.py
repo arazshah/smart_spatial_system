@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 QUERY_DATABASE_RUNTIME_KEYS = (
     "host",
     "port",

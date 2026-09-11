@@ -5,6 +5,8 @@ from typing import Any
 
 from smart_spatial_system.application.services.query_execution.real_estate_classifier import (
     has_any_real_estate_payload as default_has_any_real_estate_payload,
+)
+from smart_spatial_system.application.services.query_execution.real_estate_classifier import (
     is_real_estate_analysis_query as default_is_real_estate_analysis_query,
 )
 

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 DISPATCH_PATHS = [
     Path("smart_spatial_system/application/services/query_execution/direct_query_dispatch.py"),
     Path("smart_spatial_system/application/services/query_execution/natural_query_dispatch.py"),

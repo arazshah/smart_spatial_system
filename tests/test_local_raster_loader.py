@@ -15,7 +15,6 @@ import pytest
 import rasterio
 from rasterio.transform import from_origin
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 

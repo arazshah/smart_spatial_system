@@ -8,15 +8,16 @@ export default function OutputFilesPanel({ response }) {
 
   const requestId = response?.request_id;
 
-  useEffect(() => {
-    if (!requestId) {
-      setManifest(null);
-      setError("");
-      return;
-    }
-
-    setLoading(true);
+  const [trackedRequestId, setTrackedRequestId] = useState(requestId);
+  if (trackedRequestId !== requestId) {
+    setTrackedRequestId(requestId);
+    setManifest(null);
     setError("");
+    if (requestId) setLoading(true);
+  }
+
+  useEffect(() => {
+    if (!requestId) return;
 
     getOutputManifest(requestId)
       .then(setManifest)

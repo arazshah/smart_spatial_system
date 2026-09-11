@@ -1,6 +1,10 @@
 import pytest
 
-from orchestrator.planning.planner import DeterministicPlanner, PlannerConfig, PlanningError
+from orchestrator.planning.planner import (
+    DeterministicPlanner,
+    PlannerConfig,
+    PlanningError,
+)
 from orchestrator.planning.spec import EntitySpec, OperationSpec, OutputSpec, QuerySpec
 
 

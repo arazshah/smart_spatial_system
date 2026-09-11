@@ -1,10 +1,13 @@
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
+// Only needed if the backend was started with SMART_SPATIAL_API_KEY set.
+const API_KEY = import.meta.env.VITE_API_KEY || "";
+
 async function parseResponse(response) {
   const text = await response.text();
 
-  let data = null;
+  let data;
 
   try {
     data = text ? JSON.parse(text) : null;
@@ -31,6 +34,10 @@ async function request(path, options = {}) {
 
   if (!(options.body instanceof FormData) && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
+  }
+
+  if (API_KEY && !headers["X-API-Key"]) {
+    headers["X-API-Key"] = API_KEY;
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {

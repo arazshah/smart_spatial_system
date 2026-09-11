@@ -10,10 +10,9 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 import pytest
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -23,9 +22,9 @@ from plugins.geocoding_resolver import (  # noqa: E402
     PLUGIN_ID,
     _build_feature,
     _configured_precision,
+    _geometry_bbox,
     _get_path,
     _get_provider_config,
-    _geometry_bbox,
     _normalize_provider_name,
     _parse_bbox,
     _provider_chain_from_config,

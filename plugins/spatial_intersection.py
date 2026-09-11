@@ -48,8 +48,11 @@ from geochat_sdk.exceptions import SDKDependencyError
 from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.vector import VectorOut
 
-from plugins._shared.plugin_config import load_plugin_config, pick_first, resolve_env_refs
-
+from plugins._shared.plugin_config import (
+    load_plugin_config,
+    pick_first,
+    resolve_env_refs,
+)
 
 PLUGIN_ID = "spatial_intersection"
 
@@ -519,7 +522,7 @@ def _get_shapely_tools():
     Lazy import shapely tools.
     """
     try:
-        from shapely.geometry import shape, mapping
+        from shapely.geometry import mapping, shape
     except ImportError as exc:
         raise SDKDependencyError(
             "spatial_intersection requires 'shapely' for this engine. "

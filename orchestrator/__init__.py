@@ -8,13 +8,21 @@ signals, weight proposals, weighted routing, and production response building.
 """
 
 from orchestrator.audit import AuditConfig, ExecutionAuditBuilder
-from orchestrator.capability_registry import CapabilityRegistry, RegistryBackedCapabilityRouter
+from orchestrator.capability_registry import (
+    CapabilityRegistry,
+    RegistryBackedCapabilityRouter,
+)
 from orchestrator.capability_scoring import KeywordScoringCapabilityRouter
 from orchestrator.feedback import (
     FeedbackCollector,
     FeedbackConfig,
     FeedbackRecord,
     UserFeedbackInput,
+)
+from orchestrator.input_reference_resolver import (
+    UploadReferenceResolver,
+    UploadReferenceResolverConfig,
+    UploadReferenceResolverError,
 )
 from orchestrator.learning_signals import (
     LearningSignalConfig,
@@ -23,14 +31,13 @@ from orchestrator.learning_signals import (
     RouterLearningSignalCollector,
 )
 from orchestrator.llm_gate import (
+    LLMBudgetPolicy,
     LLMGate,
     LLMGateBlockedError,
     LLMGateResult,
-    LLMBudgetPolicy,
     LLMProviderStub,
     LLMProviderUnavailableError,
 )
-from orchestrator.natural_query_runner import run_natural_query
 from orchestrator.loader_plugin_contract import (
     LOADER_PLUGIN_CONTRACT_VERSION,
     LoaderPluginContractError,
@@ -38,16 +45,17 @@ from orchestrator.loader_plugin_contract import (
     normalize_raster_loader_output,
     normalize_vector_loader_output,
 )
-from orchestrator.input_reference_resolver import (
-    UploadReferenceResolver,
-    UploadReferenceResolverConfig,
-    UploadReferenceResolverError,
-)
+from orchestrator.natural_query_runner import run_natural_query
 from orchestrator.output_storage import (
     OUTPUT_STORAGE_SCHEMA_VERSION,
     OutputStorage,
     OutputStorageConfig,
     OutputStorageError,
+)
+from orchestrator.production_response import (
+    ProductionResponse,
+    ProductionResponseBuilder,
+    ProductionResponseConfig,
 )
 from orchestrator.project_store import (
     PROJECT_STORE_SCHEMA_VERSION,
@@ -55,13 +63,14 @@ from orchestrator.project_store import (
     ProjectStoreConfig,
     ProjectStoreError,
 )
-from orchestrator.production_response import (
-    ProductionResponse,
-    ProductionResponseBuilder,
-    ProductionResponseConfig,
+from orchestrator.router_decision import (
+    RouterDecision,
+    RouterDecisionConfig,
+    RouterDecisionLayer,
 )
-from orchestrator.router_decision import RouterDecision, RouterDecisionConfig, RouterDecisionLayer
-from orchestrator.routing_aware_natural_query_runner import run_natural_query_with_routing_evidence
+from orchestrator.routing_aware_natural_query_runner import (
+    run_natural_query_with_routing_evidence,
+)
 from orchestrator.routing_aware_plan_builder import RoutingAwarePlanBuilder
 from orchestrator.service import (
     DEFAULT_SAFE_PLUGIN_MODULES,
@@ -70,6 +79,12 @@ from orchestrator.service import (
     OrchestratorServiceError,
 )
 from orchestrator.statistics import ExecutionStatisticsCollector, StatisticsConfig
+from orchestrator.upload_storage import (
+    UPLOAD_STORAGE_SCHEMA_VERSION,
+    UploadStorage,
+    UploadStorageConfig,
+    UploadStorageError,
+)
 from orchestrator.weight_proposals import (
     InMemoryRouterWeightStore,
     RouterWeightProposalCollector,
@@ -77,12 +92,6 @@ from orchestrator.weight_proposals import (
     WeightProposal,
     WeightProposalConfig,
     WeightStoreConfig,
-)
-from orchestrator.upload_storage import (
-    UPLOAD_STORAGE_SCHEMA_VERSION,
-    UploadStorage,
-    UploadStorageConfig,
-    UploadStorageError,
 )
 from orchestrator.weight_store_persistence import (
     RouterWeightStorePersistence,

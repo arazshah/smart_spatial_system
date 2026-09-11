@@ -25,15 +25,13 @@ from typing import Any, Callable
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
-from plugins.spectral_indices import calculate_spectral_index  # noqa: E402
 from plugins.raster_threshold import threshold_raster  # noqa: E402
 from plugins.raster_to_vector import raster_to_vector  # noqa: E402
-
+from plugins.spectral_indices import calculate_spectral_index  # noqa: E402
 
 # ---------------------------------------------------------------------
 # Test-time models

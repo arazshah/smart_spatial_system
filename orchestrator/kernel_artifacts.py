@@ -20,7 +20,6 @@ from uuid import uuid4
 
 from geochat_kernel.models import ArtifactKind, GeoArtifact
 
-
 _PUBLIC_TYPE_BY_KERNEL_KIND = {
     ArtifactKind.FEATURES.value: "vector_layer",
     ArtifactKind.MAP_LAYER.value: "map_view",

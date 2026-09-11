@@ -44,7 +44,6 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
-from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
 
@@ -53,8 +52,11 @@ from geochat_sdk.exceptions import SDKDependencyError
 from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.vector import VectorOut
 
-from plugins._shared.plugin_config import load_plugin_config, pick_first, resolve_env_refs
-
+from plugins._shared.plugin_config import (
+    load_plugin_config,
+    pick_first,
+    resolve_env_refs,
+)
 
 PLUGIN_ID = "dissolve_aggregator"
 

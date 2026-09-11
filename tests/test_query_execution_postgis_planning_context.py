@@ -14,7 +14,6 @@ from smart_spatial_system.application.services.query_execution.postgis_planning_
     _extract_semantic_planning_context_from_sources,
 )
 
-
 QUERY_EXECUTION_SERVICE_PATH = Path(
     "smart_spatial_system/application/services/query_execution_service.py"
 )

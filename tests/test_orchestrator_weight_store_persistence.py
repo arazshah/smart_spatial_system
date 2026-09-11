@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -23,8 +22,8 @@ from orchestrator.weight_proposals import (  # noqa: E402
     WeightStoreConfig,
 )
 from orchestrator.weight_store_persistence import (  # noqa: E402
-    RouterWeightStorePersistence,
     WEIGHT_STORE_SCHEMA_VERSION,
+    RouterWeightStorePersistence,
     WeightStorePersistenceConfig,
     WeightStorePersistenceError,
 )

@@ -36,11 +36,14 @@ from typing import Any
 
 from geochat_sdk.decorators import capability
 from geochat_sdk.plugin import auto_collect
-from geochat_sdk.types.vector import VectorOut
 from geochat_sdk.types.raster import RasterOut
+from geochat_sdk.types.vector import VectorOut
 
-from plugins._shared.plugin_config import load_plugin_config, pick_first, resolve_env_refs
-
+from plugins._shared.plugin_config import (
+    load_plugin_config,
+    pick_first,
+    resolve_env_refs,
+)
 
 PLUGIN_ID = "data_writer_exporter"
 

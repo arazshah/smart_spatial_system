@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import json
 import re
+import urllib.error
+import urllib.request
 from typing import Any
 
 from orchestrator.llm_client import (
@@ -18,9 +20,6 @@ from orchestrator.llm_client import (
     LLMConfigError,
     get_llm_config,
 )
-
-import urllib.error
-import urllib.request
 
 
 class LLMIntentPlannerError(RuntimeError):

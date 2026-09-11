@@ -25,12 +25,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from geochat_kernel.models import QueryPlan
+
 from orchestrator.planning.capability_resolver import (
     RegistryCapabilityResolver,
     StaticCapabilityResolver,
 )
-from geochat_kernel.models import QueryPlan
-
 from orchestrator.planning.dag import DagPlan
 from orchestrator.planning.dag_executor import DagExecutionResult, DagExecutor
 from orchestrator.planning.kernel_execution_bridge import (

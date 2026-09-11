@@ -1,0 +1,31 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# Deliberately scoped to the highest-signal, lowest-risk categories:
+#   E/W  - pycodestyle errors/warnings (minus E501/E402, see below)
+#   F    - pyflakes (undefined names, unused imports/vars, redefinitions -
+#          this set has already caught real bugs, see git history)
+#   I    - import sorting
+# Broader rule sets (bugbear, security, complexity, ...) are not enabled yet;
+# see docs/REFACTOR_PLAN.md for the incremental hardening plan.
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501", # line-too-long: not enforced yet, huge pre-existing volume with
+            # no correctness impact; revisit as a dedicated formatting pass.
+    "E402", # module-import-not-at-top-of-file: several modules intentionally
+            # interleave local class/helper definitions with lazily-placed
+            # imports to avoid circular imports (see orchestrator/service.py,
+            # orchestrator/capability_router.py). Revisit per-file if this
+            # pattern gets cleaned up.
+]
+
+[tool.ruff.lint.per-file-ignores]
+# orchestrator/service.py imports many symbols it never references directly
+# in its own body. They are not dead: the test suite monkeypatches them as
+# module attributes (e.g. `service_module.OpenAICompatibleLLMClient = Fake`),
+# which requires the names to exist on this module. Do not "clean up" these
+# imports without first checking every test for `service_module.<Name>` /
+# `from orchestrator.service import <Name>` usage.
+"orchestrator/service.py" = ["F401", "I001"]

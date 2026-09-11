@@ -1,5 +1,8 @@
-# Inferred from the imports in this repository (2026-09). Pin versions with
-# `pip freeze > requirements.lock` once you have a working environment.
+# Inferred from the imports in this repository (2026-09). This file is the
+# source of truth for direct/unpinned dependencies. For reproducible installs
+# (CI, onboarding) use requirements.lock instead, which pins the full
+# resolved set including the geochat-sdk/geochat-kernel git commit; see the
+# header of that file for how to regenerate it after changing this one.
 
 # GeoChat kernel + SDK (https://github.com/arazshah/geochat-platform)
 geochat-sdk @ git+https://github.com/arazshah/geochat-platform.git#subdirectory=geochat-sdk
@@ -28,3 +31,4 @@ weasyprint          # PDF reports (pdf_renderer plugin)
 
 # Development
 pytest
+ruff

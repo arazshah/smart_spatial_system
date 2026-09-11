@@ -289,7 +289,9 @@ def test_execute_kernel_plan_with_capabilities_returns_structured_error() -> Non
 
 
 def test_kernel_execution_to_summary_returns_public_safe_summary() -> None:
-    from orchestrator.planning.kernel_execution_bridge import kernel_execution_to_summary
+    from orchestrator.planning.kernel_execution_bridge import (
+        kernel_execution_to_summary,
+    )
 
     dag_plan = DagPlan(
         nodes=[
@@ -364,7 +366,9 @@ def test_kernel_execution_to_summary_returns_public_safe_summary() -> None:
 
 
 def test_kernel_execution_to_summary_accepts_none() -> None:
-    from orchestrator.planning.kernel_execution_bridge import kernel_execution_to_summary
+    from orchestrator.planning.kernel_execution_bridge import (
+        kernel_execution_to_summary,
+    )
 
     assert kernel_execution_to_summary(None) is None
 

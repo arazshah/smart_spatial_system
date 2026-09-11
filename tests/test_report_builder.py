@@ -1,5 +1,5 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -297,8 +297,6 @@ def test_full_risk_score_rank_report_chain():
         ],
     }
 
-    report_spec = default_real_estate_report_spec(ranked_source="ranked")
-
     spec = QuerySpec(
         raw_query="ملک‌ها را تحلیل و گزارش بده",
         goal="full_report",
@@ -381,4 +379,4 @@ def test_full_risk_score_rank_report_chain():
     assert report.table["rows"][0]["rank"] == 1
 
     top_props = raw_features["features"][0]["properties"]
-    assert report.summary["top_name"] == "ملک الف"
+    assert report.summary["top_name"] == top_props["name"]

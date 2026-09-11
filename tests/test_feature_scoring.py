@@ -1,12 +1,12 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from plugins.feature_scoring import score_features, rank_features
 from orchestrator.planning.op_catalog import get_op, is_supported
+from plugins.feature_scoring import rank_features, score_features
 
 
 def _sample_features():

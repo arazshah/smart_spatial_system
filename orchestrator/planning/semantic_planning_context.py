@@ -36,11 +36,12 @@ from typing import Any, Iterable, Mapping
 from orchestrator.planning.op_catalog import is_supported
 from orchestrator.planning.postgis_semantic_resolver import (
     PostGISSchemaContext,
-    SemanticLayerCandidate as PostGISSemanticLayerCandidate,
     infer_semantic_concepts,
     resolve_query_semantic_layers,
 )
-
+from orchestrator.planning.postgis_semantic_resolver import (
+    SemanticLayerCandidate as PostGISSemanticLayerCandidate,
+)
 
 _PERSIAN_DIGIT_MAP = str.maketrans(
     {

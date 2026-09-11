@@ -10,7 +10,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -18,12 +17,13 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from orchestrator.audit import AuditConfig, ExecutionAuditBuilder  # noqa: E402
 from orchestrator.capability_registry import CapabilityRegistry  # noqa: E402
 from orchestrator.capability_scoring import KeywordScoringCapabilityRouter  # noqa: E402
-from orchestrator.query_parser import SimpleNaturalLanguageParser  # noqa: E402
-from orchestrator.routing_aware_plan_builder import RoutingAwarePlanBuilder  # noqa: E402
-from orchestrator.pipeline_executor import SimplePipelineExecutor  # noqa: E402
-from orchestrator.router_decision import RouterDecisionLayer  # noqa: E402
 from orchestrator.llm_gate import LLMGate  # noqa: E402
-
+from orchestrator.pipeline_executor import SimplePipelineExecutor  # noqa: E402
+from orchestrator.query_parser import SimpleNaturalLanguageParser  # noqa: E402
+from orchestrator.router_decision import RouterDecisionLayer  # noqa: E402
+from orchestrator.routing_aware_plan_builder import (
+    RoutingAwarePlanBuilder,  # noqa: E402
+)
 
 SAFE_MODULES = [
     "plugins.spectral_indices",

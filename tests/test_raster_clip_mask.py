@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -29,8 +28,8 @@ from plugins.raster_clip_mask import (  # noqa: E402
     _mask_array,
     _normalize_bbox,
     _normalize_transform,
-    _pixel_center,
     _pixel_bbox,
+    _pixel_center,
     _point_in_polygon,
     _raster_bbox,
     _slice_array,
@@ -40,7 +39,6 @@ from plugins.raster_clip_mask import (  # noqa: E402
     _window_for_bbox,
     clip_mask_raster,
 )
-
 
 RASTER_5X5 = {
     "data": [

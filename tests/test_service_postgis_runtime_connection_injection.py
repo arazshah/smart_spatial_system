@@ -1,8 +1,8 @@
+from orchestrator.planning.spec import OperationSpec, QuerySpec
 from orchestrator.service import (
     OrchestratorService,
     _build_query_spec_runtime_inputs,
 )
-from orchestrator.planning.spec import OperationSpec, QuerySpec
 
 
 def test_build_query_spec_runtime_inputs_flattens_postgis_connection_from_user_context():

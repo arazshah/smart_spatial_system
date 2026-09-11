@@ -12,16 +12,15 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from geochat_sdk.types.vector import VectorOut  # noqa: E402
 
 from plugins.spatial_query_filter import (  # noqa: E402
+    MISSING,
     PLUGIN,
     PLUGIN_ID,
-    MISSING,
     _bbox_within,
     _bboxes_intersect,
     _compare_values,
@@ -37,7 +36,6 @@ from plugins.spatial_query_filter import (  # noqa: E402
     _validate_sort_order,
     filter_features,
 )
-
 
 FEATURES = [
     {

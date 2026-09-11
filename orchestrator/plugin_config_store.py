@@ -23,7 +23,6 @@ from pathlib import Path
 from typing import Any
 
 
-
 class PluginConfigStoreError(RuntimeError):
     """Raised when a plugin config cannot be read or written safely."""
 

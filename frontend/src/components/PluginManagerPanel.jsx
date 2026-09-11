@@ -169,7 +169,15 @@ export default function PluginManagerPanel() {
     }
   }
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => {
+    Promise.all([listPlugins(), getRuntimeSettings()])
+      .then(([pr, rr]) => {
+        setPlugins(normalizePlugins(pr));
+        setRuntime(rr || null);
+      })
+      .catch((e) => setError(e?.message || "Failed to load plugins."))
+      .finally(() => setLoading(false));
+  }, []);
 
   async function handleToggleState(plugin) {
     const id = String(plugin?.plugin_id || "").trim();

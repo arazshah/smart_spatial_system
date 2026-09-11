@@ -29,7 +29,6 @@ from typing import Any
 from orchestrator.capability_registry import CapabilityRegistry
 from orchestrator.models import CapabilityBinding, ScoredCapability
 
-
 DEFAULT_DOMAIN_HINTS: dict[str, list[str]] = {
     "calculate_spectral_index": [
         "ndvi",

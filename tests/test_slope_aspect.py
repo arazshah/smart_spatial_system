@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -37,7 +36,6 @@ from plugins.slope_aspect import (  # noqa: E402
     _window_values,
     calculate_slope_aspect,
 )
-
 
 DEM_EAST = {
     "data": [

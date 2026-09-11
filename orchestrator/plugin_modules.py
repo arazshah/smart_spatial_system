@@ -10,7 +10,6 @@ service facade without creating import cycles.
 
 from __future__ import annotations
 
-
 DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.spectral_indices",
     "plugins.raster_threshold",
@@ -45,4 +44,5 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.data_writer_exporter",
     "plugins.local_vector_loader",
     "plugins.postgis_connector",
+    "plugins.wms_wfs_fetcher",
 ]

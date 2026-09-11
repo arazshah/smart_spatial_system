@@ -15,7 +15,6 @@ from smart_spatial_system.application.services.query_execution import (
     postgis_planning_context as postgis_context,
 )
 
-
 SERVICE_PATH = Path("orchestrator/service.py")
 
 

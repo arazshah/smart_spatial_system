@@ -122,6 +122,11 @@ def test_golden_legacy_production_response_shape(tmp_path: Path) -> None:
     assert "summary" in payload["outputs"]
     assert isinstance(payload["artifacts"], list)
     assert isinstance(payload["layers"], list)
+    # Phase 2 step 3.1: wired through orchestrator.response_assembler --
+    # schema_version and success are now always present (status was
+    # already "success", so success here is just its bool projection).
+    assert payload["schema_version"] == "1.0"
+    assert payload["success"] is True
     assert set(payload.keys()) == {
         "answer",
         "artifacts",
@@ -136,8 +141,10 @@ def test_golden_legacy_production_response_shape(tmp_path: Path) -> None:
         "outputs",
         "query_hash",
         "request_id",
+        "schema_version",
         "status",
         "steps",
+        "success",
         "trace",
         "warnings",
     }

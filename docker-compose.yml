@@ -1,0 +1,59 @@
+# Reference deployment for Smart Spatial System. See docs/DEPLOYMENT.md for
+# the full walkthrough (env vars, PostGIS setup, production hardening notes).
+#
+# Quick start:
+#   cp .env.example .env            # fill in LLM key, set SMART_SPATIAL_API_KEY
+#   cp frontend/.env.example frontend/.env
+#   docker compose up --build
+#
+# The postgis service is optional - only needed if you use the PostGIS
+# connector/demo data (see data/README.md). Start it with:
+#   docker compose --profile postgis up --build
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - smart-spatial-var:/app/var
+      # Uncomment to point the PostGIS connector at a real database without
+      # rebuilding the image - see config/plugins/postgis_connector.yaml and
+      # config/plugins/postgis_connector.example.yaml for the format.
+      # - ./config/plugins/postgis_connector.yaml:/app/config/plugins/postgis_connector.yaml:ro
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Reachable from the browser, not from inside the api container -
+        # http://localhost:8000 only works when running docker compose on
+        # your own machine. Set to your public API URL for any real deploy.
+        VITE_API_BASE_URL: ${FRONTEND_API_BASE_URL:-http://localhost:8000}
+        VITE_API_KEY: ${SMART_SPATIAL_API_KEY:-}
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  postgis:
+    image: postgis/postgis:16-3.4
+    profiles:
+      - postgis
+    environment:
+      POSTGRES_DB: ${POSTGIS_DATABASE:-gis}
+      POSTGRES_USER: ${POSTGIS_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGIS_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - smart-spatial-postgis-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  smart-spatial-var:
+  smart-spatial-postgis-data:

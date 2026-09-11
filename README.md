@@ -75,6 +75,16 @@ npm install && npm run dev            # http://localhost:5173
 
 PostGIS demo data (Tehran OpenStreetMap): see [data/README.md](data/README.md).
 
+Docker Compose (backend + frontend, PostGIS optional):
+
+```bash
+docker compose up --build
+```
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full deployment guide —
+environment variables, authentication, CORS, and PostGIS setup for running
+this beyond your own machine.
+
 ## API at a glance
 
 | Area | Endpoints |

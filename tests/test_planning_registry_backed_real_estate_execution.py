@@ -39,12 +39,22 @@ def _sample_properties_query_spec_data() -> dict:
                 "kind": "vector",
                 "binding": {},
                 "hints": {},
-            }
+            },
+            {"ref": "metro", "kind": "vector", "binding": {}, "hints": {}},
+            {"ref": "malls", "kind": "vector", "binding": {}, "hints": {}},
+            {"ref": "main_roads", "kind": "vector", "binding": {}, "hints": {}},
+            {"ref": "allowed_zones", "kind": "vector", "binding": {}, "hints": {}},
         ],
         "operations": [
             {
                 "op": "real_estate_spatial_enrich",
-                "inputs": {"vector": "properties"},
+                "inputs": {
+                    "vector": "properties",
+                    "metro": "metro",
+                    "malls": "malls",
+                    "main_roads": "main_roads",
+                    "allowed_zones": "allowed_zones",
+                },
                 "params": {},
                 "output": "enriched",
             },
@@ -164,7 +174,13 @@ def test_registry_backed_real_estate_queryspec_chain_executes_with_real_plugins(
 
     result = DagExecutor(resolver).execute(
         plan,
-        initial_inputs={"properties": _sample_properties()},
+        initial_inputs={
+            "properties": _sample_properties(),
+            "metro": {"type": "FeatureCollection", "features": []},
+            "malls": {"type": "FeatureCollection", "features": []},
+            "main_roads": {"type": "FeatureCollection", "features": []},
+            "allowed_zones": {"type": "FeatureCollection", "features": []},
+        },
     )
 
     assert result.success is True
@@ -201,3 +217,64 @@ def test_registry_backed_real_estate_queryspec_chain_executes_with_real_plugins(
     assert len(rows) == 2
     assert [row["name"] for row in rows] == ["ویلای لوکس", "آپارتمان مرکز"]
     assert [row["rank"] for row in rows] == [1, 2]
+
+
+def test_real_metro_layer_fills_missing_distance_through_the_dag() -> None:
+    """
+    Confirms the metro/malls/main_roads/allowed_zones layer wiring in
+    real_estate_spatial_enrich's OP_CATALOG entry actually works end-to-end
+    through the DAG, not just accepts empty layers: a property missing
+    distance_to_metro_m gets it filled in from a real metro layer node.
+    """
+    data = _sample_properties_query_spec_data()
+    # Trim to just the enrichment step for this focused check.
+    data["operations"] = data["operations"][:1]
+    data["outputs"] = [
+        {"kind": "vector", "source": "enriched", "format": "geojson", "config": {}}
+    ]
+
+    spec = query_spec_from_dict(data, raw_query_fallback=data["raw_query"])
+    normalized = normalize_llm_query_spec_for_planning(spec)
+    plan = DeterministicPlanner(PlannerConfig(strict_params=True)).build(normalized)
+
+    registry = CapabilityRegistry.from_plugin_modules(tolerant=False)
+    resolver = RegistryCapabilityResolver(registry)
+
+    property_missing_distance = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"id": "p1", "name": "test"},
+                "geometry": {"type": "Point", "coordinates": [0.0, 0.0]},
+            }
+        ],
+    }
+    metro_station = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"name": "Metro A"},
+                "geometry": {"type": "Point", "coordinates": [0.0, 0.01]},
+            }
+        ],
+    }
+
+    result = DagExecutor(resolver).execute(
+        plan,
+        initial_inputs={
+            "properties": property_missing_distance,
+            "metro": metro_station,
+            "malls": {"type": "FeatureCollection", "features": []},
+            "main_roads": {"type": "FeatureCollection", "features": []},
+            "allowed_zones": {"type": "FeatureCollection", "features": []},
+        },
+    )
+
+    assert result.success is True
+    enriched = result.output_nodes["enriched"]
+    features = enriched.features if hasattr(enriched, "features") else enriched["features"]
+
+    assert features[0]["properties"]["distance_to_metro_m"] > 0
+    assert features[0]["properties"]["spatial_enrichment_applied"] is True

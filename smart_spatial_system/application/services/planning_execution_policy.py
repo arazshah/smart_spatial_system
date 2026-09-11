@@ -36,6 +36,32 @@ def is_query_spec_planning_enabled(config: Any = None) -> bool:
     return False
 
 
+def is_real_estate_query_spec_planning_enabled(config: Any = None) -> bool:
+    """
+    Whether real-estate ranking queries should be routed through the
+    rule-based QuerySpec/DAG path (real_estate_spatial_enrich ->
+    real_estate_score -> filter_attribute -> rank_features -> build_report)
+    instead of the legacy direct handler (REFACTOR_PLAN.md Phase 5, step 5).
+
+    Same precedence pattern as is_query_spec_planning_enabled:
+
+      1. REAL_ESTATE_QUERY_SPEC_PLANNING_ENABLED env var, if explicitly set.
+      2. config.real_estate_query_spec_planning_enabled, if config is
+         provided and has it.
+      3. False (purely additive until explicitly enabled).
+    """
+    env_value = os.getenv("REAL_ESTATE_QUERY_SPEC_PLANNING_ENABLED")
+    if env_value is not None:
+        return env_value.strip().lower() in {"1", "true", "yes", "on"}
+
+    if config is not None:
+        configured = getattr(config, "real_estate_query_spec_planning_enabled", None)
+        if configured is not None:
+            return bool(configured)
+
+    return False
+
+
 def is_kernel_execution_enabled(
     *,
     config: Any,

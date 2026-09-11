@@ -989,6 +989,59 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         notes="Build structured report from ranked features and ReportSpec.",
     ),
 
+    # ---------------------------------------------------------------------
+    # Real estate ranking (REFACTOR_PLAN.md Phase 5)
+    # ---------------------------------------------------------------------
+    "real_estate_spatial_enrich": OpDescriptor(
+        op_name="real_estate_spatial_enrich",
+        capability_name="enrich_real_estate_spatial_context",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Fill missing real-estate ranking metrics (distance_to_metro_m, "
+            "distance_to_mall_m, distance_to_main_road_m, in_allowed_zone) "
+            "from properties already present on the input features. Does "
+            "not take separate metro/mall/road/zone layer node references "
+            "yet -- only DAG-registered for isolated execution so far; "
+            "layer-input wiring is deferred to when the real real-estate "
+            "QuerySpec is built."
+        ),
+    ),
+
+    "real_estate_score": OpDescriptor(
+        op_name="real_estate_score",
+        capability_name="score_real_estate_properties",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Score real-estate property features and evaluate eligibility "
+            "using the MVP real-estate scoring formula. Annotates every "
+            "feature with eligible, eligibility_reasons, score and "
+            "score_details; does not split eligible/rejected features. "
+            "Follow with filter_attribute (where eligible=true) to drop "
+            "ineligible properties, then rank_features/top_n "
+            "(score_field='score', descending=true) to rank the survivors "
+            "-- both already-registered generic ops, so the ranking step "
+            "itself does not need a dedicated real-estate op."
+        ),
+    ),
+
     "render_pdf": OpDescriptor(
         op_name="render_pdf",
         capability_name="render_pdf",

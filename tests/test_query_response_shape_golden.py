@@ -564,10 +564,13 @@ def test_golden_query_spec_planning_response_shape(tmp_path: Path, monkeypatch) 
     )
 
     assert payload is not None
-    # Top-level envelope -- also "succeeded"/"failed", same vocabulary as
-    # real-estate and vector display, distinct from ProductionResponseBuilder.
     assert payload["ok"] is True
-    assert payload["status"] == "succeeded"
+    # Phase 2 step 3.2: wired through orchestrator.response_assembler --
+    # top-level status is now normalized to "success" (was "succeeded"),
+    # matching ProductionResponseBuilder's vocabulary. Nothing else changed.
+    assert payload["status"] == "success"
+    assert payload["success"] is True
+    assert payload["schema_version"] == "1.0"
     assert "confidence" in payload
     assert set(payload["confidence"].keys()) == {
         "level",
@@ -610,9 +613,11 @@ def test_golden_query_spec_planning_response_shape(tmp_path: Path, monkeypatch) 
         "outputs",
         "query_hash",
         "request_id",
+        "schema_version",
         "status",
         "steps",
         "structured_error",
+        "success",
         "trace",
         "warnings",
     }

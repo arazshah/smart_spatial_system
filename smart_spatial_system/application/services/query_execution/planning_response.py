@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from orchestrator.response_assembler import assemble_response
+
 
 def build_query_spec_planning_response(
     *,
@@ -131,6 +133,13 @@ def build_query_spec_planning_response(
 
     if primary_report is not None:
         production_response["report"] = primary_report
+
+    production_response = assemble_response(
+        source="planning",
+        raw=production_response,
+        request_id=final_request_id,
+        metadata=planning_metadata,
+    )
 
     return (
         production_response,

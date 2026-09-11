@@ -40,25 +40,43 @@ PLUGIN_ID = "postgis_connector"
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
-_FORBIDDEN_WHERE_TOKENS = [
+_FORBIDDEN_WHERE_SUBSTRINGS = [
     ";",
     "--",
     "/*",
     "*/",
-    " drop ",
-    " delete ",
-    " update ",
-    " insert ",
-    " alter ",
-    " truncate ",
-    " create ",
-    " grant ",
-    " revoke ",
-    " copy ",
-    " vacuum ",
-    " execute ",
-    " call ",
 ]
+
+# Matched as whole words (via regex word boundaries), so these are caught
+# regardless of surrounding punctuation/parentheses (e.g. "(select ...)",
+# "select(1)") rather than only when surrounded by literal spaces.
+_FORBIDDEN_WHERE_KEYWORDS = [
+    # Data-modifying / DDL statements.
+    "drop", "delete", "update", "insert", "alter", "truncate", "create",
+    "grant", "revoke", "copy", "vacuum", "execute", "call",
+    # Subquery / set-operation keywords: a WHERE clause is a boolean filter
+    # expression on already-selected columns and never legitimately needs
+    # these; blocking them closes UNION- and subquery-based blind/boolean
+    # data-exfiltration injection, which doesn't require any of the
+    # statement keywords above.
+    "select", "union", "from", "into",
+    # Functions/identifiers that disclose server internals or read other
+    # data even inside a plain boolean expression, e.g.
+    # "(select 1 from pg_shadow) = 1" or "pg_sleep(5) is null".
+    "information_schema", "current_setting", "current_database",
+    "current_user", "session_user", "version", "dblink", "lo_import",
+    "lo_export",
+]
+
+_FORBIDDEN_WHERE_KEYWORD_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(word) for word in _FORBIDDEN_WHERE_KEYWORDS) + r")\b",
+    re.IGNORECASE,
+)
+
+# Blocks every pg_-prefixed catalog/admin function (pg_sleep, pg_read_file,
+# pg_ls_dir, pg_terminate_backend, pg_stat_*, ...) as a class, rather than
+# enumerating each one - a plain WHERE filter never needs these.
+_FORBIDDEN_WHERE_PG_PREFIX_RE = re.compile(r"\bpg_\w*", re.IGNORECASE)
 
 
 def _validate_identifier(value: str, field_name: str) -> str:
@@ -117,11 +135,19 @@ def _validate_where_clause(where: str | None) -> str | None:
     if not cleaned:
         return None
 
-    lowered = f" {cleaned.lower()} "
+    lowered = cleaned.lower()
 
-    for token in _FORBIDDEN_WHERE_TOKENS:
+    for token in _FORBIDDEN_WHERE_SUBSTRINGS:
         if token in lowered:
-            raise ValueError(f"Unsafe token found in where clause: {token.strip()}")
+            raise ValueError(f"Unsafe token found in where clause: {token}")
+
+    keyword_match = _FORBIDDEN_WHERE_KEYWORD_RE.search(lowered)
+    if keyword_match:
+        raise ValueError(f"Unsafe token found in where clause: {keyword_match.group(0)}")
+
+    pg_match = _FORBIDDEN_WHERE_PG_PREFIX_RE.search(lowered)
+    if pg_match:
+        raise ValueError(f"Unsafe token found in where clause: {pg_match.group(0)}")
 
     return cleaned
 

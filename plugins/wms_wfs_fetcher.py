@@ -29,7 +29,9 @@ Example:
 
 from __future__ import annotations
 
+import ipaddress
 import re
+import socket
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -132,9 +134,46 @@ def _get_layer_config(service_config: dict[str, Any], layer: str | None) -> dict
     return layer_config
 
 
-def _validate_url(url: str, field_name: str = "base_url") -> str:
+def _is_blocked_ip(ip_text: str) -> bool:
+    """
+    True if an IP address is not a safe public-internet target.
+
+    Blocks loopback, link-local (including the 169.254.169.254 cloud
+    metadata endpoint), private/internal ranges, and other reserved
+    address space, to prevent SSRF against internal services.
+    """
+    try:
+        ip = ipaddress.ip_address(ip_text)
+    except ValueError:
+        return True
+
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+    )
+
+
+def _validate_url(
+    url: str,
+    field_name: str = "base_url",
+    *,
+    allow_private_network: bool = False,
+) -> str:
     """
     Validate HTTP/HTTPS service URL.
+
+    By default, rejects URLs whose host resolves to a private, loopback,
+    link-local (cloud metadata), or otherwise non-public address, to
+    prevent SSRF against internal infrastructure via caller-supplied URLs.
+
+    allow_private_network=True skips that network check, for URLs that
+    come from the deployer's own trusted plugin config (config/plugins/
+    wms_wfs_fetcher.yaml) rather than directly from a caller/API request -
+    e.g. a locally-hosted GeoServer used in development.
     """
     if not isinstance(url, str) or not url.strip():
         raise ValueError(f"{field_name} must be a non-empty string.")
@@ -144,6 +183,23 @@ def _validate_url(url: str, field_name: str = "base_url") -> str:
 
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError(f"{field_name} must be a valid http/https URL.")
+
+    if allow_private_network:
+        return url
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError(f"{field_name} must include a host.")
+
+    try:
+        resolved_ips = {info[4][0] for info in socket.getaddrinfo(hostname, None)}
+    except OSError as exc:
+        raise ValueError(f"{field_name} host could not be resolved: {hostname!r}") from exc
+
+    if not resolved_ips or any(_is_blocked_ip(ip) for ip in resolved_ips):
+        raise ValueError(
+            f"{field_name} resolves to a disallowed network address: {hostname!r}."
+        )
 
     return url
 
@@ -420,7 +476,13 @@ def _http_get_json(base_url: str, params: dict[str, Any], timeout: int) -> Any:
     requests = _get_requests()
 
     try:
-        response = requests.get(base_url, params=params, timeout=timeout)
+        # allow_redirects=False: a redirect could point at an internal address
+        # that bypassed _validate_url's SSRF check on the original base_url.
+        response = requests.get(
+            base_url, params=params, timeout=timeout, allow_redirects=False
+        )
+        if response.is_redirect or response.is_permanent_redirect:
+            raise RuntimeError("Service returned a redirect, which is not followed for security reasons.")
         response.raise_for_status()
         return response.json()
     except Exception as exc:
@@ -434,7 +496,13 @@ def _http_get_bytes(base_url: str, params: dict[str, Any], timeout: int) -> tupl
     requests = _get_requests()
 
     try:
-        response = requests.get(base_url, params=params, timeout=timeout)
+        # allow_redirects=False: a redirect could point at an internal address
+        # that bypassed _validate_url's SSRF check on the original base_url.
+        response = requests.get(
+            base_url, params=params, timeout=timeout, allow_redirects=False
+        )
+        if response.is_redirect or response.is_permanent_redirect:
+            raise RuntimeError("Service returned a redirect, which is not followed for security reasons.")
         response.raise_for_status()
 
         content = response.content
@@ -698,7 +766,9 @@ def fetch_wfs_features(
         default=30,
     )
 
-    final_base_url = _validate_url(str(final_base_url))
+    final_base_url = _validate_url(
+        str(final_base_url), allow_private_network=base_url is None
+    )
     final_timeout = _validate_positive_int(final_timeout, "timeout", 3600)
     final_max_features = _validate_non_negative_int(final_max_features, "max_features", MAX_FEATURE_LIMIT)
 
@@ -874,7 +944,9 @@ def fetch_wms_map(
         default=30,
     )
 
-    final_base_url = _validate_url(str(final_base_url))
+    final_base_url = _validate_url(
+        str(final_base_url), allow_private_network=base_url is None
+    )
     final_timeout = _validate_positive_int(final_timeout, "timeout", 3600)
 
     params = _build_wms_params(

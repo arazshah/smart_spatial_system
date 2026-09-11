@@ -83,38 +83,34 @@ the original phase text where they disagree):
   for now, so production behavior for this workflow (one of the two the
   README documents as a primary demo feature) is unchanged from before
   this phase.
-- Phase 6 (source abstraction): partial. Deduplicated the one piece that
-  was genuinely unsafe to leave duplicated: local_vector_loader.py and
-  local_raster_loader.py each carried a byte-identical copy of path/
-  allowed-roots validation (security-relevant path-traversal guarding -
-  fixing one copy could silently miss the other). Both now call
-  `plugins/_shared/local_path_validation.py`. Checked postgis_connector.py
-  and wms_wfs_fetcher.py for the same kind of duplication first (e.g.
-  their respective `_validate_limit`s) and found their validation logic
-  is legitimately domain-specific (different bounds, different type
-  coercion), not true duplication - did not force-unify those. Planned in
-  detail in docs/PHASE6_SOURCE_ABSTRACTION_PLAN.md (not yet executed):
-  verified across all five source plugins (postgis_connector,
-  local_vector_loader, local_raster_loader, wms_wfs_fetcher,
-  geocoding_resolver) that a real common source-capability contract with
-  "optional semantic discovery" is a from-scratch design question, same
-  territory as the newer roadmap's Phase 7 "Multi-source Data Connectors"
-  in docs/ADR-004-service-oriented-modular-backend.md (which hasn't
-  started yet either) - explicitly out of scope for a quick pass, treated
-  as its own future effort. What the plan does cover as safe, small,
-  independently mergeable fixes: a genuinely duplicated (not just
-  similar) int-coercion helper across three plugins, and a real
-  error-redaction gap - only postgis_connector.py routes failures
-  through provider_error_mapping.py's credential redaction; wms_wfs_fetcher.py
-  and geocoding_resolver.py make outbound network calls but don't redact
-  their error text, unlike this session's earlier SQL-injection/SSRF
-  hardening of the same two risk classes. Also documents that OP_CATALOG
-  only maps 2 of these 5 plugins' 7 capabilities (QuerySpec/DAG-reachable);
-  3 have no production caller anywhere outside their own tests
-  (fetch_postgis_sql_layer, geocode_place, reverse_geocode_point), and
-  fetch_wms_map's only caller (register_wms_source) stores connection
-  metadata but never actually calls it - useful context for whoever
-  designs the ADR-004 connector registry, not something to fix here.
+- Phase 6 (source abstraction): steps 1-2 of 3 done, per
+  docs/PHASE6_SOURCE_ABSTRACTION_PLAN.md's migration plan (step 3,
+  optional reachability notes, skipped as redundant with that doc).
+  Deduplicated two pieces that were genuinely unsafe/duplicated to leave
+  as-is: local_vector_loader.py/local_raster_loader.py's byte-identical
+  path/allowed-roots validation (security-relevant path-traversal
+  guarding, done earlier), now also wms_wfs_fetcher.py/
+  geocoding_resolver.py's byte-identical int-coercion helper
+  (`plugins/_shared/numeric_validation.py::to_int`) - postgis_connector.py's
+  own int handling turned out NOT to share this duplication once read
+  side by side (a looser, isinstance-only convention, different call
+  sites), so it was correctly left untouched, correcting the plan's
+  initial characterization. Closed a real error-redaction gap: only
+  postgis_connector.py routed failures through
+  provider_error_mapping.py's credential redaction before this;
+  wms_wfs_fetcher.py's HTTP failure paths and geocoding_resolver.py's
+  provider-chain error metadata (`output_metadata["provider_errors"]`,
+  visible in the response) now redact URLs/credentials too, closing the
+  same risk class as this session's earlier SQL-injection/SSRF
+  hardening. A genuine common source-capability contract with "optional
+  semantic discovery" across all five source plugins remains a
+  from-scratch design question, same territory as the newer roadmap's
+  Phase 7 "Multi-source Data Connectors" in
+  docs/ADR-004-service-oriented-modular-backend.md (which hasn't started
+  yet either) - explicitly out of scope, confirmed and documented in
+  detail (including that OP_CATALOG only maps 2 of these 5 plugins' 7
+  capabilities, and 3 have no production caller anywhere outside their
+  own tests) rather than attempted here. Treat as its own future effort.
 - Phase 7 (legacy cleanup): NOT done. `SimpleCapabilityRouter` is still
   live (`orchestrator/capability_router.py`, used by
   `orchestrator/natural_query_runner.py`). Per this plan's own rule,

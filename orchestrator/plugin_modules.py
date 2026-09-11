@@ -45,4 +45,5 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.local_vector_loader",
     "plugins.postgis_connector",
     "plugins.wms_wfs_fetcher",
+    "plugins.real_estate_scoring",
 ]

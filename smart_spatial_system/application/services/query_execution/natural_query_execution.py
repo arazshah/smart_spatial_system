@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from orchestrator.response_assembler import assemble_response
 from smart_spatial_system.application.services.query_execution.direct_query_dispatch import (
     try_dispatch_direct_query_response,
 )
@@ -77,6 +78,13 @@ def execute_and_persist_natural_query_success_path(
 
     production_response = response_builder.build_dict(
         run_result=run_result,
+        metadata=final_metadata,
+    )
+
+    production_response = assemble_response(
+        source="production_response",
+        raw=production_response,
+        request_id=final_request_id,
         metadata=final_metadata,
     )
 

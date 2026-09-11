@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from orchestrator.response_assembler import assemble_response
+
 
 def build_real_estate_ranking_response(
     *,
@@ -152,7 +154,22 @@ def build_real_estate_ranking_response(
         warnings=document_warnings,
     )
 
-    return {
+    response_metadata = {
+        "service": "OrchestratorService",
+        "weighted_router": True,
+        "llm_planning_enabled": llm_planning_enabled(),
+        "llm_intent": llm_intent,
+        "execution_mode": "real_estate_ranking_bridge",
+        "capabilities": [
+            "filter_features",
+            "score_features",
+            "rank_features",
+            "build_report",
+            "render_pdf",
+        ],
+    }
+
+    response = {
         "ok": True,
         "status": "succeeded",
         "request_id": rid,
@@ -181,20 +198,7 @@ def build_real_estate_ranking_response(
             "برای تحلیل دقیق‌تر، فاصله‌ها می‌توانند با pluginهای nearest_neighbor و distance_calculator از لایه‌های واقعی محاسبه شوند.",
             "در صورت نیاز، خروجی PDF/HTML گزارش از outputs.documents قابل استفاده است.",
         ],
-        "metadata": {
-            "service": "OrchestratorService",
-            "weighted_router": True,
-            "llm_planning_enabled": llm_planning_enabled(),
-            "llm_intent": llm_intent,
-            "execution_mode": "real_estate_ranking_bridge",
-            "capabilities": [
-                "filter_features",
-                "score_features",
-                "rank_features",
-                "build_report",
-                "render_pdf",
-            ],
-        },
+        "metadata": response_metadata,
         "audit_record": {
             "status": "success",
             "execution_mode": "real_estate_ranking_bridge",
@@ -218,3 +222,10 @@ def build_real_estate_ranking_response(
             },
         },
     }
+
+    return assemble_response(
+        source="real_estate_ranking",
+        raw=response,
+        request_id=rid,
+        metadata=response_metadata,
+    )

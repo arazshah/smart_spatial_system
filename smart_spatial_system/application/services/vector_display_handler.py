@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from orchestrator.response_assembler import assemble_response
 from smart_spatial_system.application.services.query_execution.real_estate_classifier import (
     is_real_estate_analysis_query as default_is_real_estate_analysis_query,
 )
@@ -391,6 +392,13 @@ def try_handle_vector_display_directly(
         "result": result_payload,
         "audit_record": audit_record,
     }
+
+    response = assemble_response(
+        source="vector_display",
+        raw=response,
+        request_id=final_request_id,
+        metadata=metadata,
+    )
 
     remember_callback(
         request_id=final_request_id,

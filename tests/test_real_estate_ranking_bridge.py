@@ -136,7 +136,8 @@ def test_real_estate_ranking_query_routes_to_ranking_bridge(monkeypatch):
     )
 
     assert response["ok"] is True
-    assert response["status"] == "succeeded"
+    # Phase 2 step 3.4: normalized via response_assembler (was "succeeded").
+    assert response["status"] == "success"
     assert response["result"]["type"] == "real_estate_ranking"
     assert response["metadata"]["execution_mode"] == "real_estate_ranking_bridge"
 

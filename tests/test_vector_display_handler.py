@@ -146,7 +146,8 @@ def test_try_handle_vector_display_directly_builds_display_response() -> None:
 
     assert result is not None
     assert result["ok"] is True
-    assert result["status"] == "succeeded"
+    # Phase 2 step 3.3: normalized via response_assembler (was "succeeded").
+    assert result["status"] == "success"
     assert result["request_id"] == "req-display-1"
     assert result["result"]["type"] == "vector_display"
     assert result["summary"]["feature_count"] == 1

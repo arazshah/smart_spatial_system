@@ -485,7 +485,7 @@ def test_service_planning_opt_in_kernel_execution_metadata_includes_summary_and_
     )
 
     assert response is not None
-    assert response["status"] == "succeeded"
+    assert response["status"] == "success"  # Phase 2 step 3.2: normalized via response_assembler
 
     metadata = response["metadata"]
     planning_summary = metadata["planning_summary"]
@@ -681,7 +681,7 @@ def test_service_planning_uses_config_kernel_execution_flag(
     )
 
     assert response is not None
-    assert response["status"] == "succeeded"
+    assert response["status"] == "success"  # Phase 2 step 3.2: normalized via response_assembler
 
     assert calls["run"] == 0
     assert calls["run_with_kernel_execution"] == 1

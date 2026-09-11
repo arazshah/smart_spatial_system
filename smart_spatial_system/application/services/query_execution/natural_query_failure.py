@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from orchestrator.response_assembler import assemble_response
+
 
 def build_and_persist_failed_natural_query_response(
     *,
@@ -40,6 +42,13 @@ def build_and_persist_failed_natural_query_response(
     if isinstance(failed_metadata, dict):
         failed_metadata["structured_error"] = json_safe(service_structured_error)
         failed_metadata["service_structured_error"] = json_safe(service_structured_error)
+
+    failed_response = assemble_response(
+        source="production_response",
+        raw=failed_response,
+        request_id=request_id,
+        metadata=final_metadata,
+    )
 
     remember(
         request_id=request_id,

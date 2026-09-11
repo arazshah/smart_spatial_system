@@ -92,13 +92,29 @@ the original phase text where they disagree):
   and wms_wfs_fetcher.py for the same kind of duplication first (e.g.
   their respective `_validate_limit`s) and found their validation logic
   is legitimately domain-specific (different bounds, different type
-  coercion), not true duplication - did not force-unify those. What's
-  still open and NOT a quick follow-on: a genuine common source-capability
-  contract across PostGIS/local/WMS/WFS with "optional semantic discovery"
-  is a from-scratch design question (this is the same territory as the
-  newer roadmap's Phase 7 "Multi-source Data Connectors" in
-  docs/ADR-004-service-oriented-modular-backend.md, which hasn't started
-  yet either) - treat as its own planned effort like Phases 2 and 5.
+  coercion), not true duplication - did not force-unify those. Planned in
+  detail in docs/PHASE6_SOURCE_ABSTRACTION_PLAN.md (not yet executed):
+  verified across all five source plugins (postgis_connector,
+  local_vector_loader, local_raster_loader, wms_wfs_fetcher,
+  geocoding_resolver) that a real common source-capability contract with
+  "optional semantic discovery" is a from-scratch design question, same
+  territory as the newer roadmap's Phase 7 "Multi-source Data Connectors"
+  in docs/ADR-004-service-oriented-modular-backend.md (which hasn't
+  started yet either) - explicitly out of scope for a quick pass, treated
+  as its own future effort. What the plan does cover as safe, small,
+  independently mergeable fixes: a genuinely duplicated (not just
+  similar) int-coercion helper across three plugins, and a real
+  error-redaction gap - only postgis_connector.py routes failures
+  through provider_error_mapping.py's credential redaction; wms_wfs_fetcher.py
+  and geocoding_resolver.py make outbound network calls but don't redact
+  their error text, unlike this session's earlier SQL-injection/SSRF
+  hardening of the same two risk classes. Also documents that OP_CATALOG
+  only maps 2 of these 5 plugins' 7 capabilities (QuerySpec/DAG-reachable);
+  3 have no production caller anywhere outside their own tests
+  (fetch_postgis_sql_layer, geocode_place, reverse_geocode_point), and
+  fetch_wms_map's only caller (register_wms_source) stores connection
+  metadata but never actually calls it - useful context for whoever
+  designs the ADR-004 connector registry, not something to fix here.
 - Phase 7 (legacy cleanup): NOT done. `SimpleCapabilityRouter` is still
   live (`orchestrator/capability_router.py`, used by
   `orchestrator/natural_query_runner.py`). Per this plan's own rule,

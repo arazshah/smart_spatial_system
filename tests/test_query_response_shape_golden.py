@@ -394,11 +394,13 @@ def test_golden_vector_display_response_shape() -> None:
     )
 
     assert payload is not None
-    # Top-level envelope -- present-tense "succeeded" here too, matching
-    # real-estate's inconsistency, distinct from ProductionResponseBuilder's
-    # present-tense "success".
     assert payload["ok"] is True
-    assert payload["status"] == "succeeded"
+    # Phase 2 step 3.3: wired through orchestrator.response_assembler --
+    # top-level status is now normalized to "success" (was "succeeded"),
+    # matching ProductionResponseBuilder's vocabulary. Nothing else changed.
+    assert payload["status"] == "success"
+    assert payload["success"] is True
+    assert payload["schema_version"] == "1.0"
     assert "confidence" not in payload
     assert "audit_ref" not in payload
     assert payload["request_id"] == "req-golden-vector-1"
@@ -424,7 +426,9 @@ def test_golden_vector_display_response_shape() -> None:
         "query",
         "request_id",
         "result",
+        "schema_version",
         "status",
+        "success",
         "summary",
         "trace",
     }

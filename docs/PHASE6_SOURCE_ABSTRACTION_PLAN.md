@@ -2,8 +2,21 @@
 
 ## Status
 
-Planned, not started. This is a plan document only — REFACTOR_PLAN.md's
-Phase 6 stays "partial" until the steps below are executed and merged.
+Steps 1-2 of 3 done (verified 2026-09). Step 3 (optional reachability
+notes) skipped — this document's own "Current state" section already
+records that information, so a separate notes file would just
+duplicate it. See `docs/REFACTOR_PLAN.md`'s Phase 6 status note for the
+up-to-date summary. The larger ADR-004 Phase 7 connector-registry
+design (see "What's deliberately not in this plan" below) remains not
+started, as intended.
+
+One correction made while implementing step 1: `postgis_connector.py`'s
+int handling turned out not to share real duplication with the other
+two plugins once read side by side (it's a looser, isinstance-only
+convention with different call sites) — only `wms_wfs_fetcher.py` and
+`geocoding_resolver.py`'s `_to_int` were byte-identical. Only those two
+were unified; `postgis_connector.py` was left untouched. See
+`plugins/_shared/numeric_validation.py`'s docstring for the full note.
 
 ## Why this is its own document, and why it's split in two
 

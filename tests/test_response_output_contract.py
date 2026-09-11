@@ -132,7 +132,8 @@ def test_real_estate_ranking_response_uses_standard_output_contract() -> None:
     )
 
     assert response["ok"] is True
-    assert response["status"] == "succeeded"
+    # Phase 2 step 3.4: normalized via response_assembler (was "succeeded").
+    assert response["status"] == "success"
     assert response["documents"] == documents
     assert response["trace"]
     assert response["report"] == report

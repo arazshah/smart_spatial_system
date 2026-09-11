@@ -251,10 +251,14 @@ def test_golden_real_estate_ranking_response_shape(monkeypatch) -> None:
         inputs={"properties": _sample_properties()},
     )
 
-    # Top-level envelope -- past-tense "succeeded", NOT "success" (the
-    # documented inconsistency this phase exists to fix).
     assert payload["ok"] is True
-    assert payload["status"] == "succeeded"
+    # Phase 2 step 3.4 (last source wired, per the plan's ordering): top-level
+    # status is now normalized to "success" (was "succeeded" -- the
+    # documented inconsistency this phase existed to fix), plus
+    # schema_version and success are always present.
+    assert payload["status"] == "success"
+    assert payload["success"] is True
+    assert payload["schema_version"] == "1.0"
     assert "confidence" not in payload
     assert "audit_ref" not in payload
     assert isinstance(payload["result"], dict)
@@ -288,7 +292,9 @@ def test_golden_real_estate_ranking_response_shape(monkeypatch) -> None:
         "report",
         "request_id",
         "result",
+        "schema_version",
         "status",
+        "success",
         "summary",
         "trace",
         "warnings",

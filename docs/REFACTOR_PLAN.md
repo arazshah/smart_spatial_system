@@ -1,5 +1,56 @@
 
 Refactor Plan — Architecture Stabilization
+
+Status update (2026-09, verified against actual code - this doc predates
+the ADR-004 service-oriented decomposition work and was not kept current
+phase-by-phase; treat the per-phase notes below as the source of truth over
+the original phase text where they disagree):
+
+- Phase 0: done (docs exist).
+- Phase 1 (artifact contract): substantively done, under a different name
+  than planned - `orchestrator/kernel_artifacts.py` bridges current
+  planning/direct outputs to `geochat_kernel.models.GeoArtifact`, not a new
+  `orchestrator/artifacts.py`.
+- Phase 2 (unified response assembler): NOT done. `SimpleResponseBuilder`
+  (orchestrator/response_builder.py) and `ProductionResponseBuilder`
+  (orchestrator/production_response.py) are still separate. Highest-risk
+  remaining phase - touches every response shape the frontend depends on.
+  Do this as its own dedicated effort with golden tests, not bundled with
+  anything else.
+- Phase 3 (planning default config): done - `OrchestratorServiceConfig`
+  now has `query_spec_planning_enabled`/`llm_planning_enabled` fields,
+  env vars remain a deployment-level override on top of them.
+- Phase 4 (migrate vector direct path): substantively done.
+  `smart_spatial_system/application/services/vector_display_handler.py`
+  already delegates to `inspect_vector`/`display_vector_layer`/
+  `summarize_vector_layer` through the capability registry rather than
+  duplicating logic - verified no ad-hoc business logic remains outside
+  a documented fallback path. What's NOT done: this is still a direct-
+  dispatch shortcut rather than routed through QuerySpec/DAG, because
+  `query_spec_planning_enabled` defaults to False (Phase 3) and OP_CATALOG
+  already has `inspect_vector`/`display_vector_layer`/
+  `summarize_vector_layer` entries capable of handling it - flipping the
+  default or routing this specific query type through the DAG needs the
+  Phase 2 unified response first, since the DAG path and this direct
+  handler currently return different response shapes.
+- Phase 5 (real estate to plugin): NOT done and larger than the text
+  below suggests. Real-estate ranking is a fully separate direct-dispatch
+  path (`direct_response_handler`/`preflight_direct_response_handler` in
+  query_execution_service.py) with ZERO representation in OP_CATALOG -
+  there is no `real_estate_rank` op today, so this phase requires
+  designing the op/capability contract from scratch, not just moving
+  code. This is also the real-estate site-ranking + PDF report workflow,
+  one of the two workflows the README documents as a primary demo
+  feature - real regression risk. Treat as its own planned effort.
+- Phase 6 (source abstraction): partial - PostGIS/local vector/local
+  raster/WMS/WFS connectors all exist as plugins, but are not unified
+  behind a common source-capability contract.
+- Phase 7 (legacy cleanup): NOT done. `SimpleCapabilityRouter` is still
+  live (`orchestrator/capability_router.py`, used by
+  `orchestrator/natural_query_runner.py`). Per this plan's own rule,
+  remove only after Phases 4-6 give it a tested replacement path - it
+  isn't safe to touch in isolation.
+
 Goal
 
 Make the system simpler, more general, more professional, and easier to control before it grows further.

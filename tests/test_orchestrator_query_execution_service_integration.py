@@ -78,8 +78,8 @@ def test_query_execution_service_contains_planning_flag_helpers() -> None:
 def test_orchestrator_planning_flag_helpers_delegate_to_query_execution_service() -> None:
     source = Path("orchestrator/service.py").read_text(encoding="utf-8")
 
-    assert "return QueryExecutionService._llm_planning_enabled()" in source
-    assert "return QueryExecutionService._query_spec_planning_enabled()" in source
+    assert "return self.query_execution_service._llm_planning_enabled()" in source
+    assert "return self.query_execution_service._query_spec_planning_enabled()" in source
     assert (
         "return self.query_execution_service._kernel_execution_enabled("
         in source

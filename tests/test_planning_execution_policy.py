@@ -117,3 +117,33 @@ def test_query_spec_planning_enabled_non_truthy_values(monkeypatch) -> None:
     for value in ("0", "false", "no", "off", ""):
         monkeypatch.setenv("QUERY_SPEC_PLANNING_ENABLED", value)
         assert is_query_spec_planning_enabled() is False
+
+
+def test_query_spec_planning_enabled_honors_config_when_env_unset(monkeypatch) -> None:
+    monkeypatch.delenv("QUERY_SPEC_PLANNING_ENABLED", raising=False)
+
+    from smart_spatial_system.application.services.planning_execution_policy import (
+        is_query_spec_planning_enabled,
+    )
+
+    assert is_query_spec_planning_enabled(
+        config=SimpleNamespace(query_spec_planning_enabled=True)
+    ) is True
+    assert is_query_spec_planning_enabled(
+        config=SimpleNamespace(query_spec_planning_enabled=False)
+    ) is False
+
+
+def test_query_spec_planning_enabled_env_overrides_config(monkeypatch) -> None:
+    monkeypatch.setenv("QUERY_SPEC_PLANNING_ENABLED", "true")
+
+    from smart_spatial_system.application.services.planning_execution_policy import (
+        is_query_spec_planning_enabled,
+    )
+
+    # Deployment-level env override wins even when config says otherwise -
+    # REFACTOR_PLAN.md Phase 3: "Environment variables may override config,
+    # but should not be the only source of truth."
+    assert is_query_spec_planning_enabled(
+        config=SimpleNamespace(query_spec_planning_enabled=False)
+    ) is True

@@ -237,6 +237,16 @@ class OrchestratorServiceConfig:
 
     response_language: str = "fa"
 
+    # REFACTOR_PLAN.md Phase 3: explicit config source of truth for planning
+    # flags that used to be environment-only (QUERY_SPEC_PLANNING_ENABLED,
+    # LLM_PLANNING_ENABLED). The env vars still work as deployment-level
+    # overrides on top of these - see planning_execution_policy.py and
+    # llm_intent_adapter.py. Defaults match the env vars' prior defaults
+    # (both False) so this is a config-source change only, not a behavior
+    # change.
+    query_spec_planning_enabled: bool = False
+    llm_planning_enabled: bool = False
+
     # Experimental opt-in: execute QuerySpec plans through the
     # geochat_kernel execution bridge in addition to the current DAG path.
     # Default is False to keep production behavior unchanged.
@@ -545,13 +555,11 @@ class OrchestratorService:
             project_service_getter=lambda: getattr(self, "project_service", None),
         )
 
-    @staticmethod
-    def _llm_planning_enabled() -> bool:
-        return QueryExecutionService._llm_planning_enabled()
+    def _llm_planning_enabled(self) -> bool:
+        return self.query_execution_service._llm_planning_enabled()
 
-    @staticmethod
-    def _query_spec_planning_enabled() -> bool:
-        return QueryExecutionService._query_spec_planning_enabled()
+    def _query_spec_planning_enabled(self) -> bool:
+        return self.query_execution_service._query_spec_planning_enabled()
 
     def _maybe_plan_llm_intent(
         self,

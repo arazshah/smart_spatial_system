@@ -32,11 +32,9 @@ from typing import Any
 from geochat_sdk.decorators import capability
 from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.vector import VectorOut
-from geochat_sdk.exceptions import SDKDependencyError
 
 from orchestrator.provider_error_mapping import make_provider_execution_error
 from plugins._shared.plugin_config import get_profile_config, pick_first
-
 
 PLUGIN_ID = "postgis_connector"
 
@@ -201,8 +199,6 @@ def _build_select_features_sql(
     schema_sql = _quote_identifier(schema)
     table_sql = _quote_identifier(table)
     geom_sql = f't.{_quote_identifier(geom_col)}'
-
-    params: list[Any] = []
 
     if output_srid is not None:
         geometry_expr = (
@@ -958,7 +954,6 @@ def _build_select_from_sql_query(
     output_srid = _validate_output_srid(output_srid)
 
     geom_sql = f'q.{_quote_identifier(geom_col)}'
-    params: list[Any] = []
 
     if output_srid is not None:
         geometry_expr = (

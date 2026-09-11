@@ -10,7 +10,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from orchestrator.service import OrchestratorService
 
-
 REAL_ESTATE_QUERY = (
     "ملک‌هایی را پیدا کن که کمتر از ۵۰۰ متر به مترو یا مرکز خرید نزدیک باشند، "
     "نزدیک خیابان اصلی باشند، ریسک سیل و زلزله و آتش‌سوزی پایین داشته باشند، "

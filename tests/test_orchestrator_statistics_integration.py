@@ -11,7 +11,6 @@ import copy
 import sys
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -22,7 +21,6 @@ from orchestrator.routing_aware_natural_query_runner import (  # noqa: E402
     run_natural_query_with_routing_evidence,
 )
 from orchestrator.statistics import ExecutionStatisticsCollector  # noqa: E402
-
 
 SAFE_MODULES = [
     "plugins.spectral_indices",

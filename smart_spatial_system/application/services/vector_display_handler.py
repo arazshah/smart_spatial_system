@@ -9,6 +9,9 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from smart_spatial_system.application.services.query_execution.real_estate_classifier import (
+    is_real_estate_analysis_query as default_is_real_estate_analysis_query,
+)
 from smart_spatial_system.application.services.vector_geojson_helpers import (
     find_geojson_like,
     summarize_feature_collection,
@@ -17,10 +20,6 @@ from smart_spatial_system.application.services.vector_query_classifier import (
     is_vector_display_query,
     is_vector_summary_query,
 )
-from smart_spatial_system.application.services.query_execution.real_estate_classifier import (
-    is_real_estate_analysis_query as default_is_real_estate_analysis_query,
-)
-
 
 JsonSafe = Callable[[Any], Any]
 

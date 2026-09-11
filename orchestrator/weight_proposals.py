@@ -25,7 +25,6 @@ from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
 
-
 VALID_TARGETS = {
     "capability",
     "plugin",

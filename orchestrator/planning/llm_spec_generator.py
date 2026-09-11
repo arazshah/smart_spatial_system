@@ -15,7 +15,12 @@ import urllib.request
 from dataclasses import asdict
 from typing import Any, Protocol
 
-from orchestrator.planning.op_catalog import get_op, is_supported, list_pending_ops, list_supported_ops
+from orchestrator.planning.op_catalog import (
+    get_op,
+    is_supported,
+    list_pending_ops,
+    list_supported_ops,
+)
 from orchestrator.planning.spec import EntitySpec, OperationSpec, OutputSpec, QuerySpec
 
 
@@ -1160,109 +1165,6 @@ def _default_real_estate_scoring_spec() -> dict[str, Any]:
             },
         ],
     }
-
-
-def normalize_llm_query_spec_for_planning(spec: QuerySpec) -> QuerySpec:
-    """
-    Normalize and harden LLM-produced QuerySpec before deterministic planning.
-
-    Why this exists:
-        LLMs may produce mostly-correct specs but still add unsupported input roles
-        such as:
-            score_features.inputs.external_api = risk_api
-
-        DeterministicPlanner should stay strict.
-        This function repairs safe, common LLM mistakes before planning.
-
-    What it does:
-        - Keeps only supported input roles per op_catalog.
-        - Adds fallback scoring_spec for score_features when missing.
-        - Aligns rank_features.score_field with previous score_features output_field.
-        - Records repairs in metadata["normalization"].
-    """
-    repairs: list[str] = []
-    normalized_ops: list[OperationSpec] = []
-
-    last_score_field: str | None = None
-
-    for op in spec.operations:
-        # Unknown operations should remain unchanged so Planner can raise a clear error.
-        if not is_supported(op.op):
-            normalized_ops.append(op)
-            continue
-
-        descriptor = get_op(op.op)
-
-        allowed_roles = set(descriptor.input_map)
-        clean_inputs: dict[str, str] = {}
-
-        for role, ref in op.inputs.items():
-            if role in allowed_roles:
-                clean_inputs[role] = ref
-            else:
-                repairs.append(
-                    f"removed unsupported input role {role!r} from operation {op.op!r}"
-                )
-
-        clean_params = dict(op.params)
-
-        if op.op == "score_features":
-            if "scoring_spec" not in clean_params and "factors" not in clean_params:
-                clean_params["scoring_spec"] = _default_real_estate_scoring_spec()
-                repairs.append("added default scoring_spec to score_features")
-
-            scoring_spec = clean_params.get("scoring_spec")
-            if isinstance(scoring_spec, dict):
-                scoring_inner = scoring_spec.get("scoring")
-                if isinstance(scoring_inner, dict):
-                    last_score_field = str(scoring_inner.get("output_field") or "score")
-                else:
-                    last_score_field = str(scoring_spec.get("output_field") or "score")
-            else:
-                last_score_field = str(clean_params.get("output_field") or "score")
-
-        if op.op == "rank_features":
-            if "score_field" not in clean_params:
-                clean_params["score_field"] = last_score_field or "score"
-                repairs.append(
-                    f"added score_field={clean_params['score_field']!r} to rank_features"
-                )
-            if "rank_field" not in clean_params:
-                clean_params["rank_field"] = "rank"
-                repairs.append("added rank_field='rank' to rank_features")
-
-        normalized_ops.append(
-            OperationSpec(
-                op=op.op,
-                inputs=clean_inputs,
-                params=clean_params,
-                output=op.output,
-            )
-        )
-
-    metadata = dict(spec.metadata or {})
-    if repairs:
-        metadata.setdefault("normalization", {})
-        normalization = metadata["normalization"]
-        if isinstance(normalization, dict):
-            normalization["applied"] = True
-            normalization["repairs"] = repairs
-        else:
-            metadata["normalization"] = {
-                "applied": True,
-                "repairs": repairs,
-            }
-
-    return QuerySpec(
-        raw_query=spec.raw_query,
-        goal=spec.goal,
-        entities=spec.entities,
-        operations=normalized_ops,
-        outputs=spec.outputs,
-        source=spec.source,
-        metadata=metadata,
-    )
-
 
 
 def _semantic_distance_field(reference_ref: str) -> str:

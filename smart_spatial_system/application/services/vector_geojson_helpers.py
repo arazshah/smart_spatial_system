@@ -11,7 +11,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 GEOJSON_GEOMETRY_TYPES = {
     "Point",
     "MultiPoint",

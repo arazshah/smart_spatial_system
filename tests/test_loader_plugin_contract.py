@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -25,7 +24,6 @@ from orchestrator.loader_plugin_contract import (  # noqa: E402
     normalize_raster_loader_output,
     normalize_vector_loader_output,
 )
-
 
 SAMPLE_RASTER = {
     "data": [

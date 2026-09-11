@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -33,7 +32,6 @@ from plugins.raster_reclassify import (  # noqa: E402
     _validate_precision,
     reclassify_raster,
 )
-
 
 RASTER_NDVI = {
     "data": [

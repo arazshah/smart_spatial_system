@@ -22,7 +22,6 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-
 VALID_RATINGS = {
     "correct",
     "partially_correct",

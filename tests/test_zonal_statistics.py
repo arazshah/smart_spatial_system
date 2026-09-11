@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -36,7 +35,6 @@ from plugins.zonal_statistics import (  # noqa: E402
     _validate_precision,
     calculate_zonal_statistics,
 )
-
 
 RASTER_5X5 = {
     "data": [

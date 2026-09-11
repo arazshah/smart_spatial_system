@@ -19,8 +19,6 @@ from dataclasses import dataclass
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from orchestrator.service import OrchestratorService, OrchestratorServiceConfig
-
 from api.routers.data_source_connectors import router as data_source_connectors_router
 from api.routers.data_sources import router as data_sources_router
 from api.routers.plugins_settings import router as plugins_settings_router
@@ -30,6 +28,7 @@ from api.routers.requests_outputs import router as requests_outputs_router
 from api.routers.system import router as system_router
 from api.routers.uploads import router as uploads_router
 from api.routers.weights import router as weights_router
+from orchestrator.service import OrchestratorService, OrchestratorServiceConfig
 
 
 @dataclass(frozen=True)

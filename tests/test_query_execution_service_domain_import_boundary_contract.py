@@ -11,7 +11,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-
 SERVICE_PATH = Path("smart_spatial_system/application/services/query_execution_service.py")
 
 

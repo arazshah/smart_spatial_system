@@ -16,7 +16,6 @@ from starlette.responses import FileResponse
 
 from api.routers.requests_outputs import download_request_document
 
-
 REQUEST_OUTPUTS_PATH = Path("api/routers/requests_outputs.py")
 
 

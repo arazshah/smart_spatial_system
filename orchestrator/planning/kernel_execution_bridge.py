@@ -18,6 +18,12 @@ import inspect
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from geochat_kernel.models.execution_artifact import ExecutionArtifact
+from geochat_kernel.models.query_plan import PlanStep, QueryPlan
+from geochat_kernel.runtime.app_container import KernelAppContainer
+from geochat_kernel.runtime.execution_context import ExecutionContext
+from geochat_kernel.runtime.plan_executor import PlanExecutor
+
 from orchestrator.error_contract import (
     CATEGORY_CAPABILITY_CONTRACT,
     CATEGORY_CAPABILITY_RESOLUTION,
@@ -26,13 +32,6 @@ from orchestrator.error_contract import (
     exception_to_error,
     make_error,
 )
-
-from geochat_kernel.models.execution_artifact import ExecutionArtifact
-from geochat_kernel.models.query_plan import PlanStep, QueryPlan
-from geochat_kernel.runtime.app_container import KernelAppContainer
-from geochat_kernel.runtime.execution_context import ExecutionContext
-from geochat_kernel.runtime.plan_executor import PlanExecutor
-
 
 CapabilityResolver = Callable[[str], Callable[..., Any]]
 

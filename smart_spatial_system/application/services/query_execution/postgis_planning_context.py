@@ -8,9 +8,7 @@ and runtime connection input flattening out of QueryExecutionService.
 from __future__ import annotations
 
 import importlib
-
 import sys
-
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -98,7 +96,6 @@ def _coerce_postgis_schema_context(value: Any) -> PostGISSchemaContext | None:
     """
     from orchestrator.planning.postgis_semantic_resolver import (
         ColumnInfo,
-        PostGISSchemaContext,
         PostGISTableInfo,
     )
 
@@ -334,9 +331,6 @@ def _discover_postgis_schema_context_from_connection_config(
     The caller receives exceptions; higher-level planning should handle them
     non-fatally.
     """
-    from orchestrator.planning.postgis_semantic_resolver import (
-        discover_postgis_schema,
-    )
 
     import psycopg2
 
@@ -507,9 +501,6 @@ def _extract_semantic_planning_context_from_sources(
             or None
         )
 
-        from orchestrator.planning.semantic_planning_context import (
-            build_semantic_planning_context,
-        )
 
         context = _build_semantic_planning_context(
             query,

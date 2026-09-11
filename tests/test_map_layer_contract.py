@@ -12,7 +12,6 @@ from smart_spatial_system.application.services.vector_display_handler import (
     try_handle_vector_display_directly,
 )
 
-
 FEATURE_COLLECTION = {
     "type": "FeatureCollection",
     "features": [

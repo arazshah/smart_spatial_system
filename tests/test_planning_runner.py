@@ -1,12 +1,11 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import pytest
-
 from geochat_kernel.models import QueryPlan
 
 from orchestrator.planning.capability_resolver import (
@@ -272,7 +271,9 @@ def test_planning_runner_default_run_does_not_execute_kernel_path() -> None:
 
 
 def test_planning_runner_kernel_execution_summary_is_available() -> None:
-    from orchestrator.planning.kernel_execution_bridge import kernel_execution_to_summary
+    from orchestrator.planning.kernel_execution_bridge import (
+        kernel_execution_to_summary,
+    )
 
     runner = make_static_planning_runner(
         {

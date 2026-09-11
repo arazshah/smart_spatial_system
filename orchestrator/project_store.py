@@ -30,7 +30,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
 PROJECT_STORE_SCHEMA_VERSION = "1.0.0"
 
 

@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -38,7 +37,6 @@ from plugins.raster_to_vector import (  # noqa: E402
     _value_is_selected,
     raster_to_vector,
 )
-
 
 MASK_2D = {
     "data": [

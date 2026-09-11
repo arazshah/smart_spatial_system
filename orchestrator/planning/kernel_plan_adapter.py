@@ -24,7 +24,6 @@ from orchestrator.planning.dag import DagNode, DagPlan
 from orchestrator.planning.planner import DeterministicPlanner
 from orchestrator.planning.spec import QuerySpec
 
-
 _NODE_REF_PREFIXES = ("$node.", "$nodes.")
 _EXTERNAL_REF_PREFIXES = (
     "$inputs.",

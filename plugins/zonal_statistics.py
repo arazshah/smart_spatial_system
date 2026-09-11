@@ -46,7 +46,11 @@ from geochat_sdk.decorators import capability
 from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.vector import VectorOut
 
-from plugins._shared.plugin_config import load_plugin_config, pick_first, resolve_env_refs
+from plugins._shared.plugin_config import (
+    load_plugin_config,
+    pick_first,
+    resolve_env_refs,
+)
 from plugins.raster_clip_mask import (
     _array_shape,
     _bboxes_intersect,
@@ -58,7 +62,6 @@ from plugins.raster_clip_mask import (
     _pixel_center,
     _point_matches_geometry,
 )
-
 
 PLUGIN_ID = "zonal_statistics"
 

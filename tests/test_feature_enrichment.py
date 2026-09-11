@@ -1,12 +1,15 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from orchestrator.planning.op_catalog import get_op, is_supported
-from plugins.feature_enrichment import enrich_feature_properties, join_feature_properties
+from plugins.feature_enrichment import (
+    enrich_feature_properties,
+    join_feature_properties,
+)
 
 
 def _features():

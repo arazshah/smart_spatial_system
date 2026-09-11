@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -20,16 +19,15 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from orchestrator.capability_registry import CapabilityRegistry  # noqa: E402
 from orchestrator.capability_scoring import KeywordScoringCapabilityRouter  # noqa: E402
 from orchestrator.llm_gate import (  # noqa: E402
+    LLMBudgetPolicy,
     LLMGate,
     LLMGateBlockedError,
     LLMProviderStub,
-    LLMBudgetPolicy,
 )
 from orchestrator.router_decision import RouterDecisionConfig  # noqa: E402
 from orchestrator.routing_aware_natural_query_runner import (  # noqa: E402
     run_natural_query_with_routing_evidence,
 )
-
 
 SAFE_MODULES = [
     "plugins.spectral_indices",

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable
 from pathlib import Path
-import sys
 from typing import Any
-
 
 
 def _resolve_render_pdf_capability():

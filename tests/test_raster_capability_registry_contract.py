@@ -4,7 +4,6 @@ from orchestrator.capability_registry import CapabilityRegistry
 from orchestrator.planning.capability_resolver import RegistryCapabilityResolver
 from orchestrator.planning.op_catalog import OP_CATALOG
 
-
 RASTER_OPS = [
     "ndvi",
     "calculate_ndvi",

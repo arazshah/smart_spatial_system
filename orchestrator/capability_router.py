@@ -9,6 +9,8 @@ Later it should be replaced with a registry-backed router that scores capabiliti
 
 from __future__ import annotations
 
+from typing import Any
+
 
 def _default_capability_handlers() -> dict[str, Any]:
     """

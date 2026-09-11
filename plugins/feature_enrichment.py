@@ -34,7 +34,6 @@ from geochat_sdk.decorators import capability
 from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.vector import VectorOut
 
-
 PLUGIN_ID = "feature_enrichment"
 
 

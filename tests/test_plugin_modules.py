@@ -10,8 +10,12 @@ if str(ROOT) not in sys.path:
 
 
 def test_default_safe_plugin_modules_are_centralized() -> None:
-    from orchestrator.capability_registry import DEFAULT_SAFE_PLUGIN_MODULES as registry_default
-    from orchestrator.plugin_modules import DEFAULT_SAFE_PLUGIN_MODULES as centralized_default
+    from orchestrator.capability_registry import (
+        DEFAULT_SAFE_PLUGIN_MODULES as registry_default,
+    )
+    from orchestrator.plugin_modules import (
+        DEFAULT_SAFE_PLUGIN_MODULES as centralized_default,
+    )
     from orchestrator.service import DEFAULT_SAFE_PLUGIN_MODULES as service_default
 
     assert registry_default is centralized_default

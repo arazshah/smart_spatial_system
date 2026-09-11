@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+import plugins.postgis_connector as postgis_connector
 from orchestrator.planning.runner import make_static_planning_runner
 from orchestrator.planning.spec import EntitySpec, OperationSpec, OutputSpec, QuerySpec
-
-import plugins.postgis_connector as postgis_connector
 
 
 def test_query_database_provider_queryspec_executes_through_kernel_runtime(

@@ -17,7 +17,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
-
 CATEGORY_VALIDATION = "validation_error"
 CATEGORY_CONFIGURATION = "configuration_error"
 CATEGORY_PLANNING = "planning_error"

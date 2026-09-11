@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -27,7 +26,6 @@ from plugins.nearest_neighbor import (  # noqa: E402
     _validate_max_distance,
     find_nearest_neighbors,
 )
-
 
 SOURCE_POINT = {
     "type": "Feature",

@@ -32,7 +32,6 @@ from orchestrator.error_contract import (
 )
 from orchestrator.planning.dag import DagNode, DagPlan
 
-
 CapabilityResolver = Callable[[str], Callable[..., Any]]
 
 

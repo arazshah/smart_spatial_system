@@ -80,6 +80,8 @@ def plan_intent_with_llm(
     from orchestrator.llm_client import LLMClientError, LLMConfigError
     from orchestrator.llm_intent_planner import (
         LLMIntentPlannerError,
+    )
+    from orchestrator.llm_intent_planner import (
         plan_intent_with_llm as _plan_intent_with_llm,
     )
 

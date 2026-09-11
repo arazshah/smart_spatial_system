@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import plugins.postgis_connector as postgis_connector
 from orchestrator.planning.output_parity import (
     compare_output_node_parity,
     summarize_output_value,
 )
 from orchestrator.planning.runner import make_static_planning_runner
 from orchestrator.planning.spec import EntitySpec, OperationSpec, OutputSpec, QuerySpec
-
-import plugins.postgis_connector as postgis_connector
 
 
 def test_output_parity_summarizes_vector_like_outputs_without_datasource_dependency() -> None:

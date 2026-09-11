@@ -29,7 +29,7 @@ Output:
 from __future__ import annotations
 
 import statistics
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
@@ -43,7 +43,6 @@ from orchestrator.planning.report_spec import (
     default_real_estate_report_spec,
     report_spec_from_dict,
 )
-
 
 PLUGIN_ID = "report_builder"
 
@@ -196,10 +195,6 @@ def _compute_summary(
 
     if not top_feature_props and all_props:
         top_feature_props = all_props[0]
-
-    wanted_stats = set()
-    if summary_spec and isinstance(summary_spec.stats, list):
-        wanted_stats = set(summary_spec.stats)
 
     result: dict[str, Any] = {
         "total_count": len(features),
@@ -545,13 +540,13 @@ def build_report(
             "config": spec.config,
             "map_layers": [
                 {
-                    "source": l.source,
-                    "kind": l.kind,
-                    "label": l.label,
-                    "visible": l.visible,
-                    "style": l.style,
+                    "source": layer.source,
+                    "kind": layer.kind,
+                    "label": layer.label,
+                    "visible": layer.visible,
+                    "style": layer.style,
                 }
-                for l in spec.map_layers
+                for layer in spec.map_layers
             ],
             "tables": [
                 {

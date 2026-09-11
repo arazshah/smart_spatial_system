@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -24,7 +23,6 @@ from orchestrator.upload_storage import (  # noqa: E402
     UploadStorageConfig,
     UploadStorageError,
 )
-
 
 SAMPLE_RASTER = {
     "data": [

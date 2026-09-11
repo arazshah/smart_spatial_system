@@ -15,9 +15,12 @@ It is built on top of `geochat-platform` (external repo): plugins are written wi
 ```bash
 # Backend
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.lock      # pinned, reproducible (preferred for CI/onboarding)
+# pip install -r requirements.txt     # unpinned direct deps, picks up upstream updates
 cp .env.example .env                  # fill in LLM_API key etc.
 uvicorn api.main:app --reload         # http://127.0.0.1:8000/docs
+
+ruff check .                          # lint (config: pyproject.toml, scoped rule set — see below)
 
 # Tests (pytest, ~150 modules in tests/)
 pytest                                          # full suite
@@ -28,13 +31,17 @@ pytest tests/test_orchestrator_service.py tests/test_orchestrator_service_integr
 
 # Frontend (frontend/)
 cd frontend
-npm install
+npm install            # regenerates package-lock.json from the standard npm registry —
+                        # never let a lockfile with hardcoded mirror "resolved" URLs back in
+                        # (see git history: it broke installs off one specific network)
 npm run dev        # http://localhost:5173
 npm run build
 npm run lint
 ```
 
-No repo-level lint/format/type-check config was found for the Python side (no `pyproject.toml`/`ruff`/`mypy` config) — rely on tests. Runtime data (outputs, uploads, projects, cache) is written under `var/` (override with `SMART_SPATIAL_RUNTIME_DIR`) and is git-ignored; don't treat files there as source.
+`requirements.lock` is generated from `requirements.txt` in a clean venv (`python -m venv /tmp/lockenv && /tmp/lockenv/bin/pip install -r requirements.txt && /tmp/lockenv/bin/pip freeze | grep -v '^pip==' > requirements.lock`) — regenerate it the same way after changing `requirements.txt`, and always from a clean venv, not `pip freeze` in an ad-hoc/system environment (which pulls in unrelated OS-level Python packages).
+
+Python lint is `ruff`, configured in `pyproject.toml` with a deliberately narrow rule set (`E`, `F`, `W`, `I`, minus `E501` line-length and `E402` import-position — both have large pre-existing counts unrelated to correctness). `F` (pyflakes) already caught and fixed real bugs this way: an unimported-name `NameError` in the legacy `SimpleCapabilityRouter`, a fully dead 100-line duplicate of `normalize_llm_query_spec_for_planning` silently shadowed by a second definition, two undefined-name references in `query_execution_service.py`, and three test functions in `test_orchestrator_service.py` silently shadowed by later same-named definitions (pytest only ever ran the second one). `orchestrator/service.py` is exempted from `F401`/`I001` in `pyproject.toml` — the test suite monkeypatches many of its "unused" imports as module attributes (e.g. `service_module.OpenAICompatibleLLMClient = Fake`), so don't "clean up" imports there without checking every test for `service_module.<Name>` / `from orchestrator.service import <Name>` first. No Python type-checker (mypy/pyright) is configured yet. Runtime data (outputs, uploads, projects, cache) is written under `var/` (override with `SMART_SPATIAL_RUNTIME_DIR`) and is git-ignored; don't treat files there as source.
 
 ## Architecture
 

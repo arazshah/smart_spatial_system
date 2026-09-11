@@ -36,14 +36,17 @@ from geochat_sdk.decorators import capability
 from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.vector import VectorOut
 
-from plugins._shared.plugin_config import load_plugin_config, pick_first, resolve_env_refs
+from plugins._shared.plugin_config import (
+    load_plugin_config,
+    pick_first,
+    resolve_env_refs,
+)
 from plugins.distance_calculator import (
     _calculate_distance,
     _geometry_bbox,
     _is_geographic_crs,
     _validate_engine,
 )
-
 
 PLUGIN_ID = "nearest_neighbor"
 

@@ -28,7 +28,6 @@ from typing import Any
 from geochat_sdk.decorators import capability
 from geochat_sdk.plugin import auto_collect
 
-
 PLUGIN_ID = "core_vector"
 
 

@@ -12,15 +12,14 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
 from orchestrator.llm_gate import (  # noqa: E402
+    LLMBudgetPolicy,
     LLMGate,
     LLMProviderStub,
-    LLMBudgetPolicy,
 )
 
 

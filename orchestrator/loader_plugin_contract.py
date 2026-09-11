@@ -36,7 +36,6 @@ from typing import Any
 
 from orchestrator.input_error_mapping import loader_exception_to_structured_error
 
-
 LOADER_PLUGIN_CONTRACT_VERSION = "1.0.0"
 
 

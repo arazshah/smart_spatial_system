@@ -24,7 +24,6 @@ from orchestrator.error_contract import (
     exception_to_error,
 )
 
-
 _PASSWORD_ASSIGNMENT_RE = re.compile(
     r"(?i)(password|passwd|pwd|token|api_key|apikey|secret)=(\S+)"
 )

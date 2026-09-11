@@ -6,7 +6,6 @@ from fastapi import APIRouter, Request
 
 from api.support import json_safe, service
 
-
 router = APIRouter()
 
 

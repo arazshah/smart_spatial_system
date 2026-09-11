@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 SERVICE_PATH = Path("orchestrator/service.py")
 
 

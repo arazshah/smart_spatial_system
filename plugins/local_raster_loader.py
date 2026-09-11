@@ -28,6 +28,7 @@ from geochat_sdk.exceptions import SDKDependencyError
 from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.raster import RasterOut
 
+from plugins._shared.local_path_validation import validate_local_path
 from plugins._shared.plugin_config import (
     load_plugin_config,
     pick_first,
@@ -84,28 +85,6 @@ def _configured_allowed_roots(config: dict[str, Any]) -> list[str]:
     return [str(item) for item in values]
 
 
-def _ensure_under_allowed_roots(path: Path, allowed_roots: list[str] | None) -> None:
-    """
-    Ensure path is under one of allowed_roots.
-
-    If allowed_roots is empty or None, no restriction is applied.
-    """
-    if not allowed_roots:
-        return
-
-    resolved_path = path.resolve()
-    resolved_roots = [Path(root).expanduser().resolve() for root in allowed_roots]
-
-    for root in resolved_roots:
-        if resolved_path == root or root in resolved_path.parents:
-            return
-
-    raise ValueError(
-        f"Raster path is not under any allowed root: {resolved_path}. "
-        f"Allowed roots: {[str(r) for r in resolved_roots]}"
-    )
-
-
 def _validate_path(
     path: str,
     strict_extensions: bool = True,
@@ -130,29 +109,14 @@ def _validate_path(
         FileNotFoundError:
             If file does not exist.
     """
-    if not isinstance(path, str) or not path.strip():
-        raise ValueError("path must be a non-empty string.")
-
-    raster_path = Path(path).expanduser().resolve()
-
-    if not raster_path.exists():
-        raise FileNotFoundError(f"Raster file not found: {raster_path}")
-
-    if not raster_path.is_file():
-        raise ValueError(f"Raster path is not a file: {raster_path}")
-
-    _ensure_under_allowed_roots(raster_path, allowed_roots)
-
-    suffix = raster_path.suffix.lower()
-    effective_extensions = allowed_extensions or ALLOWED_RASTER_EXTENSIONS
-
-    if strict_extensions and suffix not in effective_extensions:
-        raise ValueError(
-            "Unsupported raster extension "
-            f"'{suffix}'. Allowed extensions: {sorted(effective_extensions)}"
-        )
-
-    return raster_path
+    return validate_local_path(
+        path,
+        label="Raster",
+        default_extensions=ALLOWED_RASTER_EXTENSIONS,
+        strict_extensions=strict_extensions,
+        allowed_extensions=allowed_extensions,
+        allowed_roots=allowed_roots,
+    )
 
 
 def _safe_float(value: Any) -> float | None:

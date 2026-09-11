@@ -997,9 +997,17 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         capability_name="enrich_real_estate_spatial_context",
         input_map={
             "vector": "features",
+            "metro": "metro",
+            "malls": "malls",
+            "main_roads": "main_roads",
+            "allowed_zones": "allowed_zones",
         },
         input_types={
             "vector": "vector",
+            "metro": "vector",
+            "malls": "vector",
+            "main_roads": "vector",
+            "allowed_zones": "vector",
         },
         param_map={
             "metadata": "metadata",
@@ -1008,11 +1016,14 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         notes=(
             "Fill missing real-estate ranking metrics (distance_to_metro_m, "
             "distance_to_mall_m, distance_to_main_road_m, in_allowed_zone) "
-            "from properties already present on the input features. Does "
-            "not take separate metro/mall/road/zone layer node references "
-            "yet -- only DAG-registered for isolated execution so far; "
-            "layer-input wiring is deferred to when the real real-estate "
-            "QuerySpec is built."
+            "from optional metro/malls/main_roads/allowed_zones layers. "
+            "All four layer roles are required node inputs (the planner has "
+            "no notion of optional input_map roles today): pass an empty "
+            "FeatureCollection ({'type': 'FeatureCollection', 'features': []}) "
+            "entity for any layer that has no real data -- the underlying "
+            "capability treats an empty/missing layer as a no-op for that "
+            "layer, so this has no effect on features that already have "
+            "explicit distance/zone values."
         ),
     ),
 

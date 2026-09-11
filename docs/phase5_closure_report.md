@@ -1,4 +1,3 @@
-cat > docs/phase5_closure_report.md <<'MD'
 # Phase 5 Closure Report — API Contract Stabilization
 
 ## Status
@@ -39,3 +38,4 @@ Document:
 
 ```text
 docs/phase5_api_surface_inventory.md
+```

@@ -42,6 +42,7 @@ from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.raster import RasterOut
 from geochat_sdk.types.vector import VectorOut
 
+from plugins._shared.numeric_validation import to_int as _shared_to_int
 from plugins._shared.plugin_config import (
     load_plugin_config,
     pick_first,
@@ -233,13 +234,7 @@ def _to_int(value: Any, field_name: str) -> int:
     """
     Convert value to int or raise clear error.
     """
-    if isinstance(value, bool):
-        raise ValueError(f"{field_name} must be an integer.")
-
-    try:
-        return int(value)
-    except Exception as exc:
-        raise ValueError(f"{field_name} must be an integer.") from exc
+    return _shared_to_int(value, field_name)
 
 
 def _validate_positive_int(value: Any, field_name: str, max_value: int | None = None) -> int:

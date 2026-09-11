@@ -475,15 +475,13 @@ class QueryExecutionService:
     def __getattr__(self, name: str) -> Any:
         return getattr(self._context, name)
 
-    @staticmethod
-    def _llm_planning_enabled() -> bool:
-        return is_llm_planning_enabled()
+    def _llm_planning_enabled(self) -> bool:
+        return is_llm_planning_enabled(config=getattr(self, "config", None))
 
 
 
-    @staticmethod
-    def _query_spec_planning_enabled() -> bool:
-        return is_query_spec_planning_enabled()
+    def _query_spec_planning_enabled(self) -> bool:
+        return is_query_spec_planning_enabled(config=getattr(self, "config", None))
 
 
 

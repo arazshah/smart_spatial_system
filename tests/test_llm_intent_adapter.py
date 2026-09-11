@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 
 from smart_spatial_system.application.services.llm_intent_adapter import (
@@ -26,6 +28,22 @@ def test_is_llm_planning_enabled_non_truthy_values(monkeypatch, value: str) -> N
     monkeypatch.setenv("LLM_PLANNING_ENABLED", value)
 
     assert is_llm_planning_enabled() is False
+
+
+def test_is_llm_planning_enabled_honors_config_when_env_unset(monkeypatch) -> None:
+    monkeypatch.delenv("LLM_PLANNING_ENABLED", raising=False)
+
+    assert is_llm_planning_enabled(config=SimpleNamespace(llm_planning_enabled=True)) is True
+    assert is_llm_planning_enabled(config=SimpleNamespace(llm_planning_enabled=False)) is False
+
+
+def test_is_llm_planning_enabled_env_overrides_config(monkeypatch) -> None:
+    monkeypatch.setenv("LLM_PLANNING_ENABLED", "true")
+
+    # Deployment-level env override wins even when config says otherwise -
+    # REFACTOR_PLAN.md Phase 3: "Environment variables may override config,
+    # but should not be the only source of truth."
+    assert is_llm_planning_enabled(config=SimpleNamespace(llm_planning_enabled=False)) is True
 
 
 def test_apply_intent_to_query_returns_original_query_without_intent() -> None:

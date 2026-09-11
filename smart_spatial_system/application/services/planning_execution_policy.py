@@ -11,14 +11,29 @@ import os
 from typing import Any
 
 
-def is_query_spec_planning_enabled() -> bool:
+def is_query_spec_planning_enabled(config: Any = None) -> bool:
     """
     Whether QuerySpec-based planning is enabled for /query.
 
     This is separate from legacy LLM intent planning.
+
+    Precedence (REFACTOR_PLAN.md Phase 3 - config is the source of truth,
+    env is a deployment-level override on top of it, not the only source):
+
+      1. QUERY_SPEC_PLANNING_ENABLED env var, if explicitly set.
+      2. config.query_spec_planning_enabled, if config is provided and has it.
+      3. False (unchanged default).
     """
-    value = os.getenv("QUERY_SPEC_PLANNING_ENABLED", "false").strip().lower()
-    return value in {"1", "true", "yes", "on"}
+    env_value = os.getenv("QUERY_SPEC_PLANNING_ENABLED")
+    if env_value is not None:
+        return env_value.strip().lower() in {"1", "true", "yes", "on"}
+
+    if config is not None:
+        configured = getattr(config, "query_spec_planning_enabled", None)
+        if configured is not None:
+            return bool(configured)
+
+    return False
 
 
 def is_kernel_execution_enabled(

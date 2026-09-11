@@ -44,4 +44,5 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.data_writer_exporter",
     "plugins.local_vector_loader",
     "plugins.postgis_connector",
+    "plugins.wms_wfs_fetcher",
 ]

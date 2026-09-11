@@ -48,7 +48,8 @@ def _resolve_service_capability(
             if callable(assert_enabled):
                 assert_enabled(capability_name)
 
-            capability = registry.resolve(capability_name)
+            binding = registry.resolve(capability_name)
+            capability = getattr(binding, "callable", binding)
             if callable(capability):
                 return capability
 

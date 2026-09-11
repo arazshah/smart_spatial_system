@@ -29,6 +29,7 @@ from geochat_sdk.exceptions import SDKDependencyError
 from geochat_sdk.plugin import auto_collect
 from geochat_sdk.types.vector import VectorOut
 
+from plugins._shared.local_path_validation import validate_local_path
 from plugins._shared.plugin_config import (
     load_plugin_config,
     pick_first,
@@ -93,28 +94,6 @@ def _configured_allowed_roots(config: dict[str, Any]) -> list[str]:
     return [str(item) for item in values]
 
 
-def _ensure_under_allowed_roots(path: Path, allowed_roots: list[str] | None) -> None:
-    """
-    Ensure path is under one of allowed_roots.
-
-    If allowed_roots is empty or None, no restriction is applied.
-    """
-    if not allowed_roots:
-        return
-
-    resolved_path = path.resolve()
-    resolved_roots = [Path(root).expanduser().resolve() for root in allowed_roots]
-
-    for root in resolved_roots:
-        if resolved_path == root or root in resolved_path.parents:
-            return
-
-    raise ValueError(
-        f"Vector path is not under any allowed root: {resolved_path}. "
-        f"Allowed roots: {[str(r) for r in resolved_roots]}"
-    )
-
-
 def _validate_path(
     path: str,
     strict_extensions: bool = True,
@@ -139,29 +118,14 @@ def _validate_path(
         FileNotFoundError:
             If file does not exist.
     """
-    if not isinstance(path, str) or not path.strip():
-        raise ValueError("path must be a non-empty string.")
-
-    vector_path = Path(path).expanduser().resolve()
-
-    if not vector_path.exists():
-        raise FileNotFoundError(f"Vector file not found: {vector_path}")
-
-    if not vector_path.is_file():
-        raise ValueError(f"Vector path is not a file: {vector_path}")
-
-    _ensure_under_allowed_roots(vector_path, allowed_roots)
-
-    suffix = vector_path.suffix.lower()
-    effective_extensions = allowed_extensions or ALLOWED_VECTOR_EXTENSIONS
-
-    if strict_extensions and suffix not in effective_extensions:
-        raise ValueError(
-            "Unsupported vector extension "
-            f"'{suffix}'. Allowed extensions: {sorted(effective_extensions)}"
-        )
-
-    return vector_path
+    return validate_local_path(
+        path,
+        label="Vector",
+        default_extensions=ALLOWED_VECTOR_EXTENSIONS,
+        strict_extensions=strict_extensions,
+        allowed_extensions=allowed_extensions,
+        allowed_roots=allowed_roots,
+    )
 
 
 def _is_number(value: Any) -> bool:

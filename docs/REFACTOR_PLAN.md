@@ -42,9 +42,22 @@ the original phase text where they disagree):
   code. This is also the real-estate site-ranking + PDF report workflow,
   one of the two workflows the README documents as a primary demo
   feature - real regression risk. Treat as its own planned effort.
-- Phase 6 (source abstraction): partial - PostGIS/local vector/local
-  raster/WMS/WFS connectors all exist as plugins, but are not unified
-  behind a common source-capability contract.
+- Phase 6 (source abstraction): partial. Deduplicated the one piece that
+  was genuinely unsafe to leave duplicated: local_vector_loader.py and
+  local_raster_loader.py each carried a byte-identical copy of path/
+  allowed-roots validation (security-relevant path-traversal guarding -
+  fixing one copy could silently miss the other). Both now call
+  `plugins/_shared/local_path_validation.py`. Checked postgis_connector.py
+  and wms_wfs_fetcher.py for the same kind of duplication first (e.g.
+  their respective `_validate_limit`s) and found their validation logic
+  is legitimately domain-specific (different bounds, different type
+  coercion), not true duplication - did not force-unify those. What's
+  still open and NOT a quick follow-on: a genuine common source-capability
+  contract across PostGIS/local/WMS/WFS with "optional semantic discovery"
+  is a from-scratch design question (this is the same territory as the
+  newer roadmap's Phase 7 "Multi-source Data Connectors" in
+  docs/ADR-004-service-oriented-modular-backend.md, which hasn't started
+  yet either) - treat as its own planned effort like Phases 2 and 5.
 - Phase 7 (legacy cleanup): NOT done. `SimpleCapabilityRouter` is still
   live (`orchestrator/capability_router.py`, used by
   `orchestrator/natural_query_runner.py`). Per this plan's own rule,

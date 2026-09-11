@@ -247,6 +247,14 @@ class OrchestratorServiceConfig:
     query_spec_planning_enabled: bool = False
     llm_planning_enabled: bool = False
 
+    # REFACTOR_PLAN.md Phase 5: opt-in flag for routing real-estate ranking
+    # queries through the rule-based QuerySpec/DAG path (real_estate_spatial_enrich
+    # -> real_estate_score -> filter_attribute -> rank_features -> build_report)
+    # instead of the legacy direct handler. Default False so this is purely
+    # additive until verified equivalent and explicitly enabled - see
+    # docs/PHASE5_REAL_ESTATE_PLUGIN_PLAN.md step 5.
+    real_estate_query_spec_planning_enabled: bool = False
+
     # Experimental opt-in: execute QuerySpec plans through the
     # geochat_kernel execution bridge in addition to the current DAG path.
     # Default is False to keep production behavior unchanged.
@@ -560,6 +568,9 @@ class OrchestratorService:
 
     def _query_spec_planning_enabled(self) -> bool:
         return self.query_execution_service._query_spec_planning_enabled()
+
+    def _real_estate_query_spec_planning_enabled(self) -> bool:
+        return self.query_execution_service._real_estate_query_spec_planning_enabled()
 
     def _maybe_plan_llm_intent(
         self,

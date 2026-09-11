@@ -114,6 +114,7 @@ from smart_spatial_system.application.services.llm_intent_adapter import (
 from smart_spatial_system.application.services.planning_execution_policy import (
     is_kernel_execution_enabled,
     is_query_spec_planning_enabled,
+    is_real_estate_query_spec_planning_enabled,
 )
 from smart_spatial_system.application.services.planning_response_adapter import (
     planning_outputs_to_response_payload,
@@ -482,6 +483,9 @@ class QueryExecutionService:
 
     def _query_spec_planning_enabled(self) -> bool:
         return is_query_spec_planning_enabled(config=getattr(self, "config", None))
+
+    def _real_estate_query_spec_planning_enabled(self) -> bool:
+        return is_real_estate_query_spec_planning_enabled(config=getattr(self, "config", None))
 
 
 
@@ -1066,6 +1070,38 @@ class QueryExecutionService:
             warnings=warnings,
         )
 
+    # REFACTOR_PLAN.md Phase 5, step 5: real-estate ranking dispatch entry
+    # point. Tries the opt-in rule-based QuerySpec/DAG path first (a no-op
+    # when real_estate_query_spec_planning_enabled is False, the default),
+    # then falls back to the legacy direct handler - per Phase 7's own
+    # rule ("remove legacy only after a tested replacement exists"), the
+    # legacy handler stays the production default until the new path is
+    # verified equivalent and explicitly enabled.
+    def _try_handle_real_estate_ranking(
+        self,
+        *,
+        query: str,
+        inputs: dict[str, Any] | None,
+        request_id: str | None = None,
+        llm_intent: Any = None,
+    ) -> dict[str, Any] | None:
+        via_planning = self._try_handle_real_estate_ranking_via_planning(
+            query=query,
+            inputs=inputs,
+            resolved_inputs=inputs,
+            final_request_id=request_id or self._new_request_id(),
+            final_metadata={},
+        )
+        if via_planning is not None:
+            return via_planning
+
+        return self._try_handle_real_estate_ranking_directly(
+            query=query,
+            inputs=inputs,
+            request_id=request_id,
+            llm_intent=llm_intent,
+        )
+
     # real_estate_ranking_bridge is delegated to query_execution.real_estate_ranking_direct_handler.
     def _try_handle_real_estate_ranking_directly(
         self,
@@ -1082,6 +1118,97 @@ class QueryExecutionService:
             llm_intent=llm_intent,
             llm_planning_enabled=self._llm_planning_enabled,
         )
+
+    # REFACTOR_PLAN.md Phase 5, step 5: rule-based QuerySpec/DAG path for
+    # real-estate ranking queries, opt-in via
+    # real_estate_query_spec_planning_enabled (default False). When enabled
+    # and the query matches, this replaces
+    # _try_handle_real_estate_ranking_directly's dict-building with the
+    # same DeterministicPlanner/DagExecutor path the general planning path
+    # (_try_handle_query_with_planning) uses, via the OP_CATALOG-registered
+    # real_estate_spatial_enrich/real_estate_score ops
+    # (see docs/PHASE5_REAL_ESTATE_PLUGIN_PLAN.md).
+    def _try_handle_real_estate_ranking_via_planning(
+        self,
+        *,
+        query: str,
+        inputs: dict[str, Any] | None,
+        resolved_inputs: dict[str, Any] | None,
+        final_request_id: str,
+        final_metadata: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        if not self._real_estate_query_spec_planning_enabled():
+            return None
+
+        looks_like_real_estate_ranking_query = _query_execution_domain_callable(
+            "real_estate_classifier", "looks_like_real_estate_ranking_query"
+        )
+        if not looks_like_real_estate_ranking_query(query):
+            return None
+
+        extract_property_feature_collection_from_inputs = _query_execution_domain_callable(
+            "real_estate_context", "extract_property_feature_collection_from_inputs"
+        )
+        extract_real_estate_spatial_context_from_inputs = _query_execution_domain_callable(
+            "real_estate_context", "extract_real_estate_spatial_context_from_inputs"
+        )
+
+        feature_collection = extract_property_feature_collection_from_inputs(resolved_inputs)
+        if not isinstance(feature_collection, dict):
+            feature_collection = extract_property_feature_collection_from_inputs(inputs)
+        if not isinstance(feature_collection, dict):
+            # Same guard as the legacy direct handler: no usable property
+            # inputs found, let preflight/other handlers take over.
+            return None
+
+        spatial_context = extract_real_estate_spatial_context_from_inputs(resolved_inputs)
+        if not any((spatial_context or {}).values()):
+            spatial_context = extract_real_estate_spatial_context_from_inputs(inputs)
+
+        build_real_estate_ranking_query_spec = _query_execution_domain_callable(
+            "real_estate_ranking_query_spec", "build_real_estate_ranking_query_spec"
+        )
+        build_real_estate_ranking_initial_inputs = _query_execution_domain_callable(
+            "real_estate_ranking_query_spec", "build_real_estate_ranking_initial_inputs"
+        )
+
+        query_spec = build_real_estate_ranking_query_spec(query)
+        initial_inputs = build_real_estate_ranking_initial_inputs(
+            feature_collection=feature_collection,
+            spatial_context=spatial_context,
+        )
+
+        runner = make_registry_planning_runner(self._build_enabled_registry_view())
+        planning_result = runner.run(
+            query_spec,
+            initial_inputs=initial_inputs,
+            fail_fast=True,
+        )
+
+        (
+            production_response,
+            _planning_metadata,
+            _success,
+            _planning_error,
+            _planning_structured_error,
+        ) = build_query_spec_planning_response(
+            planning_result=planning_result,
+            final_metadata=final_metadata,
+            final_request_id=final_request_id,
+            query_spec=query_spec,
+            kernel_execution_enabled=False,
+            planning_outputs_to_response_payload=self._planning_outputs_to_response_payload,
+            planning_trace_to_steps=self._planning_trace_to_steps,
+            query_spec_to_dict_func=query_spec_to_dict,
+            redact_sensitive_json=_redact_sensitive_json,
+        )
+
+        response_metadata = production_response.setdefault("metadata", {})
+        if isinstance(response_metadata, dict):
+            response_metadata["execution_mode"] = "real_estate_ranking_query_spec_planning"
+            response_metadata["planner_type"] = "rule_based_real_estate"
+
+        return production_response
 
     @staticmethod
     def _new_request_id() -> str:
@@ -1193,7 +1320,7 @@ class QueryExecutionService:
                     resolve_input_references=self._resolve_input_references,
                     natural_query_runner=run_natural_query_with_routing_evidence,
                     preflight_direct_response_handler=self._try_handle_missing_real_estate_inputs,
-                    direct_response_handler=self._try_handle_real_estate_ranking_directly,
+                    direct_response_handler=self._try_handle_real_estate_ranking,
                     vector_display_handler=self._try_handle_vector_display_directly,
                     query_spec_planning_enabled=self._query_spec_planning_enabled,
                     query_spec_planning_handler=self._try_handle_query_with_planning,

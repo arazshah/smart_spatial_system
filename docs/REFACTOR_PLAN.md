@@ -108,9 +108,11 @@ the original phase text where they disagree):
   `direct_query_dispatch.py` - blocked on the response-shape parity gap
   above, in addition to this plan's and Phase 7's "remove legacy only
   after a tested replacement exists" rule.
-- Phase 6 (source abstraction): steps 1-2 of 3 done, per
-  docs/PHASE6_SOURCE_ABSTRACTION_PLAN.md's migration plan (step 3,
-  optional reachability notes, skipped as redundant with that doc).
+- Phase 6 (source abstraction): all 3 steps done (2026-09), per
+  docs/PHASE6_SOURCE_ABSTRACTION_PLAN.md's migration plan - complete as
+  scoped (step 3, reachability notes, landed as a docstring addition to
+  orchestrator/planning/op_catalog.py rather than a separate file, to
+  avoid duplicating that plan document's own "Current state" section).
   Deduplicated two pieces that were genuinely unsafe/duplicated to leave
   as-is: local_vector_loader.py/local_raster_loader.py's byte-identical
   path/allowed-roots validation (security-relevant path-traversal

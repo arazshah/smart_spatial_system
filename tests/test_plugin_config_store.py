@@ -120,3 +120,23 @@ def test_write_requires_exactly_one_input(plugin_config_dir):
             raw_yaml="alpha: 1\n",
             parsed={"alpha": 1},
         )
+
+
+def test_find_config_dir_falls_back_to_packaged_config_outside_checkout(
+    tmp_path, monkeypatch
+):
+    """
+    REFACTOR_PLAN Phase 8 step 2: with no GEOCHAT_PLUGIN_CONFIG_DIR set and
+    no config/plugins reachable by walking up from cwd (simulated here by
+    running from an isolated tmp_path outside the repo checkout), resolution
+    falls back to the default config shipped as package data instead of
+    silently returning a non-existent path.
+    """
+    monkeypatch.delenv("GEOCHAT_PLUGIN_CONFIG_DIR", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    config_dir = store.find_config_dir()
+
+    assert config_dir.exists()
+    assert config_dir.name == "plugins"
+    assert (config_dir / "local_vector_loader.yaml").exists()

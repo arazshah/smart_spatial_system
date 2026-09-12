@@ -52,7 +52,8 @@ Runtime data (outputs, uploads, projects) is written to `var/` by default, or to
 
 ## Getting started
 
-Requires Python 3.10+, Node.js 20+, and optionally PostgreSQL with PostGIS.
+Requires Python 3.11+ (matches CI and the Docker image), Node.js 20+, and
+optionally PostgreSQL with PostGIS.
 
 ```bash
 git clone https://github.com/arazshah/smart_spatial_system.git
@@ -84,6 +85,28 @@ docker compose up --build
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full deployment guide —
 environment variables, authentication, CORS, and PostGIS setup for running
 this beyond your own machine.
+
+### Installing as a package
+
+Alongside the `pip install -r requirements.txt` + `uvicorn` dev flow above,
+the backend also installs as a regular Python package (`pyproject.toml`),
+with optional extras for the heavier/domain-specific dependencies:
+
+```bash
+pip install -e ".[postgis,raster,pdf]"    # editable install for local dev
+# or: pip install ".[postgis,raster,pdf]" for a non-editable install
+
+smart-spatial-api serve --host 0.0.0.0 --port 8000
+# equivalent: python -m smart_spatial_system serve --host 0.0.0.0 --port 8000
+```
+
+Extras: `postgis` (`psycopg`), `raster` (`rasterio`, for NDVI/spectral-index
+plugins), `pdf` (`weasyprint`, for PDF report rendering), `llm` (reserved,
+currently no extra dependency), `dev` (`pytest`, `ruff`). Omitting an extra
+does not break the app — the affected plugins are simply unavailable
+(reported in the service's plugin registry), not a startup failure. See
+[docs/PHASE8_BACKEND_PACKAGING_CLI_PLAN.md](docs/PHASE8_BACKEND_PACKAGING_CLI_PLAN.md)
+for how this was verified.
 
 ## API at a glance
 

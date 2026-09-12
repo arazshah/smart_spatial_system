@@ -40,6 +40,13 @@ __pycache__/
 .venv/
 venv/
 
+# Python packaging build artifacts (REFACTOR_PLAN Phase 8 -
+# docs/PHASE8_BACKEND_PACKAGING_CLI_PLAN.md; pyproject.toml makes this repo
+# a real setuptools build target, so `pip wheel .` / `pip install -e .`
+# leave these behind)
+/build/
+*.egg-info/
+
 
 # Local secret files (keep the folder, never the contents)
 /secrets/*

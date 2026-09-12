@@ -10,6 +10,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from plugins._shared.plugin_config import (
     PluginConfigError,
+    find_config_dir,
     get_profile_config,
     load_plugin_config,
     resolve_env_refs,
@@ -94,3 +95,25 @@ profiles:
 
     assert profile["host"] == "localhost"
     assert profile["password"] == "secret"
+
+
+def test_find_config_dir_falls_back_to_packaged_config_outside_checkout(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """
+    REFACTOR_PLAN Phase 8 step 2: with no GEOCHAT_PLUGIN_CONFIG_DIR set and
+    no config/plugins reachable by walking up from cwd (simulated here by
+    running from an isolated tmp_path outside the repo checkout), resolution
+    falls back to the default config shipped as package data
+    (config/plugins, made importable via config/__init__.py +
+    config/plugins/__init__.py) instead of silently returning a
+    non-existent path.
+    """
+    monkeypatch.delenv("GEOCHAT_PLUGIN_CONFIG_DIR", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    config_dir = find_config_dir()
+
+    assert config_dir.exists()
+    assert config_dir.name == "plugins"
+    assert (config_dir / "local_vector_loader.yaml").exists()

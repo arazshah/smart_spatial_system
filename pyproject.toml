@@ -1,3 +1,77 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# REFACTOR_PLAN Phase 8 (docs/PHASE8_BACKEND_PACKAGING_CLI_PLAN.md): makes
+# `pip install .` / `pip install smart_spatial_system` work, additive
+# alongside the existing Dockerfile/docker-compose.yml deployment path
+# (which stays requirements.lock-based and unaffected by this section).
+# Ships the current flat top-level package layout (api/, orchestrator/,
+# plugins/, smart_spatial_system/ as siblings) as-is - see the plan doc's
+# "Open design questions" for why a namespace migration was deliberately
+# not done here.
+name = "smart_spatial_system"
+version = "0.1.0"
+description = "Plugin-based GeoAI backend: natural-language questions become QuerySpecs, DAG plans, and map/table/report outputs."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "geochat-sdk @ git+https://github.com/arazshah/geochat-platform.git#subdirectory=geochat-sdk",
+    "geochat-kernel @ git+https://github.com/arazshah/geochat-platform.git#subdirectory=geochat-kernel",
+    "fastapi",
+    "uvicorn[standard]",
+    "python-multipart",
+    "python-dotenv",
+    "pyyaml",
+    "httpx",
+    "jinja2",
+    "shapely",
+    "pyproj",
+    "numpy",
+    "geopandas",  # only local_vector_loader.py depends on it directly, but
+                  # local file/vector loading is core functionality, not
+                  # gated behind an extra (see the extras note below for
+                  # why raster/postgis/pdf ARE gated despite also being in
+                  # DEFAULT_SAFE_PLUGIN_MODULES).
+    "requests",   # WMS/WFS fetcher
+]
+
+[project.optional-dependencies]
+# Named to match docs/SMART_SPATIAL_SYSTEM_BACKEND_ROADMAP.md's Phase 8
+# checklist ("postgis, raster, dev, llm"), with two corrections found
+# while actually splitting requirements.txt (recorded in the plan doc's
+# "Open design questions" #4): "pdf" isn't one of the ROADMAP's four names
+# but is a real, separately-installable dependency (weasyprint, only
+# plugins/pdf_renderer.py needs it); "llm" has no dependency of its own
+# today (the OpenAI-compatible client uses only httpx, already a base
+# dependency) - kept as an empty group so the name exists for callers who
+# install by name, per the ROADMAP, without fabricating a fake dependency.
+#
+# postgis_connector, ndvi_analysis (rasterio) and pdf_renderer
+# (weasyprint) are all in orchestrator/plugin_modules.py's
+# DEFAULT_SAFE_PLUGIN_MODULES, so omitting these extras does NOT crash
+# the app at startup: OrchestratorService builds its registry with
+# tolerant=True (orchestrator/service.py), so a plugin whose import fails
+# for a missing optional dependency is recorded in
+# registry.skipped_plugins and simply unavailable, not a hard failure -
+# confirmed by reading that call site, not assumed.
+postgis = ["psycopg[binary]"]
+raster = ["rasterio"]
+pdf = ["weasyprint"]
+llm = []
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+smart-spatial-api = "smart_spatial_system.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["api*", "orchestrator*", "plugins*", "smart_spatial_system*", "config*"]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+"config.plugins" = ["*.yaml", "*.yml", "*.json"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

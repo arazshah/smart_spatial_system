@@ -226,7 +226,7 @@ def test_real_estate_response_keeps_ranked_layer_and_vector_contract_in_sync() -
 
     assert vector["id"] == layer["id"] == "ranked_properties"
     assert vector["name"] == "ranked_properties"
-    assert layer["name"] == "املاک رتبه‌بندی‌شده"
+    assert layer["name"] == "Ranked properties"
     assert vector["format"] == layer["format"] == "geojson"
     assert vector["role"] == "map_layer"
 

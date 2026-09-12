@@ -44,9 +44,9 @@ class SimpleResponseBuilder:
         response = {
             "status": "success",
             "answer": (
-                f"تحلیل انجام شد. شاخص NDVI محاسبه شد، سپس پیکسل‌های با مقدار "
-                f"بیشتر از {intent.threshold_value} استخراج شدند و به {feature_count} "
-                f"پلیگون تبدیل شدند."
+                f"Analysis complete. The NDVI index was computed, pixels above "
+                f"{intent.threshold_value} were extracted, and converted into "
+                f"{feature_count} polygons."
             ),
             "map": {
                 "layers": [

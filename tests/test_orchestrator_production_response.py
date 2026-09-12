@@ -98,7 +98,7 @@ def test_production_response_builder_warns_for_low_confidence() -> None:
 
     assert payload["confidence"]["level"] == "low"
     assert payload["warnings"]
-    assert any("اطمینان" in warning for warning in payload["warnings"])
+    assert any("confidence is low" in warning for warning in payload["warnings"])
     assert payload["next_actions"]
 
 
@@ -111,7 +111,7 @@ def test_production_response_builder_warns_for_ambiguous_routing() -> None:
     )
 
     assert payload["confidence"]["is_ambiguous"] is True
-    assert any("مسیر" in warning or "نزدیک" in warning for warning in payload["warnings"])
+    assert any("processing routes" in warning for warning in payload["warnings"])
 
 
 def test_production_response_builder_creates_failed_response_from_error() -> None:
@@ -227,3 +227,22 @@ def test_production_response_builder_limits_warnings_and_next_actions() -> None:
 
     assert len(payload["warnings"]) == 2
     assert len(payload["next_actions"]) == 1
+
+
+def test_production_response_builder_still_supports_persian() -> None:
+    """
+    response_language defaults to "en" (2026-09), but "fa" remains a
+    supported setting - both _FA_TEXTS and _persian_output_answer are still
+    wired. This pins that, so the Persian path cannot rot unnoticed now that
+    it is no longer the default exercised everywhere else.
+    """
+    audit = _sample_audit()
+    audit["router_decision"]["level"] = "low"
+    audit["router_decision"]["top_score"] = 0.22
+
+    payload = ProductionResponseBuilder(
+        ProductionResponseConfig(language="fa")
+    ).build_dict(audit_record=audit)
+
+    assert payload["warnings"]
+    assert any("اطمینان" in warning for warning in payload["warnings"])

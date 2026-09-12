@@ -48,17 +48,17 @@ def try_handle_missing_real_estate_inputs(
         return None
 
     required_layers = [
-        "لایه املاک یا نقاط/پلیگون‌های ملک‌ها",
-        "لایه POI شامل ایستگاه‌های مترو و مراکز خرید",
-        "لایه خیابان‌های اصلی یا شبکه معابر",
-        "لایه‌های ریسک سیل، زلزله و آتش‌سوزی",
-        "در صورت نیاز، لایه محدوده مجاز ساخت‌وساز یا کاربری اراضی",
+        "A property layer, as points or polygons",
+        "A POI layer with metro stations and shopping centres",
+        "A main-road layer or street network",
+        "Flood, earthquake and fire risk layers",
+        "Optionally, a permitted-construction-zone or land-use layer",
     ]
 
     answer = (
-        "برای انجام تحلیل و رتبه‌بندی املاک، داده مکانی کافی ارسال نشده است. "
-        "لطفاً حداقل لایه املاک و لایه‌های مرجع مانند مترو/مرکز خرید، خیابان‌های اصلی "
-        "و ریسک‌ها را در ورودی‌ها اضافه کنید."
+        "Not enough spatial data was supplied to run the property analysis and "
+        "ranking. Please add at least a property layer plus reference layers "
+        "such as metro/shopping centres, main roads and risk layers."
     )
 
     response = {
@@ -91,14 +91,14 @@ def try_handle_missing_real_estate_inputs(
             "plan_steps": 0,
         },
         "warnings": [
-            "درخواست تحلیل املاک تشخیص داده شد، اما ورودی مکانی کافی وجود ندارد.",
-            "برای جلوگیری از اجرای pipeline اشتباه، برنامه‌ریز مکانی اجرا نشد.",
+            "A property-analysis request was detected, but the spatial inputs are insufficient.",
+            "The spatial planner was not run, to avoid executing the wrong pipeline.",
         ],
         "next_actions": [
-            "لایه املاک را به صورت GeoJSON/Vector اضافه کنید.",
-            "لایه ایستگاه‌های مترو و مراکز خرید را اضافه کنید.",
-            "لایه خیابان‌های اصلی و لایه‌های ریسک را اضافه کنید.",
-            "سپس درخواست رتبه‌بندی و تولید گزارش را دوباره اجرا کنید.",
+            "Add the property layer as GeoJSON/vector.",
+            "Add the metro-station and shopping-centre layers.",
+            "Add the main-road layer and the risk layers.",
+            "Then run the ranking and report request again.",
         ],
         "metadata": json_safe(final_metadata),
     }

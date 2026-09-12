@@ -34,46 +34,46 @@ def build_real_estate_analysis_inspector(
     def _trace_label(step: dict[str, Any]) -> str:
         capability = step.get("capability_name")
         labels = {
-            "filter_features": "فیلتر املاک",
-            "score_features": "امتیازدهی",
-            "rank_features": "رتبه‌بندی",
-            "build_report": "ساخت گزارش",
-            "render_pdf": "تولید PDF",
+            "filter_features": "Filter properties",
+            "score_features": "Scoring",
+            "rank_features": "Ranking",
+            "build_report": "Build report",
+            "render_pdf": "Render PDF",
         }
-        return labels.get(str(capability), str(capability or step.get("node_id") or "مرحله"))
+        return labels.get(str(capability), str(capability or step.get("node_id") or "Step"))
 
     summary_cards = [
         {
             "id": "candidate_count",
-            "label": "کل ملک‌ها",
+            "label": "Total properties",
             "value": summary.get("candidate_count", 0),
             "tone": "neutral",
             "icon": "⌂",
         },
         {
             "id": "eligible_count",
-            "label": "واجد شرایط",
+            "label": "Eligible",
             "value": summary.get("eligible_count", 0),
             "tone": "success",
             "icon": "✓",
         },
         {
             "id": "rejected_count",
-            "label": "رد شده",
+            "label": "Rejected",
             "value": summary.get("rejected_count", 0),
             "tone": "warning",
             "icon": "!",
         },
         {
             "id": "top_property",
-            "label": "بهترین گزینه",
+            "label": "Top choice",
             "value": summary.get("top_property") or "—",
             "tone": "primary",
             "icon": "★",
         },
         {
             "id": "top_score",
-            "label": "امتیاز برتر",
+            "label": "Top score",
             "value": summary.get("top_score") if summary.get("top_score") is not None else "—",
             "tone": "primary",
             "icon": "↗",
@@ -150,7 +150,7 @@ def build_real_estate_analysis_inspector(
         normalized_doc = {
             "id": doc_id,
             "type": "document",
-            "label": doc.get("label") or doc.get("name") or ("گزارش PDF" if doc_format == "pdf" else "سند گزارش"),
+            "label": doc.get("label") or doc.get("name") or ("PDF report" if doc_format == "pdf" else "Report document"),
             "name": doc.get("name") or doc_id,
             "role": doc.get("role") or "document",
             "format": doc_format,
@@ -180,7 +180,7 @@ def build_real_estate_analysis_inspector(
         )
 
         if doc_path:
-            action_label = "دانلود گزارش PDF" if doc_format == "pdf" else "مشاهده سند گزارش"
+            action_label = "Download PDF report" if doc_format == "pdf" else "View report document"
             primary_actions.append(
                 {
                     "id": "download_pdf" if doc_format == "pdf" else f"open_{doc_id}",
@@ -245,11 +245,11 @@ def build_real_estate_analysis_inspector(
         "primary_actions": primary_actions,
         "warnings": warnings or [],
         "tabs": [
-            {"id": "summary", "label": "خلاصه", "count": len(summary_cards)},
-            {"id": "outputs", "label": "خروجی‌ها", "count": len(inspector_outputs)},
-            {"id": "tables", "label": "جداول", "count": len(outputs.get("tables") or [])},
-            {"id": "documents", "label": "اسناد", "count": len(inspector_documents)},
-            {"id": "layers", "label": "لایه‌ها", "count": len(inspector_layers)},
-            {"id": "trace", "label": "فرآیند", "count": len(inspector_trace)},
+            {"id": "summary", "label": "Summary", "count": len(summary_cards)},
+            {"id": "outputs", "label": "Outputs", "count": len(inspector_outputs)},
+            {"id": "tables", "label": "Tables", "count": len(outputs.get("tables") or [])},
+            {"id": "documents", "label": "Documents", "count": len(inspector_documents)},
+            {"id": "layers", "label": "Layers", "count": len(inspector_layers)},
+            {"id": "trace", "label": "Trace", "count": len(inspector_trace)},
         ],
     }

@@ -161,7 +161,7 @@ def test_extracted_orchestrator_runs_natural_query_end_to_end() -> None:
         "raster_to_vector",
     ]
 
-    assert "تحلیل انجام شد" in response["answer"]
+    assert "Analysis complete" in response["answer"]
 
 
 def test_extracted_parser_rejects_unsupported_intent() -> None:

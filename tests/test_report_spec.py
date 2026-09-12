@@ -23,7 +23,7 @@ def test_default_real_estate_report_spec_structure():
         },
     )
 
-    assert spec.title == "گزارش رتبه‌بندی و تحلیل سرمایه‌گذاری ملک"
+    assert spec.title == "Property Ranking and Investment Analysis Report"
     assert spec.format == "pdf"
     assert spec.language == "fa"
 

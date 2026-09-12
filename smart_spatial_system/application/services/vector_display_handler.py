@@ -93,6 +93,7 @@ def try_handle_vector_display_directly(
     # real-estate ranking/report pipeline.
     normalized_query_for_vector_guard = str(query or "").lower()
     real_estate_ranking_terms = (
+        # fa
         "ملک",
         "املاک",
         "امتیاز",
@@ -100,9 +101,19 @@ def try_handle_vector_display_directly(
         "رتبه‌بندی",
         "رتبه بندی",
         "گزارش",
-        "pdf",
         "پی دی اف",
         "جدول",
+        # en - without these, an English ranking/report query is swallowed
+        # by the simple vector-display path instead of reaching the
+        # real-estate pipeline.
+        "property",
+        "properties",
+        "score",
+        "rank",
+        "ranking",
+        "report",
+        "table",
+        "pdf",
     )
 
     if (

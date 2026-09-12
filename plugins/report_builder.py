@@ -248,14 +248,16 @@ def _format_value(value: Any, fmt: str) -> Any:
             return "✓" if value.lower() in {"true", "1", "yes", "داخل", "مجاز"} else "✗"
         return "✓" if value else "✗"
 
-    if fmt in {"risk_fa", "risk_persian"}:
+    # "risk_fa"/"risk_persian" are the historical spelling of this format;
+    # they are still accepted so any stored report spec keeps working.
+    if fmt in {"risk", "risk_label", "risk_fa", "risk_persian"}:
         mapping = {
-            "very_low": "خیلی کم",
-            "low": "کم",
-            "medium": "متوسط",
-            "high": "زیاد",
-            "very_high": "خیلی زیاد",
-            "critical": "بحرانی",
+            "very_low": "very low",
+            "low": "low",
+            "medium": "medium",
+            "high": "high",
+            "very_high": "very high",
+            "critical": "critical",
         }
         return mapping.get(str(value).lower(), str(value))
 
@@ -273,8 +275,8 @@ def _build_table(
 
     if not table_spec:
         columns = [
-            {"field": rank_field, "label": "رتبه", "align": "center"},
-            {"field": score_field, "label": "امتیاز", "align": "center"},
+            {"field": rank_field, "label": "Rank", "align": "center"},
+            {"field": score_field, "label": "Score", "align": "center"},
         ]
         rows = [
             {
@@ -284,7 +286,7 @@ def _build_table(
             for f in features
         ]
         return {
-            "title": "جدول رتبه‌بندی",
+            "title": "Ranking table",
             "columns": columns,
             "rows": rows,
             "total_rows": len(rows),
@@ -332,7 +334,7 @@ def _build_table(
         rows.append(row)
 
     return {
-        "title": table_spec.title or "جدول رتبه‌بندی",
+        "title": table_spec.title or "Ranking table",
         "columns": columns_info,
         "rows": rows,
         "total_rows": len(rows),
@@ -388,7 +390,7 @@ def _build_map_layers(
         result.append({
             "source": "ranked",
             "kind": "features",
-            "label": "ملک‌های رتبه‌بندی‌شده",
+            "label": "Ranked properties",
             "visible": True,
             "style": {},
             "feature_count": len(features),
@@ -487,14 +489,14 @@ def build_report(
     except Exception as exc:
         return ReportOut(
             meta={
-                "title": "گزارش",
+                "title": "Report",
                 "language": "fa",
                 "format": "pdf",
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "feature_count": 0,
             },
             summary={},
-            table={"title": "جدول", "columns": [], "rows": [], "total_rows": 0},
+            table={"title": "Table", "columns": [], "rows": [], "total_rows": 0},
             map_layers=[],
             spec={},
             success=False,

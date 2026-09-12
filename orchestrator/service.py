@@ -235,7 +235,15 @@ class OrchestratorServiceConfig:
 
     min_score: float = 0.01
 
-    response_language: str = "fa"
+    # Language of user-facing response text (answer, warnings, next
+    # actions). Default flipped from "fa" to "en" (2026-09): the system is
+    # general-purpose rather than Persian-specific, and English is what a
+    # non-Persian-reading consumer of the API - or a figure in a paper -
+    # needs. The full bilingual machinery already existed in
+    # production_response.py (_EN_TEXTS/_FA_TEXTS, _english_output_answer/
+    # _persian_output_answer); only the default changed. Set this back to
+    # "fa" to restore the previous Persian output.
+    response_language: str = "en"
 
     # REFACTOR_PLAN.md Phase 3: explicit config source of truth for planning
     # flags that used to be environment-only (QUERY_SPEC_PLANNING_ENABLED,

@@ -84,7 +84,7 @@ def build_real_estate_ranking_response(
     layers = [
         {
             "id": "ranked_properties",
-            "name": "املاک رتبه‌بندی‌شده",
+            "name": "Ranked properties",
             "type": "vector",
             "format": "geojson",
             "visible": True,
@@ -144,7 +144,7 @@ def build_real_estate_ranking_response(
         )
 
     inspector = build_analysis_inspector(
-        title=report.get("title") or "گزارش رتبه‌بندی املاک",
+        title=report.get("title") or "Property Ranking Report",
         status="succeeded",
         summary=summary,
         outputs=outputs,
@@ -195,8 +195,8 @@ def build_real_estate_ranking_response(
         },
         "warnings": document_warnings,
         "next_actions": [
-            "برای تحلیل دقیق‌تر، فاصله‌ها می‌توانند با pluginهای nearest_neighbor و distance_calculator از لایه‌های واقعی محاسبه شوند.",
-            "در صورت نیاز، خروجی PDF/HTML گزارش از outputs.documents قابل استفاده است.",
+            "For a more precise analysis, distances can be computed from real layers using the nearest_neighbor and distance_calculator plugins.",
+            "If needed, the report's PDF/HTML output is available from outputs.documents.",
         ],
         "metadata": response_metadata,
         "audit_record": {

@@ -180,4 +180,4 @@ def test_response_still_contains_expected_map_and_artifacts_with_router_decision
         "vegetation_polygons",
     ]
 
-    assert "تحلیل انجام شد" in response["answer"]
+    assert "Analysis complete" in response["answer"]

@@ -204,7 +204,7 @@ def test_routing_aware_runner_executes_end_to_end_with_trace_evidence() -> None:
         assert item["routing_evidence"]["matched_terms"]
 
     assert response["metadata"]["feature_count"] == 3
-    assert "تحلیل انجام شد" in response["answer"]
+    assert "Analysis complete" in response["answer"]
 
 
 def test_routing_aware_builder_rejects_when_required_capabilities_missing() -> None:

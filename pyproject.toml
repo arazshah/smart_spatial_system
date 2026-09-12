@@ -94,11 +94,12 @@ Issues = "https://github.com/arazshah/smart_spatial_system/issues"
 smart-spatial-api = "smart_spatial_system.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["api*", "orchestrator*", "plugins*", "smart_spatial_system*", "config*"]
+include = ["api*", "orchestrator*", "plugins*", "smart_spatial_system*", "config*", "templates*"]
 exclude = ["tests*"]
 
 [tool.setuptools.package-data]
 "config.plugins" = ["*.yaml", "*.yml", "*.json"]
+"templates.reports" = ["*.html"]
 
 [tool.ruff]
 line-length = 100

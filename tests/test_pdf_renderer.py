@@ -135,3 +135,33 @@ def test_render_pdf_meta_fields():
     assert "generated_at" in result.meta
     assert "plugin" in result.meta
     assert result.meta["plugin"] == "pdf_renderer"
+
+
+def test_templates_dir_resolves_via_package_data_when_relative_path_missing(monkeypatch):
+    """
+    In a pip-installed package, templates/ does not sit next to plugins/ in
+    site-packages, so the relative path fails and _resolve_templates_dir
+    must fall back to the templates shipped as package data (packaged via
+    templates/__init__.py + [tool.setuptools.package-data] in
+    pyproject.toml). Without that fallback the advertised `pdf` extra
+    silently produces "Template not found" for every report outside a
+    source checkout.
+    """
+    import plugins.pdf_renderer as pdf_module
+
+    real_is_dir = Path.is_dir
+
+    def _relative_path_missing(self):
+        # Simulate site-packages: the checkout-relative templates/reports/
+        # does not exist, everything else resolves normally.
+        if self.name == "reports" and self.parent.name == "templates":
+            if "site-packages" not in str(self):
+                return False
+        return real_is_dir(self)
+
+    monkeypatch.setattr(Path, "is_dir", _relative_path_missing)
+
+    resolved = pdf_module._resolve_templates_dir()
+
+    assert resolved.name == "reports"
+    assert (resolved / "real_estate_report.html").exists()

@@ -34,7 +34,35 @@ from plugins.report_builder import ReportOut
 
 PLUGIN_ID = "pdf_renderer"
 
-TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates" / "reports"
+def _resolve_templates_dir() -> Path:
+    """
+    Locate templates/reports/.
+
+    In a source checkout (and in the Docker image, which copies the whole
+    tree) the directory sits next to this package, so the relative path
+    resolves and is used unchanged. In a pip-installed package that path
+    points at site-packages/templates/, so fall back to the templates
+    shipped as package data - see templates/__init__.py. Without this
+    fallback the advertised `pdf` extra silently produces "Template not
+    found" for every report outside a checkout.
+    """
+    relative = Path(__file__).resolve().parent.parent / "templates" / "reports"
+    if relative.is_dir():
+        return relative
+
+    try:
+        import importlib.resources as resources
+
+        packaged = resources.files("templates") / "reports"
+        if packaged.is_dir():
+            return Path(str(packaged))
+    except (ImportError, ModuleNotFoundError, TypeError, NotADirectoryError):
+        pass
+
+    return relative
+
+
+TEMPLATES_DIR = _resolve_templates_dir()
 DEFAULT_TEMPLATE = "real_estate_report.html"
 
 RISK_LABELS_FA = {

@@ -32,16 +32,15 @@ classifiers = [
     "Topic :: Scientific/Engineering :: GIS",
 ]
 dependencies = [
-    # NOTE: these two are direct git references, which PyPI REJECTS. They
-    # must be switched to "geochat-sdk>=1.0.0" / "geochat-kernel>=1.0.0"
-    # immediately before publishing this package, and only after those two
-    # are actually on PyPI - see docs/PYPI_RELEASE_PLAN.md step 4. They are
-    # deliberately left as git references until then so the documented
-    # `pip install -e .` flow keeps working today.
-    # .github/workflows/publish.yml fails the build if a direct reference
-    # is still present at release time, so this cannot be forgotten.
-    "geochat-sdk @ git+https://github.com/arazshah/geochat-platform.git#subdirectory=geochat-sdk",
-    "geochat-kernel @ git+https://github.com/arazshah/geochat-platform.git#subdirectory=geochat-kernel",
+    # Ordinary PyPI requirements, not git+https direct references: PyPI
+    # rejects uploads whose metadata carries a direct reference, so this
+    # switch (docs/PYPI_RELEASE_PLAN.md step 4) was the last thing blocking
+    # publication. Both are on PyPI at 1.0.0 as of 2026-09.
+    # requirements.txt/requirements.lock deliberately keep the git
+    # references - they drive the Docker image and CI, which install from
+    # source on purpose.
+    "geochat-sdk>=1.0.0",
+    "geochat-kernel>=1.0.0",
     "fastapi",
     "uvicorn[standard]",
     "python-multipart",

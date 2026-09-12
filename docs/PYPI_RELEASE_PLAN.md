@@ -4,13 +4,20 @@ How to publish this project to PyPI, and what has to happen in what order.
 
 ## Status
 
-Preparation done; **not yet published**. Everything a repository can do is
-in place (license, metadata, release workflows). What remains are steps
-that require the owner's PyPI account and cannot be done from a repository:
-the one-time Trusted Publisher configuration and the tag that triggers a
-release.
+`geochat-kernel` and `geochat-sdk` are **published on PyPI at 1.0.0**
+(2026-09, steps 1-2 below). Verified independently from PyPI, not just
+from the release workflow's own output: `pip install geochat-sdk==1.0.0`
+in a clean virtualenv pulls `geochat-kernel` with it, both import, and
+distribution and runtime versions match at 1.0.0 for both.
 
-## The constraint that drives the whole order
+`smart_spatial_system` is **prepared but not yet published**: step 4's
+dependency switch is done (its metadata now carries ordinary
+`geochat-sdk>=1.0.0` / `geochat-kernel>=1.0.0` requirements instead of
+git references, so the publish workflow's direct-URL guard passes). What
+remains is owner-only: the Trusted Publisher registration for this
+project, and pushing the `v0.1.0` tag.
+
+## The constraint that drove the whole order (now resolved)
 
 `smart_spatial_system` depends on `geochat-sdk` and `geochat-kernel`, which
 live in a separate repository (`arazshah/geochat-platform`) and are
@@ -144,27 +151,18 @@ lets the whole flow be rehearsed.
 
 ### Step 4 — Switch this package's dependencies, then release it
 
-Only after step 2 has actually succeeded, in `pyproject.toml`:
+**Done** (the dependency switch). `pyproject.toml` now declares
+`geochat-sdk>=1.0.0` and `geochat-kernel>=1.0.0` instead of the two
+`git+https` references, verified by building a wheel and confirming its
+METADATA carries no `@` in any `Requires-Dist` line — i.e. the publish
+workflow's direct-URL guard passes.
 
-```diff
--    "geochat-sdk @ git+https://github.com/arazshah/geochat-platform.git#subdirectory=geochat-sdk",
--    "geochat-kernel @ git+https://github.com/arazshah/geochat-platform.git#subdirectory=geochat-kernel",
-+    "geochat-sdk>=1.0.0",
-+    "geochat-kernel>=1.0.0",
-```
+`requirements.txt` and `requirements.lock` deliberately keep the git
+references: they drive the Docker image and CI, which install from source
+on purpose and are unaffected by PyPI.
 
-Leave `requirements.txt` and `requirements.lock` as they are — those drive
-the Docker image and CI, which install from source on purpose and are
-unaffected by PyPI.
-
-Then verify locally before tagging:
-
-```bash
-pip wheel . --no-deps -w /tmp/w     # then check the METADATA has no "@" in Requires-Dist
-python -m pytest -q                 # still green
-```
-
-and release:
+**Remaining, owner-only:** register the Trusted Publisher for this project
+(step 1's table), then release:
 
 ```bash
 git tag v0.1.0 && git push origin v0.1.0

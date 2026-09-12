@@ -82,27 +82,32 @@ the original phase text where they disagree):
   (eligible=true) -> rank_features -> build_report`, the last three being
   already-registered generic ops, not new real-estate-specific ones -
   gated behind `real_estate_query_spec_planning_enabled` (same
-  env-override-config precedence pattern as Phase 3's flags), now
-  **default `True`** (flipped 2026-09, after adding the same safe
-  fallback-on-failure guarantee `query_spec_planning_enabled` has -
-  raised exception or a DAG result reporting `success=False` without
+  env-override-config precedence pattern as Phase 3's flags), which has
+  the same safe fallback-on-failure guarantee `query_spec_planning_enabled`
+  has (raised exception or a DAG result reporting `success=False` without
   raising both trigger a fallback to the legacy handler, with the
   failure reason preserved in the fallback response's metadata rather
-  than silently discarded). Verified end-to-end parity with the legacy
-  direct handler (same top score, ranked order, eligible/rejected split)
-  and the safe-fallback behavior itself, through a real
-  `OrchestratorService` instance.
+  than silently discarded).
+  **Default stays `False`** (a 2026-09 attempt to flip it to `True` was
+  reverted the same day after an automated review on the flip's PR found a
+  real gap: the ranking *outcome* has verified parity with the legacy
+  handler - same top score, ranked order, eligible/rejected split - but
+  the *response shape* does not. `build_query_spec_planning_response`,
+  the generic planning response builder this path reuses, never
+  reconstructs the legacy bridge's `result.ranking`/`result.rejected`,
+  `summary`, analysis inspector, ranked-vector/rejected-table outputs, or
+  rendered PDF/HTML document - fields `frontend/src/components/
+  InspectorPanel.jsx` reads directly. The flag can still be enabled via
+  config for callers that only need the ranking outcome and consume the
+  planning response shape directly; flipping the default requires either
+  making the planning response reconstruct those legacy fields or
+  updating the frontend to consume the planning shape instead - not yet
+  attempted).
   What's NOT done: step 6, removing
   `real_estate_ranking_direct_handler.py`'s registration from
-  `direct_query_dispatch.py`. Per this plan's own rule ("remove legacy
-  only after a tested replacement exists") and Phase 7's identical rule,
-  that removal should wait until the new path has actually been used in
-  production for a while, not just verified in tests and enabled by
-  default - the legacy handler stays in place as the fallback target for
-  now. `tests/test_real_estate_ranking_golden.py` and
-  `tests/test_real_estate_ranking_bridge.py` explicitly disable this
-  flag via config so they keep protecting the legacy handler
-  specifically, independent of whichever path is the current default.
+  `direct_query_dispatch.py` - blocked on the response-shape parity gap
+  above, in addition to this plan's and Phase 7's "remove legacy only
+  after a tested replacement exists" rule.
 - Phase 6 (source abstraction): steps 1-2 of 3 done, per
   docs/PHASE6_SOURCE_ABSTRACTION_PLAN.md's migration plan (step 3,
   optional reachability notes, skipped as redundant with that doc).

@@ -25,7 +25,9 @@ def test_default_real_estate_report_spec_structure():
 
     assert spec.title == "Property Ranking and Investment Analysis Report"
     assert spec.format == "pdf"
-    assert spec.language == "fa"
+    # Report language follows the product default, flipped to English in
+    # 2026-09 along with response_language; "fa" is still accepted.
+    assert spec.language == "en"
 
     # Map layers
     assert len(spec.map_layers) == 4

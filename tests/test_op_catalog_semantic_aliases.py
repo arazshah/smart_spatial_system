@@ -92,3 +92,24 @@ def test_op_catalog_core_raster_operations_reference_registered_capabilities() -
     for op_name in raster_ops:
         assert op_name in OP_CATALOG
         assert OP_CATALOG[op_name].capability_name in registered
+
+
+def test_crs_transform_op_exists_and_maps_to_the_transformer_capability():
+    """
+    Without this entry no DAG could reproject at all, so every planned
+    distance was computed in the input CRS's units - degrees for WGS84
+    uploads - and no plan could express a metric threshold.
+    """
+    assert is_supported("crs_transform")
+    op = OP_CATALOG["crs_transform"]
+    assert op.capability_name == "transform_vector_crs"
+    assert op.input_map["vector"] == "features"
+    assert op.param_map["source_crs"] == "source_crs"
+    assert op.param_map["target_crs"] == "target_crs"
+    assert op.output_type == "vector"
+
+
+def test_nearest_op_can_target_a_named_distance_field():
+    for op_name in ("nearest_neighbor", "spatial_nearest"):
+        op = OP_CATALOG[op_name]
+        assert op.param_map["distance_field"] == "distance_field", op_name

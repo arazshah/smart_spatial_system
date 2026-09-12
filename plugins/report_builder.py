@@ -157,7 +157,7 @@ def _compute_summary(
     score_field: str = "investment_score",
     rank_field: str = "rank",
     name_field: str = "name",
-    language: str = "fa",
+    language: str = "en",
 ) -> dict[str, Any]:
     if not features:
         return {
@@ -490,7 +490,7 @@ def build_report(
         return ReportOut(
             meta={
                 "title": "Report",
-                "language": "fa",
+                "language": "en",
                 "format": "pdf",
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "feature_count": 0,
@@ -508,7 +508,7 @@ def build_report(
         ranked_source=rank_field,
     )
 
-    language = spec.language or "fa"
+    language = spec.language or "en"
 
     summary = _compute_summary(
         input_features,

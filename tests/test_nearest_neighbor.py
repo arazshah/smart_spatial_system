@@ -455,3 +455,57 @@ def test_shapely_engine_if_installed() -> None:
     assert result.metadata["engines_used"] == ["shapely"]
     assert props["_nearest_distance"] == 5.0
     assert props["_nearest_engine"] == "shapely"
+
+
+# ------------------------------------------------------------------ #
+# distance_field override (chaining)
+# ------------------------------------------------------------------ #
+
+def test_distance_field_overrides_the_configured_field_name() -> None:
+    result = find_nearest_neighbors(
+        source_features=[SOURCE_POINT],
+        target_features=[TARGET_POINT_A],
+        k=1,
+        distance_field="distance_to_metro_m",
+    )
+
+    props = result.features[0]["properties"]
+
+    assert props["distance_to_metro_m"] == 5.0
+    assert "_nearest_distance" not in props
+
+
+def test_distance_field_lets_successive_calls_accumulate_distances() -> None:
+    """
+    Chaining is the point of the parameter: without it every call writes
+    the same configured field, so a second amenity silently overwrites the
+    first one's distance and the scoring step sees one measurement twice.
+    """
+    first = find_nearest_neighbors(
+        source_features=[SOURCE_POINT],
+        target_features=[TARGET_POINT_A],
+        k=1,
+        distance_field="distance_to_metro_m",
+    )
+    second = find_nearest_neighbors(
+        source_features=first.features,
+        target_features=[TARGET_POINT_B],
+        k=1,
+        distance_field="distance_to_school_m",
+    )
+
+    props = second.features[0]["properties"]
+
+    assert props["distance_to_metro_m"] == 5.0
+    assert props["distance_to_school_m"] == 1.0
+
+
+@pytest.mark.parametrize("bad", ["", "   "])
+def test_blank_distance_field_is_rejected(bad: str) -> None:
+    with pytest.raises(ValueError, match="distance_field"):
+        find_nearest_neighbors(
+            source_features=[SOURCE_POINT],
+            target_features=[TARGET_POINT_A],
+            k=1,
+            distance_field=bad,
+        )

@@ -14,6 +14,7 @@ And consumed by:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -74,7 +75,7 @@ class SummarySpec:
     source: str
     stats: list[str] = field(default_factory=list)
     template: str = ""
-    language: str = "fa"
+    language: str = "en"
 
 
 @dataclass
@@ -105,7 +106,7 @@ class ReportSpec:
     """
 
     title: str = "Spatial Analysis Report"
-    language: str = "fa"
+    language: str = "en"
     map_layers: list[MapLayerSpec] = field(default_factory=list)
     tables: list[TableSpec] = field(default_factory=list)
     summary: SummarySpec | None = None
@@ -121,7 +122,7 @@ def default_real_estate_report_spec(
     ranked_source: str = "ranked",
     *,
     map_sources: dict[str, str] | None = None,
-    language: str = "fa",
+    language: str = "en",
     format: str = "pdf",
     title: str = "Property Ranking and Investment Analysis Report",
 ) -> ReportSpec:
@@ -230,6 +231,85 @@ def default_real_estate_report_spec(
 
 
 # ------------------------------------------------------------------ #
+# Default factory for generic accessibility analysis
+# ------------------------------------------------------------------ #
+
+def default_accessibility_report_spec(
+    ranked_source: str,
+    amenity_columns: Sequence[tuple[str, str]],
+    *,
+    score_field: str = "accessibility_score",
+    rank_field: str = "rank",
+    name_field: str = "name",
+    language: str = "en",
+    format: str = "pdf",
+    title: str = "Accessibility Analysis Report",
+) -> ReportSpec:
+    """
+    Report spec for a multi-amenity accessibility analysis.
+
+    The real-estate default cannot stand in for this one: its columns
+    (investment_score, flood_risk, inside_buildable_zone, ...) do not exist
+    on accessibility features, so every such cell renders as an empty
+    string while the summary silently stays correct - a table that looks
+    populated but carries no data.
+
+    Args:
+        ranked_source:
+            Ref of the ranked feature set the table and map read from.
+        amenity_columns:
+            (distance_field, label) per amenity, in report column order.
+            Built from the amenity list, so the table always matches the
+            fields the chain actually produced.
+    """
+    columns = [
+        TableColumnSpec(field=rank_field, label="Rank", align="center", width=60),
+        TableColumnSpec(field=name_field, label="Name", align="left"),
+        TableColumnSpec(
+            field=score_field,
+            label="Accessibility score",
+            format=".1f",
+            align="center",
+            width=100,
+        ),
+    ]
+    columns.extend(
+        TableColumnSpec(field=field_name, label=label, format=".0f", align="center")
+        for field_name, label in amenity_columns
+    )
+
+    return ReportSpec(
+        title=title,
+        language=language,
+        map_layers=[
+            MapLayerSpec(
+                source=ranked_source,
+                kind="choropleth",
+                label="Ranked sites",
+                style={"color_field": score_field, "radius": 10},
+            )
+        ],
+        tables=[
+            TableSpec(
+                source=ranked_source,
+                columns=columns,
+                sort_by=rank_field,
+                sort_order="asc",
+                max_rows=50,
+                title="Site accessibility ranking",
+            )
+        ],
+        summary=SummarySpec(
+            source=ranked_source,
+            stats=["total_count", "top_score", "avg_score", "top_name"],
+            language=language,
+        ),
+        format=format,
+        config={},
+    )
+
+
+# ------------------------------------------------------------------ #
 # dict <-> ReportSpec conversion
 # ------------------------------------------------------------------ #
 
@@ -268,12 +348,12 @@ def report_spec_from_dict(data: dict[str, Any]) -> ReportSpec:
             source=str(summary_raw.get("source") or ""),
             stats=list(summary_raw.get("stats") or []),
             template=str(summary_raw.get("template") or ""),
-            language=str(summary_raw.get("language") or "fa"),
+            language=str(summary_raw.get("language") or "en"),
         )
 
     return ReportSpec(
         title=str(data.get("title") or "Spatial Analysis Report"),
-        language=str(data.get("language") or "fa"),
+        language=str(data.get("language") or "en"),
         map_layers=map_layers,
         tables=tables,
         summary=summary,

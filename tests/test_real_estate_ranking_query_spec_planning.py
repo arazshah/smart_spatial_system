@@ -311,3 +311,47 @@ def test_flag_enabled_falls_back_to_legacy_handler_when_no_properties_found(
     # Missing-inputs preflight still runs first regardless of the flag.
     assert response["ok"] is False
     assert response["result"]["type"] == "missing_required_inputs"
+
+
+def test_flag_enabled_falls_back_to_legacy_handler_when_dag_execution_fails(
+    tmp_path, monkeypatch
+) -> None:
+    """
+    Safety-net test: if the QuerySpec/DAG path raises for any reason (a
+    real bug, a plugin error, anything unexpected -- not just the expected
+    "no properties found" guard), the response still succeeds via the
+    legacy direct handler instead of surfacing an error to the user. Same
+    safety pattern as _try_handle_query_with_planning's broad except
+    clause, now verified for the real-estate planning path too.
+    """
+    monkeypatch.setenv("LLM_PLANNING_ENABLED", "false")
+    monkeypatch.delenv("REAL_ESTATE_QUERY_SPEC_PLANNING_ENABLED", raising=False)
+
+    svc = OrchestratorService(
+        OrchestratorServiceConfig(
+            plugin_modules=list(DEFAULT_SAFE_PLUGIN_MODULES),
+            weights_path=tmp_path / "weights" / "router_weights.json",
+            real_estate_query_spec_planning_enabled=True,
+        )
+    )
+    monkeypatch.setattr(
+        svc, "_maybe_plan_llm_intent", lambda query: _fake_real_estate_llm_intent()
+    )
+
+    import smart_spatial_system.application.services.query_execution_service as qes
+
+    def _broken_runner_factory(registry):
+        raise RuntimeError("simulated DAG runner construction failure")
+
+    monkeypatch.setattr(qes, "make_registry_planning_runner", _broken_runner_factory)
+
+    response = svc.handle_query(
+        query=REAL_ESTATE_QUERY,
+        inputs={"properties": _sample_properties()},
+    )
+
+    # Still a full, successful response -- via the legacy direct handler,
+    # not the (broken) QuerySpec/DAG path.
+    assert response["ok"] is True
+    assert response["status"] == "success"
+    assert response["metadata"]["execution_mode"] == "real_estate_ranking_bridge"

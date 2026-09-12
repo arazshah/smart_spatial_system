@@ -971,9 +971,34 @@ Return ONLY one JSON object with this shape:
 """
 
 
+def _op_input_roles_reference() -> str:
+    """
+    Every supported operation's required input roles - the exact keys
+    "inputs" must use for that operation - generated directly from
+    OP_CATALOG's input_map rather than hand-written per-operation
+    examples.
+
+    This exists because a hand-written example is exactly how distance_to
+    went undocumented here: "Important mappings" below spells out
+    filter_by_distance, filter_points_in_polygon and enrich_risk by hand,
+    but nobody added an entry when distance_to (source_features/
+    target_features, i.e. inputs "vector"/"target") was added to the
+    catalog, and the LLM repeatedly omitted "target" as a result. Deriving
+    this list from OP_CATALOG means a future operation can't silently go
+    undocumented the same way.
+    """
+    lines = []
+    for name in list_supported_ops():
+        roles = list(get_op(name).input_map)
+        role_desc = ", ".join(roles) if roles else "(none)"
+        lines.append(f"- {name}: inputs keys = {{{role_desc}}}")
+    return "\n".join(lines)
+
+
 def _domain_guidance() -> str:
     supported = ", ".join(list_supported_ops())
     pending = ", ".join(list_pending_ops())
+    input_roles = _op_input_roles_reference()
 
     return f"""
 You are a planning assistant for a smart spatial analysis system.
@@ -987,6 +1012,12 @@ Your job:
 
 Supported operations:
 {supported}
+
+Every operation REQUIRES exactly these "inputs" keys - an operation with a
+missing key fails to plan. This list is generated from the operation
+catalog itself, so trust it over any example below if the two ever
+disagree:
+{input_roles}
 
 Pending operations, not executable yet:
 {pending}
@@ -1109,64 +1140,6 @@ def build_llm_messages(
     ]
 
 
-def _default_real_estate_scoring_spec() -> dict[str, Any]:
-    """
-    Default MVP scoring spec for real-estate ranking.
-
-    This is used as a safety fallback when LLM correctly asks for scoring
-    but forgets to provide scoring_spec.
-
-    Notes:
-        - Some fields may be created by previous plugins or future enrichment plugins.
-        - Missing fields simply receive factor score 0 by score_features.
-    """
-    return {
-        "output_field": "investment_score",
-        "scale": 100,
-        "normalize_weights": True,
-        "factors": [
-            {
-                "name": "near_poi",
-                "field": "distance_to_poi",
-                "type": "inverse_distance",
-                "max_distance": 500,
-                "weight": 0.30,
-            },
-            {
-                "name": "inside_buildable_zone",
-                "field": "inside_buildable_zone",
-                "type": "boolean",
-                "weight": 0.25,
-            },
-            {
-                "name": "near_main_road",
-                "field": "distance_to_road",
-                "type": "inverse_distance",
-                "max_distance": 1000,
-                "weight": 0.20,
-            },
-            {
-                "name": "low_flood_risk",
-                "field": "flood_risk",
-                "type": "risk_level",
-                "weight": 0.10,
-            },
-            {
-                "name": "low_earthquake_risk",
-                "field": "earthquake_risk",
-                "type": "risk_level",
-                "weight": 0.10,
-            },
-            {
-                "name": "low_fire_risk",
-                "field": "fire_risk",
-                "type": "risk_level",
-                "weight": 0.05,
-            },
-        ],
-    }
-
-
 def _semantic_distance_field(reference_ref: str) -> str:
     """
     Pick a semantic distance field based on the reference entity/output name.
@@ -1216,6 +1189,16 @@ def normalize_llm_query_spec_for_planning(spec: QuerySpec) -> QuerySpec:
 
     # Inject enrichment only when LLM did not provide its own scoring spec.
     # This keeps old explicit LLM specs stable, but improves weak/missing specs.
+    #
+    # NOTE: since a score_features op missing scoring_spec/factors now
+    # raises (see below) instead of getting a default injected, this flag
+    # can only be True for a spec that is about to raise before this
+    # function returns - so the enrichment-injection code below it is
+    # currently unreachable in any spec that completes normally. Left in
+    # place rather than removed with this fix: ripping it out means also
+    # removing _semantic_distance_field and updating the tests that
+    # exercise it, which is a larger, separate change from the two bugs
+    # this pass fixes.
     should_inject_enrichment = any(
         op.op == "score_features"
         and "scoring_spec" not in op.params
@@ -1250,8 +1233,23 @@ def normalize_llm_query_spec_for_planning(spec: QuerySpec) -> QuerySpec:
 
         if op.op == "score_features":
             if "scoring_spec" not in clean_params and "factors" not in clean_params:
-                clean_params["scoring_spec"] = _default_real_estate_scoring_spec()
-                repairs.append("added default scoring_spec to score_features")
+                # No safe generic default exists here: this used to inject
+                # a hardcoded real-estate scoring_spec (investment_score,
+                # inside_buildable_zone, flood_risk, ...) into ANY
+                # score_features op that omitted one, regardless of the
+                # query's actual domain. For a non-real-estate query that
+                # silently produced a nonsense score column, or crashed
+                # downstream when those fields didn't exist on the data -
+                # indistinguishable from a real real-estate query's own
+                # valid output. The LLM must describe its own domain's
+                # scoring, or this fails loudly right here instead.
+                raise LLMSpecGenerationError(
+                    f"score_features operation (output={op.output!r}) has "
+                    "neither 'scoring_spec' nor 'factors'. There is no "
+                    "domain-neutral default to fall back to - the LLM must "
+                    "supply a complete scoring specification for its own "
+                    "query."
+                )
 
             scoring_spec = clean_params.get("scoring_spec")
             if isinstance(scoring_spec, dict):
@@ -1495,11 +1493,18 @@ def _inject_report_pipeline(spec: QuerySpec) -> tuple[QuerySpec, list[str]]:
     """
     repairs: list[str] = []
 
-    # Find the last rank_features output.
+    # Find the last rank_features op, so build_report reuses the score/rank
+    # field names that op actually used - not a hardcoded guess. By this
+    # point base normalization has already ensured rank_features carries
+    # score_field/rank_field (either LLM-provided or defaulted from the
+    # upstream score_features op's own output_field), so these are always
+    # present here.
     last_rank_output: str | None = None
+    last_rank_op: OperationSpec | None = None
     for op in spec.operations:
         if op.op == "rank_features" and op.output:
             last_rank_output = op.output
+            last_rank_op = op
 
     if not last_rank_output:
         # Fallback: use the last operation output.
@@ -1511,6 +1516,16 @@ def _inject_report_pipeline(spec: QuerySpec) -> tuple[QuerySpec, list[str]]:
     if not last_rank_output:
         return spec, []
 
+    # Previously hardcoded to "investment_score"/"rank" regardless of what
+    # the plan's own rank_features op used - a non-real-estate plan (e.g.
+    # score_field="accessibility_score") got a report referencing a column
+    # its data never had.
+    score_field = "score"
+    rank_field = "rank"
+    if last_rank_op is not None:
+        score_field = str(last_rank_op.params.get("score_field") or score_field)
+        rank_field = str(last_rank_op.params.get("rank_field") or rank_field)
+
     new_ops = list(spec.operations)
 
     # build_report node
@@ -1519,8 +1534,8 @@ def _inject_report_pipeline(spec: QuerySpec) -> tuple[QuerySpec, list[str]]:
         op="build_report",
         inputs={"vector": last_rank_output},
         params={
-            "score_field": "investment_score",
-            "rank_field": "rank",
+            "score_field": score_field,
+            "rank_field": rank_field,
         },
         output=report_output,
     ))
@@ -1575,6 +1590,41 @@ def _inject_report_pipeline(spec: QuerySpec) -> tuple[QuerySpec, list[str]]:
 
 
 
+def _validate_operation_input_roles(spec: QuerySpec) -> None:
+    """
+    Validate every operation's inputs against OP_CATALOG's input_map before
+    handing the spec back to the caller.
+
+    DeterministicPlanner.build() already performs this exact check
+    (_map_inputs in planner.py) and raises PlanningError - so a spec that
+    fails this check was always going to fail anyway. Duplicating the
+    check here means it fails right where the spec was generated, as a
+    specific LLMSpecGenerationError naming the missing role, rather than
+    as a generic PlanningError raised later out of the planner - the same
+    failure, several call frames away from its cause, indistinguishable
+    from any other planning error.
+
+    Every input_map key is a required role: the planner has no notion of
+    an optional one today (see the real_estate_spatial_enrich note in
+    op_catalog.py), so this mirrors _map_inputs's missing_roles check
+    exactly rather than inventing separate required/optional semantics.
+    """
+    for op in spec.operations:
+        if not is_supported(op.op):
+            continue
+
+        required_roles = get_op(op.op).input_map
+        missing_roles = [role for role in required_roles if role not in op.inputs]
+
+        if missing_roles:
+            raise LLMSpecGenerationError(
+                f"operation {op.op!r} (output={op.output!r}) is missing "
+                f"required input role(s) {missing_roles!r}. It supplied "
+                f"{sorted(op.inputs)!r}; {op.op!r} requires "
+                f"{sorted(required_roles)!r}."
+            )
+
+
 class LLMQuerySpecGenerator:
     def __init__(
         self,
@@ -1621,7 +1671,9 @@ class LLMQuerySpecGenerator:
         data = _pre_normalize_query_spec_json(data, context=context)
 
         spec = query_spec_from_dict(data, raw_query_fallback=raw_query)
-        return normalize_llm_query_spec_for_planning(spec)
+        spec = normalize_llm_query_spec_for_planning(spec)
+        _validate_operation_input_roles(spec)
+        return spec
 
 
 # ------------------------------------------------------------------ #

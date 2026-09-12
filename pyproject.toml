@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"
 # "Open design questions" for why a namespace migration was deliberately
 # not done here.
 name = "smart_spatial_system"
-version = "0.1.0"
+version = "0.2.0"
 description = "Plugin-based GeoAI backend: natural-language questions become QuerySpecs, DAG plans, and map/table/report outputs."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -88,6 +88,7 @@ dev = ["pytest", "ruff"]
 Homepage = "https://github.com/arazshah/smart_spatial_system"
 Repository = "https://github.com/arazshah/smart_spatial_system"
 Issues = "https://github.com/arazshah/smart_spatial_system/issues"
+Changelog = "https://github.com/arazshah/smart_spatial_system/blob/main/CHANGELOG.md"
 
 [project.scripts]
 smart-spatial-api = "smart_spatial_system.cli:main"

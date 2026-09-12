@@ -6,7 +6,7 @@ Smart Spatial System is a plugin-based GeoAI backend with a React workbench. A q
 
 It is the application built on top of [geochat-platform](https://github.com/arazshah/geochat-platform): plugins are written with `geochat_sdk` and executed through `geochat_kernel`.
 
-> **Status:** active development, mid-refactor. Phase 6 moves logic out of `orchestrator/` into the layered `smart_spatial_system/` package (see [docs/ARCHITECTURE_TARGET.md](docs/ARCHITECTURE_TARGET.md)). The `orchestrator/*_service.py` modules are compatibility shims during that move.
+> **Status:** published and usable, still refactoring internally. Logic is moving out of `orchestrator/` into the layered `smart_spatial_system/` package (see [docs/ARCHITECTURE_TARGET.md](docs/ARCHITECTURE_TARGET.md)); the `orchestrator/*_service.py` modules are compatibility shims during that move. The public surface - the CLI, the HTTP API and the documented entry points below - is stable.
 
 ---
 
@@ -22,13 +22,13 @@ natural-language question
   → outputs              map layers · tables · documents (PDF/HTML) · files · trace
 ```
 
-Design decisions are recorded as ADRs in [`docs/`](docs): single kernel pipeline, artifact-based responses, a multilingual semantic layer (Persian queries today, language-neutral concepts inside), and a service-oriented modular backend.
+Design decisions are recorded as ADRs in [`docs/`](docs): single kernel pipeline, artifact-based responses, a multilingual semantic layer (English and Persian questions, language-neutral concepts inside), and a service-oriented modular backend.
 
 ## What is in the box
 
-- **36 plugins**, including buffer, spatial join, intersection, predicates, dissolve, nearest neighbour, distance, area and perimeter, centroids, CRS transform, geometry validation, attribute statistics, zonal statistics, band math, NDVI and spectral indices, slope/aspect, raster clip/reclassify/threshold/statistics, raster-to-vector, geocoding, WMS/WFS fetcher, PostGIS connector, feature scoring and enrichment, local raster/vector loaders, report builder, PDF renderer and data export.
+- **36 plugins registered by default**: buffer, spatial join, intersection, predicates, dissolve, nearest neighbour, distance, area and perimeter, centroids, CRS transform, geometry validation, attribute statistics, zonal statistics, band math, NDVI and spectral indices, slope/aspect, raster clip/reclassify/threshold/statistics, raster-to-vector, WMS/WFS fetcher, PostGIS connector, feature scoring and enrichment, vector loader, report builder, PDF renderer and data export. Raster uploads load through `local_raster_loader`, and `geocoding_resolver` ships but is not registered by default.
 - **Data sources:** raster and vector uploads, CSV tables, WMS, WFS, PostGIS and remote URLs, grouped into projects.
-- **Workflows:** real-estate site ranking with a generated PDF report, and NDVI analysis.
+- **Workflows:** multi-amenity accessibility scoring (rule-based, reproducible), real-estate site ranking with a generated PDF report, and NDVI analysis.
 - **Learning router:** capability weights adjust from user feedback, with reviewable weight proposals.
 - **Workbench:** React + Leaflet UI for queries, step-by-step progress, map layers, inspection, plugin settings and outputs.
 
@@ -42,7 +42,7 @@ plugins/                 geochat_sdk capability plugins
 config/plugins/          per-plugin YAML config (*.example.yaml are the templates)
 templates/reports/       report templates (real-estate report)
 scripts/sql/             PostGIS views for the Tehran OSM demo
-examples/                small fake datasets for the real-estate workflow
+examples/                runnable examples and their sample data
 frontend/                React + Vite workbench
 tests/                   pytest suite (~150 modules)
 docs/                    architecture, ADRs, API contracts, phase reports
@@ -50,17 +50,136 @@ docs/                    architecture, ADRs, API contracts, phase reports
 
 Runtime data (outputs, uploads, projects) is written to `var/` by default, or to `SMART_SPATIAL_RUNTIME_DIR`, and is not committed.
 
-## Getting started
+## Install
 
-Requires Python 3.11+ (matches CI and the Docker image), Node.js 20+, and
-optionally PostgreSQL with PostGIS.
+Requires Python 3.11+.
+
+```bash
+pip install "smart-spatial-system[raster,pdf]"
+```
+
+Extras are optional and independent: `raster` (`rasterio` - NDVI, spectral
+indices, zonal statistics), `pdf` (`weasyprint` - PDF reports), `postgis`
+(`psycopg`), `dev` (`pytest`, `ruff`). Leaving one out does not break the
+install: the affected plugins are simply not registered, and the rest of
+the system runs normally.
+
+Run the API:
+
+```bash
+smart-spatial-api serve --port 8000     # http://127.0.0.1:8000/docs
+```
+
+> **Set `SMART_SPATIAL_API_KEY` before exposing this beyond localhost.**
+> With it unset every endpoint except `/` and `/health` is open, and the
+> server logs a warning saying so at startup. See
+> [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+## Use it
+
+Two ways in, both first-class: import the library, or call the HTTP API.
+Complete runnable versions of both are in [`examples/`](examples).
+
+### As a library
+
+Score candidate sites by how close they are to the things that matter, with
+no server and no LLM involved:
+
+```python
+from orchestrator.capability_registry import CapabilityRegistry
+from orchestrator.planning.dag_executor import DagExecutor
+from orchestrator.planning.planner import DeterministicPlanner
+from smart_spatial_system.application.services.query_execution.accessibility_query_spec import (
+    AmenitySpec, build_accessibility_initial_inputs, build_accessibility_query_spec,
+)
+
+amenities = [
+    AmenitySpec(ref="metro", distance_field="distance_to_metro_m",
+                max_distance_m=800.0, weight=3.0),
+    AmenitySpec(ref="schools", distance_field="distance_to_school_m",
+                max_distance_m=1200.0, weight=2.0),
+]
+
+query_spec = build_accessibility_query_spec(
+    "Rank sites by access to metro and schools", amenities,
+    target_crs="EPSG:31256",          # a projected CRS - see the note below
+)
+
+plan = DeterministicPlanner().build(query_spec)
+registry = CapabilityRegistry.from_plugin_modules(tolerant=True)
+result = DagExecutor(lambda name: registry.resolve(name).callable).execute(
+    plan,
+    initial_inputs=build_accessibility_initial_inputs(
+        sites=sites_geojson,
+        amenity_layers={"metro": metro_geojson, "schools": schools_geojson},
+    ),
+)
+```
+
+`python examples/accessibility_analysis.py` runs exactly this over five
+candidate sites in Vienna and prints the plan and the ranking:
+
+```text
+Plan: 10 operations
+  sites_metric      transform_vector_crs
+  metro_metric      transform_vector_crs
+  sites_with_metro  find_nearest_neighbors
+  ...
+
+Site accessibility ranking
+  Rank  Name                  Accessibility score  Metro (m)  School (m)  Park (m)
+  1     Site 3 - Praterstern  75.4                 23.0       407.0       711.0
+  2     Site 4 - Ottakring    60.8                 56.0       684.0       4371.0
+  3     Site 2 - Karlsplatz   59.8                 128.0      782.0       630.0
+```
+
+This path is **rule-based, not LLM-backed**: the operation chain follows
+mechanically from the amenity list, so identical inputs always produce an
+identical plan and identical numbers.
+
+> **Distances need a projected CRS.** The spatial operations measure planar
+> distance in whatever units the input CRS uses and never reproject on your
+> behalf, so EPSG:4326 input yields *degrees*. The generator reprojects
+> every layer first; pass a local projected CRS for your study area
+> (`EPSG:31256` for Vienna, the relevant UTM zone elsewhere). EPSG:3857 is a
+> safe global fallback but its metres are inflated by 1/cos(latitude) -
+> about 1.5x at Vienna's latitude.
+
+### Over HTTP
+
+```python
+import json, urllib.request
+
+body = {"query": "Display the sites on the map", "inputs": {"vector": sites_geojson}}
+req = urllib.request.Request("http://127.0.0.1:8000/query",
+                             data=json.dumps(body).encode(), method="POST")
+req.add_header("Content-Type", "application/json")
+req.add_header("X-API-Key", "...")          # when the server requires a key
+response = json.loads(urllib.request.urlopen(req).read())
+
+for layer in response["layers"]:
+    print(layer["name"], layer["summary"]["feature_count"])
+```
+
+`inputs` is required and must be an object even when empty - it is where
+the data the question refers to is passed in, keyed by role (`vector`,
+`raster`, or a named layer). `python examples/query_via_http.py` runs this
+against a live server.
+
+Questions are understood in English and Persian. A question is answered by
+the LLM-backed planner when an LLM key is configured, and by the rule-based
+paths otherwise.
+
+## Running from a checkout
+
+For development on the system itself, or to use the React workbench:
 
 ```bash
 git clone https://github.com/arazshah/smart_spatial_system.git
 cd smart_spatial_system
 
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.lock      # pinned; requirements.txt for latest upstream
 
 cp .env.example .env                  # add your LLM key
 uvicorn api.main:app --reload         # http://127.0.0.1:8000/docs
@@ -74,39 +193,15 @@ cp .env.example .env
 npm install && npm run dev            # http://localhost:5173
 ```
 
-PostGIS demo data (Tehran OpenStreetMap): see [data/README.md](data/README.md).
-
 Docker Compose (backend + frontend, PostGIS optional):
 
 ```bash
 docker compose up --build
 ```
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full deployment guide —
-environment variables, authentication, CORS, and PostGIS setup for running
-this beyond your own machine.
-
-### Installing as a package
-
-Alongside the `pip install -r requirements.txt` + `uvicorn` dev flow above,
-the backend also installs as a regular Python package (`pyproject.toml`),
-with optional extras for the heavier/domain-specific dependencies:
-
-```bash
-pip install -e ".[postgis,raster,pdf]"    # editable install for local dev
-# or: pip install ".[postgis,raster,pdf]" for a non-editable install
-
-smart-spatial-api serve --host 0.0.0.0 --port 8000
-# equivalent: python -m smart_spatial_system serve --host 0.0.0.0 --port 8000
-```
-
-Extras: `postgis` (`psycopg`), `raster` (`rasterio`, for NDVI/spectral-index
-plugins), `pdf` (`weasyprint`, for PDF report rendering), `llm` (reserved,
-currently no extra dependency), `dev` (`pytest`, `ruff`). Omitting an extra
-does not break the app — the affected plugins are simply unavailable
-(reported in the service's plugin registry), not a startup failure. See
-[docs/PHASE8_BACKEND_PACKAGING_CLI_PLAN.md](docs/PHASE8_BACKEND_PACKAGING_CLI_PLAN.md)
-for how this was verified.
+PostGIS demo data (Tehran OpenStreetMap): see [data/README.md](data/README.md).
+Full deployment guide - environment variables, authentication, CORS, PostGIS:
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## API at a glance
 
@@ -121,10 +216,11 @@ for how this was verified.
 
 Full request and response contracts are in [docs/phase5_query_api_contract.md](docs/phase5_query_api_contract.md) and the other `docs/phase5_*` files.
 
-## Tests
+## Development
 
 ```bash
-pytest
+pytest                # full suite
+ruff check .          # lint
 ```
 
 ## Author

@@ -1,0 +1,75 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.3487,
+          48.1979
+        ]
+      },
+      "properties": {
+        "name": "Site 1 - Neubaugasse",
+        "district": 7
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.37,
+          48.1995
+        ]
+      },
+      "properties": {
+        "name": "Site 2 - Karlsplatz",
+        "district": 4
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.392,
+          48.2185
+        ]
+      },
+      "properties": {
+        "name": "Site 3 - Praterstern",
+        "district": 2
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.308,
+          48.211
+        ]
+      },
+      "properties": {
+        "name": "Site 4 - Ottakring",
+        "district": 16
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.44,
+          48.234
+        ]
+      },
+      "properties": {
+        "name": "Site 5 - Donaustadt",
+        "district": 22
+      }
+    }
+  ]
+}

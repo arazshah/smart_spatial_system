@@ -28,6 +28,36 @@ while the executor still calls deterministic registered capabilities such as:
 
 This catalog is intentionally explicit. It does not hard-code a single user
 query. It exposes reusable spatial/data operations in a stable format.
+
+Source-plugin reachability (REFACTOR_PLAN.md Phase 6, step 3 -
+docs/PHASE6_SOURCE_ABSTRACTION_PLAN.md; verified 2026-09, re-check before
+relying on it since new ops/routes can change this over time)
+-----------------------------------------------------------------
+Of the five source plugins' seven capabilities
+(postgis_connector.py: fetch_postgis_layer, fetch_postgis_sql_layer,
+query_database_postgis; local_vector_loader.py: load_local_vector;
+local_raster_loader.py: load_local_raster; wms_wfs_fetcher.py:
+fetch_wfs_features, fetch_wms_map; geocoding_resolver.py: geocode_place,
+reverse_geocode_point), only two are mapped here and therefore reachable
+through QuerySpec/DAG planning at all: load_local_vector (op
+load_vector) and query_database_postgis (ops query_database /
+load_postgis_layer). The other five:
+
+    - fetch_postgis_layer and fetch_wfs_features: reachable, but only via
+      direct API routes (api/routers/data_source_connectors.py), which
+      resolve them through the capability registry directly, bypassing
+      this catalog/the planner entirely.
+    - fetch_wms_map: no production caller anywhere. register_wms_source
+      (data_source_service.py) only stores WMS connection metadata and
+      never actually calls it - built ahead of its caller and never
+      finished being wired in.
+    - fetch_postgis_sql_layer, geocode_place, reverse_geocode_point: no
+      caller anywhere in api/ or orchestrator/ outside their own tests.
+
+Not itself a bug (unreachable code isn't unsafe), but real information
+for whoever designs the ADR-004 Phase 7 connector-registry - see that
+plan document's "Current state" section for the full source-plugin
+inventory this note summarizes.
 """
 
 from __future__ import annotations

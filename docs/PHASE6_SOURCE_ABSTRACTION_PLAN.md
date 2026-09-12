@@ -2,13 +2,17 @@
 
 ## Status
 
-Steps 1-2 of 3 done (verified 2026-09). Step 3 (optional reachability
-notes) skipped — this document's own "Current state" section already
-records that information, so a separate notes file would just
-duplicate it. See `docs/REFACTOR_PLAN.md`'s Phase 6 status note for the
-up-to-date summary. The larger ADR-004 Phase 7 connector-registry
-design (see "What's deliberately not in this plan" below) remains not
-started, as intended.
+All 3 migration steps done (2026-09) — this phase is complete as scoped.
+Step 3 (reachability notes) was done as a docstring addition to
+`orchestrator/planning/op_catalog.py` rather than a separate notes file,
+since this document's own "Current state" section already records the
+same information and a separate file would just duplicate it. See
+`docs/REFACTOR_PLAN.md`'s Phase 6 status note for the up-to-date summary.
+The larger ADR-004 Phase 7 connector-registry design (see "What's
+deliberately not in this plan" below) is intentionally a separate,
+not-yet-started effort — "Phase 6 complete" here does not mean that
+design is done, only that the small, independently-safe fixes this
+document scoped are.
 
 One correction made while implementing step 1: `postgis_connector.py`'s
 int handling turned out not to share real duplication with the other
@@ -277,16 +281,14 @@ design above.
    plan with a real (if minor) security angle, so it gets the same
    "lowest-risk approach, test the exact failure mode" treatment this
    session's earlier SQL-injection/SSRF fixes did.
-3. **Document the OP_CATALOG reachability gap** (no code change): add a
-   short note to `orchestrator/planning/op_catalog.py`'s module
-   docstring or a new `docs/phase6_source_reachability_notes.md`
+3. **Document the OP_CATALOG reachability gap** (no code change): done —
+   added to `orchestrator/planning/op_catalog.py`'s module docstring
+   (not a new `docs/phase6_source_reachability_notes.md`, to avoid
+   duplicating this plan document's own "Current state" section)
    recording which of the five plugins' seven capabilities are
    QuerySpec/DAG-reachable vs. direct-API-route-only vs. callerless
-   today (the table in "Current state" above), so this doesn't need
-   re-deriving when the ADR-004 connector-registry design eventually
-   picks it up. Optional and low-priority relative to steps 1-2; do it
-   if there's time, skip it otherwise since this plan document itself
-   already records the same information.
+   today, so this doesn't need re-deriving when the ADR-004
+   connector-registry design eventually picks it up.
 
 Steps 1 and 2 are independent of each other and of step 3 — land as
 separate commits/PRs in any order.
@@ -314,5 +316,5 @@ separate commits/PRs in any order.
    + new redaction regression tests (step 2) — one commit, or two if the
    two plugins' redaction wiring ends up non-trivially different once
    actually written.
-3. Reachability notes (step 3), optional, separate commit if done at
-   all.
+3. Reachability notes (step 3) — docstring-only commit, no behavior
+   change, verified with the full suite unchanged before and after.

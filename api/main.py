@@ -14,7 +14,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import logging
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from fastapi import Depends, FastAPI
@@ -63,6 +65,52 @@ class APIConfig:
     api_key: str | None = field(default_factory=lambda: os.environ.get("SMART_SPATIAL_API_KEY") or None)
 
 
+logger = logging.getLogger(__name__)
+
+# Env vars that make the LLM client usable; see orchestrator's LLM client.
+_LLM_KEY_ENV_VARS = ("LLM_API_KEY", "AVALAI_API_KEY", "OPENAI_API_KEY")
+
+
+def warn_if_unauthenticated(
+    api_key: str | None,
+    env: Mapping[str, str] | None = None,
+) -> str | None:
+    """
+    Build the startup warning for an API with no key configured.
+
+    Leaving SMART_SPATIAL_API_KEY unset is a legitimate choice for local
+    development, so this warns rather than refusing to start. But it used
+    to do so silently, which is how an instance reaches the public
+    internet with every endpoint open without anyone noticing.
+
+    The warning escalates when an LLM key is also configured, because that
+    combination is not just an access problem - anyone who finds the host
+    can spend the deployer's LLM credit.
+
+    Returns the message (also logged), or None when a key is set.
+    """
+    if api_key:
+        return None
+
+    source_env = env if env is not None else os.environ
+    message = (
+        "SMART_SPATIAL_API_KEY is not set - every endpoint except / and "
+        "/health is unauthenticated. Do not expose this instance beyond "
+        "localhost or a trusted network. See docs/DEPLOYMENT.md."
+    )
+
+    configured_llm_vars = [name for name in _LLM_KEY_ENV_VARS if source_env.get(name)]
+    if configured_llm_vars:
+        message += (
+            " An LLM API key is also configured ("
+            + ", ".join(configured_llm_vars)
+            + "), so anyone who can reach this instance can spend that credit."
+        )
+
+    logger.warning(message)
+    return message
+
+
 def create_app(
     *,
     service: OrchestratorService | None = None,
@@ -95,6 +143,7 @@ def create_app(
         service_config or OrchestratorServiceConfig()
     )
     app.state.api_key = final_api_config.api_key
+    warn_if_unauthenticated(final_api_config.api_key)
 
     protected = [Depends(require_api_key)]
 

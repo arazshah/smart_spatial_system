@@ -122,6 +122,29 @@ def test_write_requires_exactly_one_input(plugin_config_dir):
         )
 
 
+def test_write_refuses_to_mutate_packaged_defaults(tmp_path, monkeypatch):
+    """
+    The packaged-defaults fallback (REFACTOR_PLAN Phase 8) is read-only: in
+    a pip-installed deployment it resolves inside site-packages, which is
+    package-manager owned. Writing there would either fail with a confusing
+    permission error or silently mutate installed defaults that the next
+    upgrade discards, so the store refuses with an actionable message
+    instead.
+    """
+    monkeypatch.delenv("GEOCHAT_PLUGIN_CONFIG_DIR", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    # Sanity: this is the packaged-fallback situation, not a normal checkout.
+    assert store.find_config_dir() == store._packaged_config_dir()
+
+    with pytest.raises(PluginConfigStoreError) as excinfo:
+        store.write_plugin_config("sample_plugin", raw_yaml="alpha: 1\n")
+
+    message = str(excinfo.value)
+    assert "GEOCHAT_PLUGIN_CONFIG_DIR" in message
+    assert "packaged defaults" in message
+
+
 def test_find_config_dir_falls_back_to_packaged_config_outside_checkout(
     tmp_path, monkeypatch
 ):

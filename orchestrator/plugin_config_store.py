@@ -113,6 +113,35 @@ def _config_dir() -> Path:
     return Path(find_config_dir())
 
 
+def _require_writable_config_dir() -> Path:
+    """
+    Refuse to write into the packaged default config.
+
+    find_config_dir() falls back to the plugin config shipped as package
+    data (REFACTOR_PLAN Phase 8) when nothing else is reachable. That is
+    correct for reads and wrong for writes: in a pip-installed deployment
+    that directory lives inside site-packages, which is package-manager
+    owned. Writing there either fails with a confusing permission error on
+    a system/shared install, or silently mutates the installed package's
+    defaults on a writable one - and those edits are then lost on the next
+    upgrade. Fail loudly with an actionable message instead.
+    """
+    active = _config_dir()
+    packaged = _packaged_config_dir()
+
+    if packaged is not None and active.resolve() == packaged.resolve():
+        raise PluginConfigStoreError(
+            "Refusing to write plugin configuration into the packaged "
+            f"defaults at {active}. This happens when the backend runs from "
+            "a pip-installed package with no writable configuration "
+            "directory. Set GEOCHAT_PLUGIN_CONFIG_DIR to a writable "
+            "directory (copy the packaged config/plugins/ into it to start "
+            "from the current defaults) and restart."
+        )
+
+    return active
+
+
 def _yaml_path(plugin_id: str) -> Path:
     return _config_dir() / f"{plugin_id}.yaml"
 
@@ -279,6 +308,7 @@ def write_plugin_config(
     """
     yaml = _require_yaml()
     pid = _validate_plugin_id(plugin_id)
+    _require_writable_config_dir()
 
     if raw_yaml is None and parsed is None:
         raise PluginConfigStoreError("Either raw_yaml or parsed must be provided.")

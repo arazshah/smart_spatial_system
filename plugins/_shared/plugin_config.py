@@ -14,6 +14,10 @@ Configuration lookup order:
     1. GEOCHAT_PLUGIN_CONFIG_DIR environment variable
     2. <current-working-directory>/config/plugins
     3. nearest parent directory containing config/plugins
+    4. the default config shipped as package data (REFACTOR_PLAN Phase 8,
+       docs/PHASE8_BACKEND_PACKAGING_CLI_PLAN.md step 2) - last resort for
+       a pip-installed run started outside a git checkout, where no
+       config/plugins directory is reachable from cwd
 
 Supported files:
     - YAML: .yaml / .yml
@@ -67,7 +71,31 @@ def find_config_dir() -> Path:
         if candidate.exists():
             return candidate
 
+    packaged = _packaged_config_dir()
+    if packaged is not None:
+        return packaged
+
     return direct
+
+
+def _packaged_config_dir() -> Path | None:
+    """
+    Fall back to the default plugin config shipped as package data
+    (REFACTOR_PLAN Phase 8, docs/PHASE8_BACKEND_PACKAGING_CLI_PLAN.md step
+    2) when no config/plugins directory is reachable from cwd - e.g. a
+    pip-installed run started outside a git checkout. Last resort only:
+    GEOCHAT_PLUGIN_CONFIG_DIR and any cwd-reachable config/plugins/ above
+    still take priority, so existing dev/Docker behavior is unchanged.
+    """
+    try:
+        import importlib.resources as resources
+
+        packaged = resources.files("config") / "plugins"
+        if packaged.is_dir():
+            return Path(str(packaged))
+    except (ImportError, ModuleNotFoundError, TypeError, NotADirectoryError):
+        pass
+    return None
 
 
 def get_plugin_config_path(plugin_id: str) -> Path | None:

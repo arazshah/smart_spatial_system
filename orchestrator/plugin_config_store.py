@@ -33,7 +33,12 @@ def find_config_dir() -> Path:
 
     Lookup order mirrors plugins._shared.plugin_config.find_config_dir,
     but without importing the plugins package (keeps this module light and
-    safe to import in isolation, e.g. in tests).
+    safe to import in isolation, e.g. in tests). Order: 1)
+    GEOCHAT_PLUGIN_CONFIG_DIR env var, 2) cwd or nearest parent containing
+    config/plugins, 3) the default config shipped as package data
+    (_packaged_config_dir - REFACTOR_PLAN Phase 8), 4) a non-existent
+    cwd/config/plugins path as a last resort so callers can still detect
+    "not found" gracefully.
     """
     env_dir = os.getenv("GEOCHAT_PLUGIN_CONFIG_DIR")
     if env_dir:
@@ -50,7 +55,31 @@ def find_config_dir() -> Path:
         if candidate.exists():
             return candidate
 
+    packaged = _packaged_config_dir()
+    if packaged is not None:
+        return packaged
+
     return direct
+
+
+def _packaged_config_dir() -> Path | None:
+    """
+    Fall back to the default plugin config shipped as package data
+    (REFACTOR_PLAN Phase 8, docs/PHASE8_BACKEND_PACKAGING_CLI_PLAN.md step
+    2) when no config/plugins directory is reachable from cwd - e.g. a
+    pip-installed run started outside a git checkout. Last resort only:
+    GEOCHAT_PLUGIN_CONFIG_DIR and any cwd-reachable config/plugins/ above
+    still take priority, so existing dev/Docker behavior is unchanged.
+    """
+    try:
+        import importlib.resources as resources
+
+        packaged = resources.files("config") / "plugins"
+        if packaged.is_dir():
+            return Path(str(packaged))
+    except (ImportError, ModuleNotFoundError, TypeError, NotADirectoryError):
+        pass
+    return None
 
 
 _PLUGIN_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_]+$")

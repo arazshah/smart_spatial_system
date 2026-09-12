@@ -2,7 +2,44 @@
 
 ## Status
 
-Planned, not started. This is a plan document only.
+Steps 1-6 done (2026-09) — this phase is complete as scoped by this
+document. Decisions made for the two open design questions this document
+originally left unresolved (both approved explicitly before
+implementation):
+
+1. **Package/import-path shape**: kept the flat top-level layout (`api/`,
+   `orchestrator/`, `plugins/`, `smart_spatial_system/`, and now `config/`,
+   as siblings). No namespace migration. `[tool.setuptools.packages.find]`
+   in `pyproject.toml` includes all of them by explicit prefix pattern.
+2. **Config file distribution**: `config/plugins/*.yaml` now ships as
+   package data (`config/__init__.py` and `config/plugins/__init__.py`
+   added to make `config`/`config.plugins` regular packages;
+   `[tool.setuptools.package-data]` includes the YAML files).
+   `find_config_dir()` in both `orchestrator/plugin_config_store.py` and
+   `plugins/_shared/plugin_config.py` gained a new fallback tier —
+   `importlib.resources.files("config") / "plugins"` — tried after the
+   existing `GEOCHAT_PLUGIN_CONFIG_DIR`/cwd-walk lookup and before the
+   final "return a non-existent path" fallback, so existing dev/Docker
+   behavior is unchanged and only a pip-installed run outside a git
+   checkout newly benefits. Verified end-to-end: built a real (non-editable)
+   wheel, installed it into a clean virtualenv, ran `find_config_dir()`
+   from a directory with no `config/` tree reachable anywhere above it,
+   and confirmed it resolved to the packaged
+   `site-packages/config/plugins/` with real YAML files inside — not just
+   that the unit tests pass in-repo.
+
+Open questions 3 (CLI scope) and 4 (extras granularity) were resolved
+during implementation, not asked separately: CLI scope stayed to just
+`serve` (per the ROADMAP's literal target, no operational-script
+bundling); extras ended up as `postgis`, `raster`, `pdf` (not one of the
+ROADMAP's 4 names, but a real, separate dependency - `weasyprint`), `llm`
+(kept as an empty group, no dependency of its own exists today), and
+`dev` — see `pyproject.toml`'s `[project.optional-dependencies]` comments
+for the full reasoning, including the verified fact that
+`postgis_connector`/`ndvi_analysis`/`pdf_renderer` are all in
+`DEFAULT_SAFE_PLUGIN_MODULES` yet omitting their extras doesn't crash the
+app, because `OrchestratorService` builds its registry with
+`tolerant=True`.
 
 This phase number belongs to a different document than the one this
 repo's other `PHASE*_PLAN.md` files track: `docs/REFACTOR_PLAN.md`'s own

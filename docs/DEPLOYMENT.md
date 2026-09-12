@@ -15,6 +15,19 @@ own team** (see `api/auth.py`) — not multi-tenant SaaS. If you need per-user
 accounts, that's a larger change to the auth model than what's built here
 (see [CLAUDE.md](../CLAUDE.md#api-layer-api)).
 
+## Deployment paths: Docker vs. `pip install`
+
+Docker/docker-compose (below) is the recommended, documented,
+CI-covered path for running this beyond your own machine — pinned via
+`requirements.lock`. `pip install .` (see the README's "Installing as a
+package" section, and `docs/PHASE8_BACKEND_PACKAGING_CLI_PLAN.md`) is
+additive: useful for local development without Docker, or embedding this
+backend in another Python project/process. It is not currently a
+recommended production path on its own — nothing here changes the
+"one deployer, one team" auth model or adds process supervision,
+TLS termination, etc. beyond what `smart-spatial-api serve` (plain
+`uvicorn`) gives you, same as running `uvicorn api.main:app` directly.
+
 ## Quick start with Docker Compose
 
 ```bash

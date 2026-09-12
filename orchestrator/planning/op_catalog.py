@@ -85,6 +85,10 @@ _NEAREST_PARAM_MAP = {
     "precision": "precision",
     "include_target_geometry": "include_target_geometry",
     "source_crs": "source_crs",
+    # Lets a plan chain several nearest-neighbour steps over the same
+    # features, each writing its own distance field - see the capability's
+    # docstring.
+    "distance_field": "distance_field",
     "metadata": "metadata",
 }
 
@@ -416,6 +420,31 @@ OP_CATALOG: dict[str, OpDescriptor] = {
             "such as intersects, within, contains, touches, etc. Use when the user "
             "asks to enrich one layer with properties from another based on "
             "location, not key equality."
+        ),
+    ),
+
+    "crs_transform": OpDescriptor(
+        op_name="crs_transform",
+        capability_name="transform_vector_crs",
+        input_map={"vector": "features"},
+        input_types={"vector": "vector"},
+        param_map={
+            "source_crs": "source_crs",
+            "target_crs": "target_crs",
+            "engine": "engine",
+            "precision": "precision",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Reproject features between CRS. Required before any distance or "
+            "area operation whose result must be in metres: nearest_neighbor, "
+            "distance_to and buffer all compute planar values in whatever "
+            "units the input CRS uses, and do not reproject themselves - so "
+            "WGS84 (EPSG:4326) input yields distances in DEGREES, not metres. "
+            "Reproject to a projected CRS appropriate for the study area "
+            "first (e.g. EPSG:3857 for web-mercator work, or a local metric "
+            "CRS such as EPSG:31256 for Vienna / EPSG:32633 for UTM 33N)."
         ),
     ),
 

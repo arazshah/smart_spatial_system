@@ -383,6 +383,7 @@ def find_nearest_neighbors(
     drop_unmatched: bool | None = None,
     include_target_geometry: bool | None = None,
     source_crs: str | None = None,
+    distance_field: str | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> VectorOut:
     """
@@ -407,6 +408,19 @@ def find_nearest_neighbors(
             If True, target geometry is copied into output properties.
         source_crs:
             CRS hint. Used only for warning metadata.
+        distance_field:
+            Optional output field name for the computed distance,
+            overriding the configured default (config/plugins/
+            nearest_neighbor.yaml, normally "_nearest_distance").
+
+            This exists so several nearest-neighbour steps can be chained
+            over the same features, each writing its own field - e.g.
+            distance_to_metro_m, then distance_to_school_m. Without it
+            every call writes the same field and the previous distance is
+            lost, which makes multi-amenity accessibility analysis
+            impossible to express as a DAG. The other bookkeeping fields
+            (_neighbor_rank, _nearest_status, _target_properties, ...) are
+            not namespaced and stay last-write-wins when chaining.
         metadata:
             Optional metadata to merge.
 
@@ -450,6 +464,12 @@ def find_nearest_neighbors(
 
     preserve_properties = bool(config.get("preserve_properties", True))
     fields = _configured_fields(config)
+
+    if distance_field is not None:
+        requested_distance_field = str(distance_field).strip()
+        if not requested_distance_field:
+            raise ValueError("distance_field must be a non-empty string when provided.")
+        fields["distance_field"] = requested_distance_field
 
     source_items, source_info = _extract_features(source_features, label="source")
     target_items, target_info = _extract_features(target_features, label="target")

@@ -355,3 +355,95 @@ def test_flag_enabled_falls_back_to_legacy_handler_when_dag_execution_fails(
     assert response["ok"] is True
     assert response["status"] == "success"
     assert response["metadata"]["execution_mode"] == "real_estate_ranking_bridge"
+
+
+def test_flag_enabled_falls_back_when_dag_result_reports_failure_without_raising(
+    tmp_path, monkeypatch
+) -> None:
+    """
+    A plugin/capability failure during DAG execution does not raise --
+    DagExecutor.execute() catches it internally and PlanningRunner.run()
+    returns a result with success=False instead of raising. Confirms this
+    case also triggers the legacy fallback, not just raised exceptions.
+    """
+    monkeypatch.setenv("LLM_PLANNING_ENABLED", "false")
+    monkeypatch.delenv("REAL_ESTATE_QUERY_SPEC_PLANNING_ENABLED", raising=False)
+
+    svc = OrchestratorService(
+        OrchestratorServiceConfig(
+            plugin_modules=list(DEFAULT_SAFE_PLUGIN_MODULES),
+            weights_path=tmp_path / "weights" / "router_weights.json",
+            real_estate_query_spec_planning_enabled=True,
+        )
+    )
+    monkeypatch.setattr(
+        svc, "_maybe_plan_llm_intent", lambda query: _fake_real_estate_llm_intent()
+    )
+
+    import smart_spatial_system.application.services.query_execution_service as qes
+
+    class _FailedPlanningResult:
+        success = False
+        error = "simulated capability execution failure"
+        structured_error = {"code": "provider.failed", "message": "simulated"}
+        output_nodes: dict = {}
+        outputs: dict = {}
+        trace: list = []
+        kernel_plan = None
+        kernel_execution = None
+
+    class _FakeRunner:
+        def run(self, query_spec, *, initial_inputs=None, fail_fast=True):
+            return _FailedPlanningResult()
+
+    monkeypatch.setattr(qes, "make_registry_planning_runner", lambda registry: _FakeRunner())
+
+    response = svc.handle_query(
+        query=REAL_ESTATE_QUERY,
+        inputs={"properties": _sample_properties()},
+    )
+
+    assert response["ok"] is True
+    assert response["status"] == "success"
+    assert response["metadata"]["execution_mode"] == "real_estate_ranking_bridge"
+
+
+def test_flag_enabled_preserves_planning_failure_diagnostics_in_fallback_metadata(
+    tmp_path, monkeypatch
+) -> None:
+    """
+    When the QuerySpec/DAG attempt fails and falls back, the reason it
+    failed should be visible in the returned response's metadata, not
+    silently discarded.
+    """
+    monkeypatch.setenv("LLM_PLANNING_ENABLED", "false")
+    monkeypatch.delenv("REAL_ESTATE_QUERY_SPEC_PLANNING_ENABLED", raising=False)
+
+    svc = OrchestratorService(
+        OrchestratorServiceConfig(
+            plugin_modules=list(DEFAULT_SAFE_PLUGIN_MODULES),
+            weights_path=tmp_path / "weights" / "router_weights.json",
+            real_estate_query_spec_planning_enabled=True,
+        )
+    )
+    monkeypatch.setattr(
+        svc, "_maybe_plan_llm_intent", lambda query: _fake_real_estate_llm_intent()
+    )
+
+    import smart_spatial_system.application.services.query_execution_service as qes
+
+    def _broken_runner_factory(registry):
+        raise RuntimeError("simulated DAG runner construction failure")
+
+    monkeypatch.setattr(qes, "make_registry_planning_runner", _broken_runner_factory)
+
+    response = svc.handle_query(
+        query=REAL_ESTATE_QUERY,
+        inputs={"properties": _sample_properties()},
+    )
+
+    assert response["metadata"]["real_estate_query_spec_planning_enabled"] is True
+    assert response["metadata"]["real_estate_planning_attempted"] is True
+    assert "simulated DAG runner construction failure" in (
+        response["metadata"]["real_estate_planning_error"]
+    )

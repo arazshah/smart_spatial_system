@@ -1085,22 +1085,34 @@ class QueryExecutionService:
         request_id: str | None = None,
         llm_intent: Any = None,
     ) -> dict[str, Any] | None:
+        planning_diagnostics: dict[str, Any] = {}
         via_planning = self._try_handle_real_estate_ranking_via_planning(
             query=query,
             inputs=inputs,
             resolved_inputs=inputs,
             final_request_id=request_id or self._new_request_id(),
-            final_metadata={},
+            final_metadata=planning_diagnostics,
         )
         if via_planning is not None:
             return via_planning
 
-        return self._try_handle_real_estate_ranking_directly(
+        legacy_response = self._try_handle_real_estate_ranking_directly(
             query=query,
             inputs=inputs,
             request_id=request_id,
             llm_intent=llm_intent,
         )
+
+        # Preserve why the QuerySpec/DAG attempt fell back, instead of
+        # silently discarding it - planning_diagnostics is only populated
+        # when real_estate_query_spec_planning_enabled was on and the
+        # attempt actually ran and failed.
+        if planning_diagnostics and isinstance(legacy_response, dict):
+            legacy_metadata = legacy_response.setdefault("metadata", {})
+            if isinstance(legacy_metadata, dict):
+                legacy_metadata.update(planning_diagnostics)
+
+        return legacy_response
 
     # real_estate_ranking_bridge is delegated to query_execution.real_estate_ranking_direct_handler.
     def _try_handle_real_estate_ranking_directly(
@@ -1196,9 +1208,9 @@ class QueryExecutionService:
             (
                 production_response,
                 _planning_metadata,
-                _success,
-                _planning_error,
-                _planning_structured_error,
+                success,
+                planning_error,
+                planning_structured_error,
             ) = build_query_spec_planning_response(
                 planning_result=planning_result,
                 final_metadata=final_metadata,
@@ -1210,6 +1222,21 @@ class QueryExecutionService:
                 query_spec_to_dict_func=query_spec_to_dict,
                 redact_sensitive_json=_redact_sensitive_json,
             )
+
+            if not success:
+                # A plugin/capability failure during DAG execution does not
+                # raise - DagExecutor.execute() catches it internally and
+                # PlanningRunner.run() returns success=False instead. Treat
+                # that the same as a raised exception: fall back rather than
+                # returning a "failed" real-estate response when the tested
+                # legacy handler might still succeed.
+                final_metadata["real_estate_query_spec_planning_enabled"] = True
+                final_metadata["real_estate_planning_attempted"] = True
+                final_metadata["real_estate_planning_error"] = planning_error
+                final_metadata["real_estate_planning_structured_error"] = (
+                    planning_structured_error
+                )
+                return None
         except (
             PlanningError,
             DagValidationError,

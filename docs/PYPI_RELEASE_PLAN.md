@@ -29,12 +29,21 @@ themselves on PyPI.
 Hence the order:
 
 ```
-geochat-sdk  ->  geochat-kernel  ->  smart_spatial_system
+geochat-kernel  ->  geochat-sdk  ->  smart_spatial_system
 ```
 
-(`geochat-kernel` already declares `geochat-sdk==1.0.0` as an ordinary
-dependency, so it needs no change — only the sdk has to exist on PyPI
-before it is installable.)
+**That order is kernel-first, and an earlier draft of this document had it
+backwards.** Verified against the code rather than the declared metadata:
+`geochat_sdk` imports `geochat_kernel` at module level in 13 places
+(`decorators.py`, `plugin.py`, `types/raster.py`, `types/vector.py`),
+while `geochat_kernel` contains no reference to `geochat_sdk` anywhere in
+its source. The declared dependencies said the opposite — `geochat-kernel`
+declared `geochat-sdk==1.0.0` and `geochat-sdk` declared only `pydantic` —
+which meant `pip install geochat-sdk` would have installed a package that
+raises `ModuleNotFoundError: geochat_kernel` on import. Both
+`pyproject.toml` files were corrected (see arazshah/geochat-platform#1),
+and a clean-virtualenv install now reports consistent versions and imports
+successfully.
 
 ## Name availability
 
@@ -53,7 +62,8 @@ taken at any time.
   expression (PEP 639), `authors`, `keywords`, `classifiers`,
   `[project.urls]`.
 - `.github/workflows/publish.yml` — builds both packages and publishes them
-  via Trusted Publishing, sdk first, kernel second.
+  via Trusted Publishing, **kernel first, sdk second** (the real dependency
+  direction, see above).
 - Verified locally: both build clean wheels with
   `Metadata-Version: 2.4`, `License-Expression: MIT`, and the LICENSE file
   inside `dist-info/licenses/`.
@@ -87,7 +97,7 @@ No API token is created or stored anywhere — GitHub authenticates to PyPI
 over OIDC. This is why the workflows request `id-token: write` and run in
 an `environment: pypi`.
 
-### Step 2 — Release `geochat-sdk` and `geochat-kernel`
+### Step 2 — Release `geochat-kernel` and `geochat-sdk`
 
 In `arazshah/geochat-platform`, push a tag:
 
@@ -95,16 +105,21 @@ In `arazshah/geochat-platform`, push a tag:
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
-The workflow builds both, publishes the sdk, then publishes the kernel
-(the kernel job depends on the sdk job precisely because of the
-`geochat-sdk==1.0.0` requirement).
+The workflow builds both, publishes the kernel, then publishes the sdk
+(the sdk job depends on the kernel job precisely because `geochat_sdk`
+imports `geochat_kernel` at import time).
 
 Verify afterwards:
 
 ```bash
-pip download geochat-sdk==1.0.0 --no-deps -d /tmp/verify
-pip download geochat-kernel==1.0.0 --no-deps -d /tmp/verify
+python -m venv /tmp/verify-geochat && source /tmp/verify-geochat/bin/activate
+pip install geochat-sdk==1.0.0          # must pull geochat-kernel with it
+python -c "import geochat_sdk, geochat_kernel; print(geochat_sdk.__version__, geochat_kernel.__version__)"
 ```
+
+Both must print `1.0.0` — the runtime `__version__` and the distribution
+version are kept in sync deliberately (a mismatch in the kernel was caught
+in review before the first release).
 
 ### Step 3 — Consider a TestPyPI dry run first
 

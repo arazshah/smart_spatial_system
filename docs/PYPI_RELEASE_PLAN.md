@@ -61,9 +61,10 @@ taken at any time.
 - Complete PyPI metadata in both `pyproject.toml` files: SPDX `license`
   expression (PEP 639), `authors`, `keywords`, `classifiers`,
   `[project.urls]`.
-- `.github/workflows/publish.yml` — builds both packages and publishes them
-  via Trusted Publishing, **kernel first, sdk second** (the real dependency
-  direction, see above).
+- `.github/workflows/publish-kernel.yml` and
+  `.github/workflows/publish-sdk.yml` — one per package (see the
+  registration table below for why they cannot share a file), each
+  publishing via Trusted Publishing.
 - Verified locally: both build clean wheels with
   `Metadata-Version: 2.4`, `License-Expression: MIT`, and the LICENSE file
   inside `dist-info/licenses/`.
@@ -89,9 +90,19 @@ choice while the project does not exist on PyPI yet):
 
 | Project | Owner | Repository | Workflow | Environment |
 |---|---|---|---|---|
-| `geochat-sdk` | `arazshah` | `geochat-platform` | `publish.yml` | `pypi` |
-| `geochat-kernel` | `arazshah` | `geochat-platform` | `publish.yml` | `pypi` |
+| `geochat-kernel` | `arazshah` | `geochat-platform` | `publish-kernel.yml` | `pypi` |
+| `geochat-sdk` | `arazshah` | `geochat-platform` | `publish-sdk.yml` | `pypi` |
 | `smart_spatial_system` | `arazshah` | `smart_spatial_system` | `publish.yml` | `pypi` |
+
+**The two geochat packages must use different workflow filenames.** PyPI
+refuses to register two *pending* publishers sharing the same
+(owner, repository, workflow, environment) configuration — it would have
+no way to tell which not-yet-created project an OIDC token belongs to, and
+rejects the second registration with *"A pending trusted publisher
+matching this configuration has already been registered for a different
+project name."* An earlier version of this plan had both pointing at a
+single `publish.yml` and hit exactly that; `geochat-platform` now has one
+workflow file per package.
 
 No API token is created or stored anywhere — GitHub authenticates to PyPI
 over OIDC. This is why the workflows request `id-token: write` and run in
@@ -105,9 +116,11 @@ In `arazshah/geochat-platform`, push a tag:
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
-The workflow builds both, publishes the kernel, then publishes the sdk
-(the sdk job depends on the kernel job precisely because `geochat_sdk`
-imports `geochat_kernel` at import time).
+Both workflows trigger on the tag and run independently. Publish order is
+deliberately **not** enforced between them, and does not need to be: PyPI
+does not verify that a distribution's dependencies resolve at upload time.
+The sdk -> kernel dependency only matters at install time, by which point
+both uploads have finished.
 
 Verify afterwards:
 

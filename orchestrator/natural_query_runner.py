@@ -45,6 +45,27 @@ def run_natural_query(
             Optional router. If omitted, SimpleCapabilityRouter is used.
             This allows using RegistryBackedCapabilityRouter without changing
             parser/planner/executor code.
+
+    DEPRECATED (REFACTOR_PLAN.md Phase 7,
+    docs/PHASE7_LEGACY_CLEANUP_PLAN.md): as of this investigation, no
+    confirmed production caller - a repo-wide search found no caller of
+    this function anywhere in
+    `smart_spatial_system/application/services/...`, i.e. nowhere in the
+    actual request-handling code that builds `/query` responses. Its only
+    production-code references are `orchestrator/__init__.py`'s
+    package-level re-export and its own test suite
+    (`tests/test_orchestrator_natural_query_pipeline.py` and
+    `tests/test_orchestrator_registry_router.py`, the latter exercising
+    this function with `RegistryBackedCapabilityRouter` passed as `router`
+    - the advertised router-substitution path this function's `router`
+    parameter exists for). Not the same as
+    `run_natural_query_with_routing_evidence`
+    (`orchestrator/routing_aware_natural_query_runner.py`), which IS a
+    live production path - do not confuse the two when considering
+    removal. "No caller found by grep" is not the same certainty as
+    "confirmed dead", so this is marked deprecated rather than removed -
+    re-run the same search at removal time, since new code could start
+    calling it between now and then.
     """
     parser = SimpleNaturalLanguageParser(strict=False)
     final_router = router or SimpleCapabilityRouter()

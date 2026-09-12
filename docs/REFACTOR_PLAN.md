@@ -81,20 +81,28 @@ the original phase text where they disagree):
   `real_estate_spatial_enrich -> real_estate_score -> filter_attribute
   (eligible=true) -> rank_features -> build_report`, the last three being
   already-registered generic ops, not new real-estate-specific ones -
-  gated behind a new `real_estate_query_spec_planning_enabled` config
-  flag (default `False`, same env-override-config precedence pattern as
-  Phase 3's flags). Verified end-to-end parity with the legacy direct
-  handler (same top score, ranked order, eligible/rejected split) through
-  a real `OrchestratorService` instance with the flag on.
+  gated behind `real_estate_query_spec_planning_enabled` (same
+  env-override-config precedence pattern as Phase 3's flags), now
+  **default `True`** (flipped 2026-09, after adding the same safe
+  fallback-on-failure guarantee `query_spec_planning_enabled` has -
+  raised exception or a DAG result reporting `success=False` without
+  raising both trigger a fallback to the legacy handler, with the
+  failure reason preserved in the fallback response's metadata rather
+  than silently discarded). Verified end-to-end parity with the legacy
+  direct handler (same top score, ranked order, eligible/rejected split)
+  and the safe-fallback behavior itself, through a real
+  `OrchestratorService` instance.
   What's NOT done: step 6, removing
   `real_estate_ranking_direct_handler.py`'s registration from
   `direct_query_dispatch.py`. Per this plan's own rule ("remove legacy
   only after a tested replacement exists") and Phase 7's identical rule,
-  that removal should wait until the new path has actually been enabled
-  and used, not just verified in tests - the flag stays off by default
-  for now, so production behavior for this workflow (one of the two the
-  README documents as a primary demo feature) is unchanged from before
-  this phase.
+  that removal should wait until the new path has actually been used in
+  production for a while, not just verified in tests and enabled by
+  default - the legacy handler stays in place as the fallback target for
+  now. `tests/test_real_estate_ranking_golden.py` and
+  `tests/test_real_estate_ranking_bridge.py` explicitly disable this
+  flag via config so they keep protecting the legacy handler
+  specifically, independent of whichever path is the current default.
 - Phase 6 (source abstraction): steps 1-2 of 3 done, per
   docs/PHASE6_SOURCE_ABSTRACTION_PLAN.md's migration plan (step 3,
   optional reachability notes, skipped as redundant with that doc).

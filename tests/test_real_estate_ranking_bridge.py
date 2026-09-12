@@ -8,7 +8,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from orchestrator.service import OrchestratorService
+from orchestrator.service import OrchestratorService, OrchestratorServiceConfig
 
 REAL_ESTATE_QUERY = (
     "ملک‌هایی را پیدا کن که کمتر از ۵۰۰ متر به مترو یا مرکز خرید نزدیک باشند، "
@@ -115,7 +115,14 @@ def _fake_llm_intent() -> dict[str, Any]:
 def _service_without_real_llm(monkeypatch) -> OrchestratorService:
     monkeypatch.setenv("LLM_PLANNING_ENABLED", "false")
 
-    svc = OrchestratorService()
+    # This file specifically exercises the legacy real-estate ranking
+    # bridge (real_estate_ranking_direct_handler.py) -- disable the newer
+    # QuerySpec/DAG path (default True, REFACTOR_PLAN.md Phase 5) so these
+    # tests keep covering the handler they're named for, not whichever
+    # path happens to be the current default.
+    svc = OrchestratorService(
+        OrchestratorServiceConfig(real_estate_query_spec_planning_enabled=False)
+    )
 
     # تست نباید به AvalAI/OpenAI وصل شود.
     monkeypatch.setattr(

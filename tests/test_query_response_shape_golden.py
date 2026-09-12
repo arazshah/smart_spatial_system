@@ -241,7 +241,13 @@ def _fake_real_estate_llm_intent() -> dict[str, Any]:
 
 def test_golden_real_estate_ranking_response_shape(monkeypatch) -> None:
     monkeypatch.setenv("LLM_PLANNING_ENABLED", "false")
-    svc = OrchestratorService()
+    # This golden test protects the legacy real-estate ranking direct
+    # handler's response shape specifically -- disable the newer
+    # QuerySpec/DAG path (default True, REFACTOR_PLAN.md Phase 5) so it
+    # keeps exercising the handler it was written to capture.
+    svc = OrchestratorService(
+        OrchestratorServiceConfig(real_estate_query_spec_planning_enabled=False)
+    )
     monkeypatch.setattr(
         svc, "_maybe_plan_llm_intent", lambda query: _fake_real_estate_llm_intent()
     )

@@ -256,13 +256,20 @@ class OrchestratorServiceConfig:
     query_spec_planning_enabled: bool = True
     llm_planning_enabled: bool = False
 
-    # REFACTOR_PLAN.md Phase 5: opt-in flag for routing real-estate ranking
-    # queries through the rule-based QuerySpec/DAG path (real_estate_spatial_enrich
-    # -> real_estate_score -> filter_attribute -> rank_features -> build_report)
-    # instead of the legacy direct handler. Default False so this is purely
-    # additive until verified equivalent and explicitly enabled - see
-    # docs/PHASE5_REAL_ESTATE_PLUGIN_PLAN.md step 5.
-    real_estate_query_spec_planning_enabled: bool = False
+    # REFACTOR_PLAN.md Phase 5: routes real-estate ranking queries through
+    # the rule-based QuerySpec/DAG path (real_estate_spatial_enrich ->
+    # real_estate_score -> filter_attribute -> rank_features -> build_report)
+    # instead of the legacy direct handler. Default flipped to True: parity
+    # with the legacy handler is verified (same ranked order/scores/
+    # eligible-rejected split), and the attempt now falls back safely to
+    # the legacy handler on any failure - raised exception or a DAG result
+    # reporting success=False without raising - so this carries the same
+    # safety guarantee query_spec_planning_enabled has. See
+    # docs/PHASE5_REAL_ESTATE_PLUGIN_PLAN.md step 5. Only affects queries
+    # already classified as real-estate ranking
+    # (real_estate_classifier.looks_like_real_estate_ranking_query) - no
+    # effect on any other query type.
+    real_estate_query_spec_planning_enabled: bool = True
 
     # Experimental opt-in: execute QuerySpec plans through the
     # geochat_kernel execution bridge in addition to the current DAG path.

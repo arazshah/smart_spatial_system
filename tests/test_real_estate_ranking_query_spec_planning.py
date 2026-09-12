@@ -1,18 +1,25 @@
 """
-Tests for REFACTOR_PLAN.md Phase 5, step 5 -- the opt-in rule-based
-QuerySpec/DAG path for real-estate ranking queries (see
-docs/PHASE5_REAL_ESTATE_PLUGIN_PLAN.md).
+Tests for REFACTOR_PLAN.md Phase 5, step 5 -- the rule-based QuerySpec/DAG
+path for real-estate ranking queries (see
+docs/PHASE5_REAL_ESTATE_PLUGIN_PLAN.md). Default is now True (parity with
+the legacy handler is verified, and the attempt falls back safely to the
+legacy handler on any failure); it can still be disabled via config for
+callers that specifically want the legacy direct handler.
 
 Covers:
     - build_real_estate_ranking_query_spec /
       build_real_estate_ranking_initial_inputs (pure, unit-tested directly)
-    - the flag default (False -- OrchestratorService.handle_query keeps
-      using the legacy direct handler, per
-      tests/test_real_estate_ranking_golden.py)
+    - the flag default (True -- OrchestratorService.handle_query routes
+      through the QuerySpec/DAG path)
+    - the flag disabled via config -- keeps using the legacy direct
+      handler, per tests/test_real_estate_ranking_golden.py
     - end-to-end parity when the flag is enabled: same top-level ranking
       outcome (order, scores, eligible/rejected counts) as the legacy
       direct handler for the same input, through a real OrchestratorService
       instance and the real plugin registry.
+    - safe fallback when the QuerySpec/DAG path fails (raises, or returns
+      success=False without raising) -- the legacy handler's response is
+      still returned, with the failure reason preserved in its metadata.
 
 Run:
     pytest tests/test_real_estate_ranking_query_spec_planning.py -v
@@ -190,7 +197,36 @@ def test_build_real_estate_ranking_initial_inputs_wraps_provided_layer_features(
 # ---------------------------------------------------------------------------
 
 
-def test_flag_defaults_off_and_uses_legacy_direct_handler(tmp_path, monkeypatch) -> None:
+def test_flag_defaults_on_and_routes_through_query_spec_planning(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("LLM_PLANNING_ENABLED", "false")
+    monkeypatch.delenv("REAL_ESTATE_QUERY_SPEC_PLANNING_ENABLED", raising=False)
+
+    # REFACTOR_PLAN.md Phase 5: real_estate_query_spec_planning_enabled now
+    # defaults to True, since parity with the legacy handler is verified
+    # and the attempt falls back safely on any failure.
+    svc = OrchestratorService(
+        OrchestratorServiceConfig(
+            plugin_modules=list(DEFAULT_SAFE_PLUGIN_MODULES),
+            weights_path=tmp_path / "weights" / "router_weights.json",
+        )
+    )
+    monkeypatch.setattr(
+        svc, "_maybe_plan_llm_intent", lambda query: _fake_real_estate_llm_intent()
+    )
+
+    response = svc.handle_query(
+        query=REAL_ESTATE_QUERY,
+        inputs={"properties": _sample_properties()},
+    )
+
+    assert response["metadata"]["execution_mode"] == (
+        "real_estate_ranking_query_spec_planning"
+    )
+
+
+def test_flag_can_be_disabled_via_config_and_uses_legacy_direct_handler(
+    tmp_path, monkeypatch
+) -> None:
     monkeypatch.setenv("LLM_PLANNING_ENABLED", "false")
     monkeypatch.delenv("REAL_ESTATE_QUERY_SPEC_PLANNING_ENABLED", raising=False)
 
@@ -198,6 +234,7 @@ def test_flag_defaults_off_and_uses_legacy_direct_handler(tmp_path, monkeypatch)
         OrchestratorServiceConfig(
             plugin_modules=list(DEFAULT_SAFE_PLUGIN_MODULES),
             weights_path=tmp_path / "weights" / "router_weights.json",
+            real_estate_query_spec_planning_enabled=False,
         )
     )
     monkeypatch.setattr(

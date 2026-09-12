@@ -4,6 +4,42 @@ Notable changes to Smart Spatial System. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-09-12
+
+Two correctness bugs found while running the LLM-backed planning path
+against a non-real-estate query (Vienna accessibility scoring case
+study), both in `orchestrator/planning/llm_spec_generator.py`.
+
+### Fixed
+
+- **`score_features` normalization no longer injects a hardcoded
+  real-estate scoring spec.** Any `score_features` operation missing
+  `scoring_spec`/`factors` - regardless of the query's actual domain -
+  used to get a real-estate scoring spec silently substituted in
+  (`output_field: "investment_score"`, factors referencing
+  `inside_buildable_zone`, `flood_risk`, etc.). For any other domain this
+  either crashed downstream (the factor fields don't exist on the input
+  layer) or silently produced a nonsense `investment_score` column,
+  indistinguishable from a real real-estate query's own valid output.
+  There is no domain-neutral default to substitute, so this now raises a
+  specific `LLMSpecGenerationError` instead.
+- **Auto-injected `build_report` no longer hardcodes `score_field:
+  "investment_score"`.** It now reuses the score/rank field names the
+  plan's own `rank_features` operation actually uses, so a report for a
+  non-real-estate plan references the column that plan actually produced.
+- **The LLM-facing prompt now documents every operation's required input
+  roles**, generated directly from `OP_CATALOG`'s `input_map` rather than
+  a hand-written, incomplete list. This is why `distance_to`'s `target`
+  role went undocumented and the LLM repeatedly omitted it: the prompt's
+  "Important mappings" section spelled out `filter_by_distance`,
+  `filter_points_in_polygon` and `enrich_risk` by hand, but nothing kept
+  it in sync with the catalog as operations were added.
+- `LLMQuerySpecGenerator.generate()` now validates every operation's
+  inputs against `OP_CATALOG` before returning, raising a specific
+  `LLMSpecGenerationError` naming the missing role - the same failure
+  `DeterministicPlanner.build()` already caught as a generic
+  `PlanningError`, now surfaced earlier and more specifically.
+
 ## [0.2.0] - 2026-09-12
 
 First release that is usable outside its original Persian-language,
@@ -65,5 +101,6 @@ layers, tables, PDF/HTML reports and files with a full execution trace.
 Ships the FastAPI service, the `smart-spatial-api` CLI, 36 registered
 plugins, and the React/Leaflet workbench.
 
+[0.2.1]: https://github.com/arazshah/smart_spatial_system/releases/tag/v0.2.1
 [0.2.0]: https://github.com/arazshah/smart_spatial_system/releases/tag/v0.2.0
 [0.1.0]: https://github.com/arazshah/smart_spatial_system/releases/tag/v0.1.0

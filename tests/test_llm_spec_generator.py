@@ -1,4 +1,5 @@
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -246,7 +247,26 @@ def test_llm_generator_normalizes_unsupported_score_features_input_role():
                     "vector": "properties",
                     "external_api": "risk_api"
                 },
-                "params": {},
+                # Explicit scoring_spec: this test is about the
+                # unsupported-input-role guardrail, not about what happens
+                # when scoring_spec is missing (see
+                # test_llm_generator_raises_when_scoring_spec_and_factors_are_missing
+                # for that).
+                "params": {
+                    "scoring_spec": {
+                        "output_field": "investment_score",
+                        "scale": 100,
+                        "factors": [
+                            {
+                                "name": "near_poi",
+                                "field": "distance_to_poi",
+                                "type": "inverse_distance",
+                                "max_distance": 500,
+                                "weight": 1.0,
+                            }
+                        ],
+                    }
+                },
                 "output": "scored_properties"
             },
             {
@@ -302,18 +322,31 @@ def test_llm_generator_normalizes_unsupported_score_features_input_role():
     assert "render_pdf" in capability_names
 
 
-def test_llm_generator_adds_default_scoring_spec_when_missing():
+def test_llm_generator_raises_when_scoring_spec_and_factors_are_missing():
+    """
+    score_features with neither scoring_spec nor factors must fail loudly,
+    not fall back to a hardcoded real-estate default.
+
+    This normalizer used to inject a fixed real-estate scoring_spec
+    (output_field="investment_score", factors referencing
+    inside_buildable_zone/flood_risk/etc.) into ANY score_features op that
+    omitted one - silently corrupting any non-real-estate query's output
+    (a nonsense score column, or a crash downstream when those fields
+    don't exist on the data) with no way to tell it apart from a real
+    real-estate query's own valid output. There is no domain-neutral
+    default to substitute, so this must now raise instead.
+    """
     llm_json = {
-        "raw_query": "املاک را امتیاز بده",
-        "goal": "score_properties",
+        "raw_query": "sites را امتیاز بده",
+        "goal": "score_sites",
         "entities": [
-            {"ref": "properties", "kind": "vector"}
+            {"ref": "sites", "kind": "vector"}
         ],
         "operations": [
             {
                 "op": "score_features",
                 "inputs": {
-                    "vector": "properties"
+                    "vector": "sites"
                 },
                 "params": {},
                 "output": "scored"
@@ -330,27 +363,30 @@ def test_llm_generator_adds_default_scoring_spec_when_missing():
     client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
     generator = LLMQuerySpecGenerator(client)
 
-    spec = generator.generate("املاک را امتیاز بده")
-
-    assert "scoring_spec" in spec.operations[0].params
-    assert spec.operations[0].params["scoring_spec"]["output_field"] == "investment_score"
-
-    plan = DeterministicPlanner().build(spec)
-    assert plan.nodes[0].capability_name == "score_features"
+    with pytest.raises(LLMSpecGenerationError, match="scoring_spec"):
+        generator.generate("sites را امتیاز بده")
 
 
-def test_llm_normalizer_injects_enrichment_nodes_for_default_real_estate_scoring():
+def test_llm_generator_raises_even_when_distance_and_polygon_ops_precede_scoring():
     """
-    When LLM omits scoring_spec, normalizer should:
-      - add default scoring spec
-      - insert enrichment nodes after distance/polygon operations
-      - rewrite downstream refs to enriched outputs
+    Same missing-scoring_spec case as
+    test_llm_generator_raises_when_scoring_spec_and_factors_are_missing,
+    but with filter_by_distance/filter_points_in_polygon operations ahead
+    of score_features in the plan.
+
+    This used to be the trigger for injecting real-estate-specific
+    enrichment nodes (distance_to_poi, inside_buildable_zone,
+    distance_to_road) ahead of the equally real-estate-specific default
+    scoring_spec - i.e. two compounding assumptions about the query's
+    domain, for a query that might not be about real estate at all. Both
+    are gone now: this must raise before any of that injection happens,
+    for any domain.
     """
     llm_json = {
-        "raw_query": "املاک نزدیک مترو و خیابان اصلی را امتیاز بده",
-        "goal": "rank_real_estate",
+        "raw_query": "sites نزدیک مترو و خیابان اصلی را امتیاز بده",
+        "goal": "rank_sites",
         "entities": [
-            {"ref": "properties", "kind": "vector"},
+            {"ref": "sites", "kind": "vector"},
             {"ref": "poi", "kind": "vector"},
             {"ref": "buildable_zone", "kind": "vector"},
             {"ref": "roads", "kind": "vector"},
@@ -358,97 +394,45 @@ def test_llm_normalizer_injects_enrichment_nodes_for_default_real_estate_scoring
         "operations": [
             {
                 "op": "filter_by_distance",
-                "inputs": {"vector": "properties", "reference": "poi"},
+                "inputs": {"vector": "sites", "reference": "poi"},
                 "params": {"max_distance_m": 500, "k": 1, "drop_unmatched": True},
-                "output": "near_properties",
+                "output": "near_sites",
             },
             {
                 "op": "filter_points_in_polygon",
-                "inputs": {"vector": "near_properties", "polygon": "buildable_zone"},
+                "inputs": {"vector": "near_sites", "polygon": "buildable_zone"},
                 "params": {"predicate": "within", "drop_outside": True},
-                "output": "buildable_properties",
+                "output": "buildable_sites",
             },
             {
                 "op": "filter_by_distance",
-                "inputs": {"vector": "buildable_properties", "reference": "roads"},
+                "inputs": {"vector": "buildable_sites", "reference": "roads"},
                 "params": {"max_distance_m": 500, "k": 1, "drop_unmatched": True},
-                "output": "final_properties",
+                "output": "final_sites",
             },
             {
                 "op": "score_features",
-                "inputs": {"vector": "final_properties"},
+                "inputs": {"vector": "final_sites"},
                 "params": {},
-                "output": "scored_properties",
+                "output": "scored_sites",
             },
             {
                 "op": "rank_features",
-                "inputs": {"vector": "scored_properties"},
+                "inputs": {"vector": "scored_sites"},
                 "params": {},
-                "output": "ranked_properties",
+                "output": "ranked_sites",
             },
         ],
         "outputs": [
-            {"kind": "report", "source": "ranked_properties", "format": "pdf"}
+            {"kind": "report", "source": "ranked_sites", "format": "pdf"}
         ],
     }
 
     client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
     generator = LLMQuerySpecGenerator(client)
 
-    spec = generator.generate("املاک نزدیک مترو و خیابان اصلی را امتیاز بده")
-
-    ops = spec.operations
-    op_names = [op.op for op in ops]
-
-    # Phase 10D: build_report + render_pdf auto-injected for pdf output
-    core_ops = [
-        "filter_by_distance",
-        "enrich_feature_properties",
-        "filter_points_in_polygon",
-        "enrich_feature_properties",
-        "filter_by_distance",
-        "enrich_feature_properties",
-        "score_features",
-        "rank_features",
-    ]
-    assert op_names[:8] == core_ops
-    assert "build_report" in op_names
-    assert "render_pdf" in op_names
-
-    assert ops[1].params["rules"][0]["target"] == "distance_to_poi"
-    assert ops[2].inputs["vector"] == "near_properties_enriched"
-
-    assert ops[3].params["rules"][0]["target"] == "inside_buildable_zone"
-    assert ops[4].inputs["vector"] == "buildable_properties_enriched"
-
-    assert ops[5].params["rules"][0]["target"] == "distance_to_road"
-    assert ops[6].inputs["vector"] == "final_properties_enriched"
-
-    scoring_spec = ops[6].params["scoring_spec"]
-    fields = [factor["field"] for factor in scoring_spec["factors"]]
-
-    assert "distance_to_poi" in fields
-    assert "distance_to_road" in fields
-    assert "inside_buildable_zone" in fields
-
-    assert ops[7].params["score_field"] == "investment_score"
-
-    plan = DeterministicPlanner().build(spec)
-
-    # Phase 10D: build_report + render_pdf auto-injected
-    cap_names = [node.capability_name for node in plan.nodes]
-    assert cap_names[:8] == [
-        "find_nearest_neighbors",
-        "enrich_feature_properties",
-        "filter_points_in_polygon",
-        "enrich_feature_properties",
-        "find_nearest_neighbors",
-        "enrich_feature_properties",
-        "score_features",
-        "rank_features",
-    ]
-    assert "build_report" in cap_names
-    assert "render_pdf" in cap_names
+    with pytest.raises(LLMSpecGenerationError, match="scoring_spec"):
+        generator.generate("sites نزدیک مترو و خیابان اصلی را امتیاز بده")
 
 
 def test_llm_normalizer_does_not_inject_enrichment_when_scoring_spec_is_explicit():
@@ -540,7 +524,26 @@ def test_llm_normalizer_removes_invalid_empty_enrichment_node_and_rewrites_refs(
             {
                 "op": "score_features",
                 "inputs": {"vector": "enriched_properties"},
-                "params": {},
+                # Explicit scoring_spec: this test is about removing the
+                # invalid empty enrich_feature_properties node, not about
+                # missing scoring_spec (see
+                # test_llm_generator_raises_when_scoring_spec_and_factors_are_missing
+                # for that case).
+                "params": {
+                    "scoring_spec": {
+                        "output_field": "investment_score",
+                        "scale": 100,
+                        "factors": [
+                            {
+                                "name": "near_poi",
+                                "field": "distance_to_poi",
+                                "type": "inverse_distance",
+                                "max_distance": 500,
+                                "weight": 1.0,
+                            }
+                        ],
+                    }
+                },
                 "output": "scored_properties",
             },
             {
@@ -562,27 +565,22 @@ def test_llm_normalizer_removes_invalid_empty_enrichment_node_and_rewrites_refs(
 
     op_names = [op.op for op in spec.operations]
 
-    assert "enrich_feature_properties" in op_names
-    assert all(
-        not (
-            op.op == "enrich_feature_properties"
-            and not op.params.get("rules")
-        )
-        for op in spec.operations
-    )
+    # With an explicit scoring_spec (see above), nothing auto-injects a
+    # second, valid enrich_feature_properties node here - the LLM's own
+    # invalid one (no rules) is the only one in the spec, so removing it
+    # leaves none at all, rather than leaving a differently-sourced one
+    # behind.
+    assert "enrich_feature_properties" not in op_names
 
     # score_features must no longer depend on removed enriched_properties.
     score_op = next(op for op in spec.operations if op.op == "score_features")
     assert score_op.inputs["vector"] != "enriched_properties"
+    assert score_op.inputs["vector"] == "near_properties"
 
     plan = DeterministicPlanner().build(spec)
 
     assert all(
-        not (
-            node.capability_name == "enrich_feature_properties"
-            and "rules" not in node.static_params
-        )
-        for node in plan.nodes
+        node.capability_name != "enrich_feature_properties" for node in plan.nodes
     )
 
     assert spec.metadata["normalization"]["applied"] is True
@@ -750,3 +748,161 @@ def test_normalizer_auto_injects_build_report_and_render_pdf():
     capability_names = [n.capability_name for n in plan.nodes]
     assert "build_report" in capability_names
     assert "render_pdf" in capability_names
+
+
+def test_llm_normalizer_never_defaults_score_field_to_investment_score_for_other_domains():
+    """
+    Regression test for the real-estate-default bug: a non-real-estate
+    query with its own explicit scoring_spec must keep its own field
+    names throughout - normalization must not reintroduce
+    investment_score/buildable_zone/flood_risk anywhere in the pipeline.
+    """
+    llm_json = {
+        "raw_query": "rank sites by accessibility",
+        "goal": "score_accessibility",
+        "entities": [{"ref": "sites", "kind": "vector"}],
+        "operations": [
+            {
+                "op": "score_features",
+                "inputs": {"vector": "sites"},
+                "params": {
+                    "scoring_spec": {
+                        "output_field": "accessibility_score",
+                        "scale": 100,
+                        "factors": [
+                            {
+                                "name": "near_metro",
+                                "field": "distance_to_metro",
+                                "type": "inverse_distance",
+                                "max_distance": 800,
+                                "weight": 1.0,
+                            }
+                        ],
+                    }
+                },
+                "output": "scored_sites",
+            },
+            {
+                "op": "rank_features",
+                "inputs": {"vector": "scored_sites"},
+                "params": {},
+                "output": "ranked_sites",
+            },
+        ],
+        "outputs": [
+            {"kind": "report", "source": "ranked_sites", "format": "pdf"}
+        ],
+    }
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    spec = LLMQuerySpecGenerator(client).generate("rank sites by accessibility")
+
+    spec_json = json.dumps(asdict(spec))
+
+    for banned in ("investment_score", "buildable_zone", "flood_risk", "earthquake_risk", "fire_risk"):
+        assert banned not in spec_json, f"{banned!r} leaked into a non-real-estate QuerySpec"
+
+    rank_op = next(op for op in spec.operations if op.op == "rank_features")
+    assert rank_op.params["score_field"] == "accessibility_score"
+
+    report_op = next(op for op in spec.operations if op.op == "build_report")
+    assert report_op.params["score_field"] == "accessibility_score"
+
+
+def test_build_report_auto_injection_uses_the_actual_score_field_not_investment_score():
+    """
+    build_report's auto-injected score_field/rank_field must come from the
+    plan's own rank_features op, not a hardcoded "investment_score"/"rank"
+    - previously any non-real-estate score field name was silently
+    replaced with "investment_score" in the injected build_report node,
+    producing a report that referenced a column the data never had.
+    """
+    llm_json = {
+        "raw_query": "گزارش PDF سایت‌ها بده",
+        "goal": "pdf_report",
+        "entities": [{"ref": "sites", "kind": "vector"}],
+        "operations": [
+            {
+                "op": "score_features",
+                "inputs": {"vector": "sites"},
+                "params": {
+                    "scoring_spec": {
+                        "output_field": "accessibility_score",
+                        "scale": 100,
+                        "factors": [
+                            {
+                                "name": "near_metro",
+                                "field": "distance_to_metro",
+                                "type": "inverse_distance",
+                                "max_distance": 800,
+                                "weight": 1.0,
+                            }
+                        ],
+                    }
+                },
+                "output": "scored",
+            },
+            {
+                "op": "rank_features",
+                "inputs": {"vector": "scored"},
+                "params": {"rank_field": "site_rank"},
+                "output": "ranked",
+            },
+        ],
+        "outputs": [
+            {"kind": "report", "source": "ranked", "format": "pdf"}
+        ],
+    }
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    spec = LLMQuerySpecGenerator(client).generate("گزارش PDF سایت‌ها بده")
+
+    report_op = next(op for op in spec.operations if op.op == "build_report")
+    assert report_op.params["score_field"] == "accessibility_score"
+    assert report_op.params["rank_field"] == "site_rank"
+
+
+def test_generate_raises_a_specific_error_when_distance_to_is_missing_its_target_role():
+    """
+    Regression test for the distance_to omitted-target-role case: the LLM
+    occasionally emits distance_to with only {"vector": ...}, omitting
+    "target". This must fail as a specific LLMSpecGenerationError naming
+    the operation and the missing role, not surface later as a generic
+    PlanningError several frames away in DeterministicPlanner.build().
+    """
+    llm_json = {
+        "raw_query": "distance to metro",
+        "goal": "compute_distance",
+        "entities": [
+            {"ref": "sites", "kind": "vector"},
+            {"ref": "metro", "kind": "vector"},
+        ],
+        "operations": [
+            {
+                "op": "distance_to",
+                "inputs": {"vector": "sites"},
+                "params": {},
+                "output": "distances",
+            }
+        ],
+        "outputs": [{"kind": "vector", "source": "distances"}],
+    }
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    generator = LLMQuerySpecGenerator(client)
+
+    with pytest.raises(LLMSpecGenerationError, match="target"):
+        generator.generate("distance to metro")
+
+
+def test_domain_guidance_documents_every_operations_required_input_roles():
+    """
+    The per-operation input-role reference in the system prompt must be
+    generated from OP_CATALOG (so a future operation can't go
+    undocumented the way distance_to's "target" role did), and must in
+    particular cover distance_to explicitly.
+    """
+    system_prompt = build_llm_messages("q")[0]["content"]
+
+    assert "distance_to: inputs keys = {" in system_prompt
+    assert "target" in system_prompt.split("distance_to: inputs keys = {", 1)[1].split("}", 1)[0]

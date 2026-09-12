@@ -15,7 +15,10 @@ and a repo-wide search found no caller of `run_natural_query` anywhere in
 actual request-handling code that builds `/query` responses. Its only
 production-code references are `orchestrator/__init__.py`'s package-level
 re-export and its own test suite
-(`tests/test_orchestrator_natural_query_pipeline.py`). "No caller found by
+(`tests/test_orchestrator_natural_query_pipeline.py` and
+`tests/test_orchestrator_registry_router.py`, the latter exercising
+`run_natural_query` with `RegistryBackedCapabilityRouter` substituted for
+this router). "No caller found by
 grep" is not the same certainty as "confirmed dead", so this is marked
 deprecated rather than removed - re-run the same search at removal time,
 since new code could start calling it between now and then.

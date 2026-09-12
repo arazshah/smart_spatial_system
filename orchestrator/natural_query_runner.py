@@ -54,7 +54,11 @@ def run_natural_query(
     actual request-handling code that builds `/query` responses. Its only
     production-code references are `orchestrator/__init__.py`'s
     package-level re-export and its own test suite
-    (`tests/test_orchestrator_natural_query_pipeline.py`). Not the same as
+    (`tests/test_orchestrator_natural_query_pipeline.py` and
+    `tests/test_orchestrator_registry_router.py`, the latter exercising
+    this function with `RegistryBackedCapabilityRouter` passed as `router`
+    - the advertised router-substitution path this function's `router`
+    parameter exists for). Not the same as
     `run_natural_query_with_routing_evidence`
     (`orchestrator/routing_aware_natural_query_runner.py`), which IS a
     live production path - do not confuse the two when considering

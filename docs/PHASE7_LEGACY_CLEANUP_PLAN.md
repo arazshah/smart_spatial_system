@@ -35,25 +35,36 @@ query_execution_service.py:1321
 
 This chain is the production fallback whenever a query reaches
 `execute_and_persist_natural_query_success_path` (in
-`natural_query_execution.py`) and neither a direct-dispatch handler nor
-QuerySpec/DAG planning already produced a response — which is the normal
-case today, because `query_spec_planning_enabled` (Phase 3/4) and
-`real_estate_query_spec_planning_enabled` (Phase 5) both default to
-`False`. As long as those flags are off, this chain is not legacy code
-kept around for compatibility — it is **the live, exercised, currently
-necessary path** for most natural-language queries. Removing any piece
-of it today would break the product, not just some tests (11 test files
-exercise `run_natural_query_with_routing_evidence` alone).
+`natural_query_execution.py`) and neither a direct-dispatch handler
+(real-estate ranking, vector display - these run and return first,
+regardless of any planning flag, per `direct_query_dispatch.py`) nor
+`query_spec_planning_enabled`'s QuerySpec/DAG planning attempt already
+produced a response. `query_spec_planning_enabled` (Phase 3/4) now
+defaults `True` (flipped in #12, after this document was first drafted);
+`real_estate_query_spec_planning_enabled` (Phase 5) still defaults
+`False`, but that flag only chooses *how* the real-estate direct handler
+computes its ranking (legacy bridge vs. QuerySpec/DAG) - either way the
+real-estate direct handler still intercepts the query before this
+fallback chain is reached, so this flag's value doesn't gate whether this
+chain runs for real-estate queries at all. As long as any query type
+isn't covered by a direct-dispatch handler and either isn't covered by
+`query_spec_planning_enabled`'s QuerySpec/DAG attempt or that attempt
+fails, this chain is not legacy code kept around for compatibility — it
+is **the live, exercised, currently necessary path** for that remainder
+of natural-language queries. Removing any piece of it today would break
+the product, not just some tests (11 test files exercise
+`run_natural_query_with_routing_evidence` alone).
 
 So for these three items, Phase 7 isn't a cleanup task waiting to be
 scheduled — it's waiting on a decision that belongs to Phase 4/5, not
-Phase 7: **when (if ever) do `query_spec_planning_enabled` and
-`real_estate_query_spec_planning_enabled` become the default**, so the
-DAG path is what's actually exercised in production instead of this
-fallback chain? That decision needs real production usage of the
-already-built, already-flag-gated replacement paths first, per both
-Phase 5's own status note and general "don't flip a production default
-based on tests alone" caution — not a Phase 7 code change.
+Phase 7: now that `query_spec_planning_enabled` defaults `True`, the open
+question is whether its QuerySpec/DAG coverage is verified broad enough
+(across every intent this fallback chain currently still catches, not
+just the query types Phase 4/5 explicitly migrated) to retire this chain
+- that needs real production usage data of the already-built,
+already-flag-gated replacement paths, per general "don't flip/retire a
+production path based on tests alone" caution — not a Phase 7 code
+change.
 
 ## The fourth item is different, and is this plan's one actionable step
 
@@ -71,7 +82,12 @@ production-code references are:
   nothing inside this repo currently calls it that way).
 - Its own test coverage: `tests/test_orchestrator_natural_query_pipeline.py`
   (5 tests, imports and exercises the real
-  `orchestrator/capability_router.py`/`orchestrator/natural_query_runner.py`).
+  `orchestrator/capability_router.py`/`orchestrator/natural_query_runner.py`)
+  and `tests/test_orchestrator_registry_router.py` (calls
+  `run_natural_query` with `RegistryBackedCapabilityRouter` substituted
+  for `SimpleCapabilityRouter` via the `router` parameter - the
+  router-substitution integration path `run_natural_query` was built to
+  support).
 
 One thing worth flagging so it doesn't get treated as corroborating
 evidence it isn't: `tests/test_end_to_end_natural_query_pipeline.py`
@@ -115,13 +131,14 @@ pass.
    no confirmed production caller as of this investigation (searched
    `smart_spatial_system/application/services/...`), only reachable via
    `orchestrator/__init__.py`'s package re-export and its own test
-   suite; candidate for removal once that's re-confirmed at removal
-   time (re-run the same search, since new code could start calling it
-   between now and then) and once `tests/test_orchestrator_natural_query_pipeline.py`
-   is either removed or repointed at whatever, if anything, replaces
-   this simplest-tier pipeline. No behavior change — this is a comment/
-   docstring-only commit, verified by running the full suite unchanged
-   before and after.
+   suite (`tests/test_orchestrator_natural_query_pipeline.py` and
+   `tests/test_orchestrator_registry_router.py`); candidate for removal
+   once that's re-confirmed at removal time (re-run the same search,
+   since new code could start calling it between now and then) and once
+   both of those test files are either removed or repointed at whatever,
+   if anything, replaces this simplest-tier pipeline. No behavior
+   change — this is a comment/docstring-only commit, verified by running
+   the full suite unchanged before and after.
 2. **Do not touch the other three items** (`PlanNode`/`QueryPlan`,
    `run_natural_query_with_routing_evidence`,
    `RoutingAwarePlanBuilder`) in this phase. Re-verify their blocked

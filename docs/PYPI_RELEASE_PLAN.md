@@ -155,6 +155,35 @@ smart-spatial-api serve --host 127.0.0.1 --port 8000
 curl -s http://127.0.0.1:8000/health
 ```
 
+## Known limitation: editing plugin config in a pip-installed deployment
+
+`find_config_dir()`'s packaged-defaults fallback is **read-only**:
+`write_plugin_config()` refuses to write into it, because that directory
+lives inside `site-packages` in a pip-installed deployment (see
+`orchestrator/plugin_config_store.py::_require_writable_config_dir`).
+
+So a pip-installed deployment that wants to edit plugin configuration
+through `PUT /plugins/{plugin_id}/config` must point
+`GEOCHAT_PLUGIN_CONFIG_DIR` at a writable directory, seeded from the
+packaged defaults:
+
+```bash
+python -c "import importlib.resources as r, shutil; shutil.copytree(str(r.files('config')/'plugins'), '/etc/smart-spatial/plugins')"
+export GEOCHAT_PLUGIN_CONFIG_DIR=/etc/smart-spatial/plugins
+```
+
+Source checkouts and the Docker image are unaffected — they resolve
+`config/plugins/` from the working tree and stay writable as before.
+
+**Possible follow-up** (deliberately not done yet, since it is a feature
+rather than a packaging fix): seed a writable override directory under
+`RuntimePaths` automatically on first write, and prefer it for reads too,
+so a pip-installed deployment gets editable configuration with no manual
+setup. That needs a per-file read fallback (override directory first,
+packaged defaults second), otherwise a partially-populated override
+directory would silently mask the packaged defaults for every plugin that
+was never edited.
+
 ## Known gaps to address before a JOSS submission
 
 Not blocking for PyPI, but they will be raised in a JOSS review:

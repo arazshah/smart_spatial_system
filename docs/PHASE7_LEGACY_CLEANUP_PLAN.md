@@ -2,10 +2,14 @@
 
 ## Status
 
-Planned, not started. This is a plan document only — REFACTOR_PLAN.md's
-Phase 7 stays "NOT done" until the one actionable step below is executed
-and merged; everything else in this document is deliberately **not**
-scheduled yet, because it's genuinely blocked, not just being cautious.
+Step 1 (below) done (2026-09): `SimpleCapabilityRouter`
+(`orchestrator/capability_router.py`) and
+`run_natural_query` (`orchestrator/natural_query_runner.py`) now carry
+deprecation docstrings recording this investigation's finding. No
+behavior change - full suite pass count identical before/after. Everything
+else in this document remains deliberately **not** scheduled, because
+it's genuinely blocked, not just being cautious - see "What actually
+unblocks the rest of Phase 7" below.
 
 ## The headline finding: this phase is mostly blocked, and that's correct
 

@@ -5,6 +5,20 @@ A simple capability router for the first natural-query runtime.
 
 For now this router uses explicit bindings to real plugin functions.
 Later it should be replaced with a registry-backed router that scores capabilities.
+
+DEPRECATED (REFACTOR_PLAN.md Phase 7, docs/PHASE7_LEGACY_CLEANUP_PLAN.md):
+as of this investigation, `SimpleCapabilityRouter` has no confirmed
+production caller. Its only user is `run_natural_query` (the plain, not
+`_with_routing_evidence`, variant) in `orchestrator/natural_query_runner.py`,
+and a repo-wide search found no caller of `run_natural_query` anywhere in
+`smart_spatial_system/application/services/...` - i.e. nowhere in the
+actual request-handling code that builds `/query` responses. Its only
+production-code references are `orchestrator/__init__.py`'s package-level
+re-export and its own test suite
+(`tests/test_orchestrator_natural_query_pipeline.py`). "No caller found by
+grep" is not the same certainty as "confirmed dead", so this is marked
+deprecated rather than removed - re-run the same search at removal time,
+since new code could start calling it between now and then.
 """
 
 from __future__ import annotations
@@ -47,6 +61,10 @@ class SimpleCapabilityRouter:
     Minimal capability router.
 
     Maps abstract operation names to real plugin functions.
+
+    DEPRECATED: see this module's docstring
+    (docs/PHASE7_LEGACY_CLEANUP_PLAN.md) - no confirmed production caller,
+    candidate for removal once that's re-confirmed at removal time.
     """
 
     def __init__(self) -> None:

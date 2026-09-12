@@ -136,29 +136,37 @@ the original phase text where they disagree):
   detail (including that OP_CATALOG only maps 2 of these 5 plugins' 7
   capabilities, and 3 have no production caller anywhere outside their
   own tests) rather than attempted here. Treat as its own future effort.
-- Phase 7 (legacy cleanup): NOT done, and mostly genuinely blocked, not
-  just cautious about it - planned in detail in
-  docs/PHASE7_LEGACY_CLEANUP_PLAN.md (not yet executed). Verified: 3 of
+- Phase 7 (legacy cleanup): step 1 of 1 scheduled steps done (2026-09) -
+  planned in detail in docs/PHASE7_LEGACY_CLEANUP_PLAN.md. Verified: 3 of
   the 4 named legacy items (legacy `PlanNode`/`QueryPlan` in
   orchestrator/models.py, `run_natural_query_with_routing_evidence`,
   the "routing-aware raster-only planner"/`RoutingAwarePlanBuilder`)
   form one connected live production call chain rooted at
   query_execution_service.py's fallback natural_query_runner wiring -
-  this is the path most `/query` requests still take today, since
-  Phase 4's `query_spec_planning_enabled` and Phase 5's
-  `real_estate_query_spec_planning_enabled` both default to `False`.
-  Removing any piece of that chain now would break production, not just
-  tests (11 test files exercise `run_natural_query_with_routing_evidence`
-  alone) - this is a Phase 4/5 production-default decision to unblock,
-  not a Phase 7 code task. The 4th item, `SimpleCapabilityRouter`
+  this is the path most `/query` requests for real-estate ranking and
+  vector display still take today, since Phase 5's
+  `real_estate_query_spec_planning_enabled` defaults to `False` (Phase 4's
+  `query_spec_planning_enabled` now defaults `True`, but direct-dispatch
+  handlers still run before the QuerySpec/DAG attempt - see Phase 4's own
+  note above - and this fallback chain is still reached for any query type
+  neither Phase 4 nor Phase 5's paths cover). Removing any piece of that
+  chain now would break production, not just tests (11 test files
+  exercise `run_natural_query_with_routing_evidence` alone) - this is a
+  Phase 4/5 production-default/coverage decision to unblock, not a
+  Phase 7 code task. The 4th item, `SimpleCapabilityRouter`
   (+ its only caller, `run_natural_query`, the non-routing-evidence
-  variant), is different: no confirmed production caller found anywhere
+  variant), was different: no confirmed production caller found anywhere
   in smart_spatial_system/application/services/... - only reachable via
   orchestrator/__init__.py's package re-export and its own test suite.
-  The one action this phase's plan schedules now: mark (not remove)
+  This plan's one scheduled action - mark (not remove)
   `SimpleCapabilityRouter`/`run_natural_query` as deprecated, since "no
   caller found by grep" isn't the same certainty as "confirmed dead" and
-  it's still public orchestrator package surface.
+  it's still public orchestrator package surface - is now done: both
+  carry deprecation docstrings explaining the finding and what to
+  re-check before removal. No behavior change (full suite: same pass
+  count before/after). Nothing else in this phase is scheduled yet - see
+  docs/PHASE7_LEGACY_CLEANUP_PLAN.md's "What actually unblocks the rest
+  of Phase 7" section for what has to happen first.
 
 Goal
 

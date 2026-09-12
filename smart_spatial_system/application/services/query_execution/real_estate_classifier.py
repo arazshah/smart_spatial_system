@@ -32,7 +32,13 @@ def is_real_estate_analysis_query(
         "properties",
     ]
 
+    # Both languages are matched. The English tokens are not decoration:
+    # without them an English query like "rank these properties by distance
+    # to metro, malls and main roads" matched real_estate_tokens (via
+    # "properties") but no analysis token, so it fell through to the legacy
+    # routing-aware planner and failed with an unrelated capability error.
     analysis_tokens = [
+        # fa
         "مترو",
         "مرکز خرید",
         "خیابان اصلی",
@@ -46,6 +52,24 @@ def is_real_estate_analysis_query(
         "گزارش",
         "نزدیک",
         "۵۰۰",
+        # en
+        "metro",
+        "subway",
+        "underground station",
+        "shopping",
+        "mall",
+        "main road",
+        "risk",
+        "flood",
+        "earthquake",
+        "fire",
+        "score",
+        "scoring",
+        "rank",
+        "ranking",
+        "report",
+        "near",
+        "distance",
         "500",
     ]
 
@@ -111,6 +135,11 @@ def has_any_real_estate_payload(
 def looks_like_real_estate_ranking_query(query: str) -> bool:
     q = (query or "").lower()
 
+    # All three lists match both languages. Two English gaps used to make
+    # this return False for otherwise obvious English queries: "property"
+    # is not a substring of "properties", and constraint_terms had no
+    # English entries at all - so "rank these properties by distance to
+    # metro, malls and main roads" fell through to the legacy planner.
     property_terms = [
         "ملک",
         "املاک",
@@ -118,7 +147,10 @@ def looks_like_real_estate_ranking_query(query: str) -> bool:
         "آپارتمان",
         "ویلا",
         "property",
+        "properties",
         "real estate",
+        "apartment",
+        "housing",
     ]
     ranking_terms = [
         "رتبه",
@@ -126,12 +158,14 @@ def looks_like_real_estate_ranking_query(query: str) -> bool:
         "رتبه بندی",
         "امتیاز",
         "score",
+        "scoring",
         "rank",
         "ranking",
         "گزارش",
         "report",
     ]
     constraint_terms = [
+        # fa
         "مترو",
         "مرکز خرید",
         "خیابان اصلی",
@@ -140,8 +174,21 @@ def looks_like_real_estate_ranking_query(query: str) -> bool:
         "زلزله",
         "آتش",
         "۵۰۰",
-        "500",
         "متر",
+        # en
+        "metro",
+        "subway",
+        "underground station",
+        "shopping",
+        "mall",
+        "main road",
+        "risk",
+        "flood",
+        "earthquake",
+        "fire",
+        "distance",
+        "near",
+        "500",
     ]
 
     return (

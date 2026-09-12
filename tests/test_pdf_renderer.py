@@ -68,7 +68,7 @@ def test_render_pdf_produces_html():
 
     assert len(result.html) > 100
     assert "ویلای لوکس" in result.html
-    assert "گزارش رتبه‌بندی" in result.html
+    assert "Property Ranking and Investment Analysis Report" in result.html
 
 
 def test_render_pdf_html_contains_table_data():

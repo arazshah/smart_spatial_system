@@ -189,10 +189,10 @@ def try_handle_system_status_query(
     plugin_count = len(plugin_ids) if plugin_ids else len(module_names)
 
     answer = (
-        "سیستم فعال است و سرویس ارکستریتور آماده پاسخ‌گویی است. "
-        f"تعداد قابلیت‌های فعال: {enabled_count if enabled_count is not None else 'نامشخص'}، "
-        f"تعداد افزونه‌های بارگذاری‌شده: {plugin_count}. "
-        "اتصال LLM نیز در تنظیمات runtime قابل بررسی است."
+        "The system is running and the orchestrator service is ready. "
+        f"Enabled capabilities: {enabled_count if enabled_count is not None else 'unknown'}; "
+        f"loaded plugins: {plugin_count}. "
+        "The LLM connection can be checked in the runtime settings."
     )
 
     response = {
@@ -221,8 +221,8 @@ def try_handle_system_status_query(
         },
         "warnings": [],
         "next_actions": [
-            "برای مشاهده جزئیات افزونه‌ها از بخش Plugin Manager استفاده کنید.",
-            "برای تست اتصال LLM از مسیر /settings/llm/smoke-test استفاده کنید.",
+            "Use the Plugin Manager section to see plugin details.",
+            "Use /settings/llm/smoke-test to test the LLM connection.",
         ],
         "metadata": json_safe(final_metadata),
     }

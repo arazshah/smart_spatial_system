@@ -51,7 +51,9 @@ class ProductionResponseConfig:
     include_outputs: bool = True
     include_metadata: bool = True
     include_debug: bool = False
-    language: str = "fa"
+    # "en" by default, matching OrchestratorServiceConfig.response_language.
+    # "fa" remains fully supported - see _FA_TEXTS/_persian_output_answer.
+    language: str = "en"
 
     max_warnings: int = 20
     max_next_actions: int = 20

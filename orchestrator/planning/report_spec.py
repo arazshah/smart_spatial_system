@@ -104,7 +104,7 @@ class ReportSpec:
         Renderer-specific settings.
     """
 
-    title: str = "گزارش تحلیل فضایی"
+    title: str = "Spatial Analysis Report"
     language: str = "fa"
     map_layers: list[MapLayerSpec] = field(default_factory=list)
     tables: list[TableSpec] = field(default_factory=list)
@@ -123,7 +123,7 @@ def default_real_estate_report_spec(
     map_sources: dict[str, str] | None = None,
     language: str = "fa",
     format: str = "pdf",
-    title: str = "گزارش رتبه‌بندی و تحلیل سرمایه‌گذاری ملک",
+    title: str = "Property Ranking and Investment Analysis Report",
 ) -> ReportSpec:
     """
     Default report spec for the real-estate property analysis use case.
@@ -136,7 +136,7 @@ def default_real_estate_report_spec(
         map_layers.append(MapLayerSpec(
             source=map_sources["buildable_zone"],
             kind="features",
-            label="محدوده مجاز ساخت‌وساز",
+            label="Permitted construction zone",
             style={"color": "#22c55e", "fill_opacity": 0.15},
         ))
 
@@ -144,7 +144,7 @@ def default_real_estate_report_spec(
         map_layers.append(MapLayerSpec(
             source=map_sources["poi"],
             kind="features",
-            label="نقاط مهم (مترو / مراکز خرید)",
+            label="Points of interest (metro / shopping centres)",
             style={"color": "#3b82f6", "radius": 8},
         ))
 
@@ -152,48 +152,48 @@ def default_real_estate_report_spec(
         map_layers.append(MapLayerSpec(
             source=map_sources["roads"],
             kind="features",
-            label="خیابان‌های اصلی",
+            label="Main roads",
             style={"color": "#f59e0b", "weight": 2},
         ))
 
     map_layers.append(MapLayerSpec(
         source=ranked_source,
         kind="choropleth",
-        label="ملک‌های رتبه‌بندی‌شده",
+        label="Ranked properties",
         style={"color_field": "investment_score", "radius": 10},
     ))
 
     columns = [
-        TableColumnSpec(field="rank", label="رتبه", align="center", width=60),
-        TableColumnSpec(field="name", label="نام ملک", align="right"),
+        TableColumnSpec(field="rank", label="Rank", align="center", width=60),
+        TableColumnSpec(field="name", label="Property name", align="left"),
         TableColumnSpec(
             field="investment_score",
-            label="امتیاز",
+            label="Score",
             format=".1f",
             align="center",
             width=80,
         ),
         TableColumnSpec(
             field="distance_to_poi",
-            label="فاصله تا POI (متر)",
+            label="Distance to POI (m)",
             format=".0f",
             align="center",
         ),
         TableColumnSpec(
             field="distance_to_road",
-            label="فاصله تا خیابان (متر)",
+            label="Distance to road (m)",
             format=".0f",
             align="center",
         ),
         TableColumnSpec(
             field="inside_buildable_zone",
-            label="محدوده مجاز",
+            label="In permitted zone",
             align="center",
             width=100,
         ),
-        TableColumnSpec(field="flood_risk", label="ریسک سیل", align="center"),
-        TableColumnSpec(field="earthquake_risk", label="ریسک زلزله", align="center"),
-        TableColumnSpec(field="fire_risk", label="ریسک آتش", align="center"),
+        TableColumnSpec(field="flood_risk", label="Flood risk", align="center"),
+        TableColumnSpec(field="earthquake_risk", label="Earthquake risk", align="center"),
+        TableColumnSpec(field="fire_risk", label="Fire risk", align="center"),
     ]
 
     tables = [
@@ -203,7 +203,7 @@ def default_real_estate_report_spec(
             sort_by="rank",
             sort_order="asc",
             max_rows=50,
-            title="جدول رتبه‌بندی ملک‌ها",
+            title="Property ranking table",
         )
     ]
 
@@ -272,7 +272,7 @@ def report_spec_from_dict(data: dict[str, Any]) -> ReportSpec:
         )
 
     return ReportSpec(
-        title=str(data.get("title") or "گزارش تحلیل فضایی"),
+        title=str(data.get("title") or "Spatial Analysis Report"),
         language=str(data.get("language") or "fa"),
         map_layers=map_layers,
         tables=tables,

@@ -40,7 +40,7 @@ def build_real_estate_pdf_report_payload(
 
     pdf_summary = {
         **summary,
-        "title": report.get("title") or "گزارش رتبه‌بندی املاک",
+        "title": report.get("title") or "Property Ranking Report",
         "notes": report.get("notes") or [],
         # ReportOut/report_builder compatible fields:
         "total_count": summary.get("eligible_count", len(pdf_rows)),
@@ -55,23 +55,23 @@ def build_real_estate_pdf_report_payload(
     }
 
     columns = [
-        {"key": "rank", "field": "rank", "label": "رتبه"},
-        {"key": "name", "field": "name", "label": "نام ملک"},
-        {"key": "kind", "field": "kind", "label": "نوع"},
-        {"key": "price", "field": "price", "label": "قیمت"},
-        {"key": "score", "field": "score", "label": "امتیاز"},
-        {"key": "investment_score", "field": "investment_score", "label": "امتیاز سرمایه‌گذاری"},
-        {"key": "best_poi_distance_m", "field": "best_poi_distance_m", "label": "نزدیک‌ترین فاصله به مترو/مرکز خرید"},
-        {"key": "distance_to_main_road_m", "field": "distance_to_main_road_m", "label": "فاصله تا خیابان اصلی"},
-        {"key": "flood_risk", "field": "flood_risk", "label": "ریسک سیل"},
-        {"key": "earthquake_risk", "field": "earthquake_risk", "label": "ریسک زلزله"},
-        {"key": "fire_risk", "field": "fire_risk", "label": "ریسک آتش‌سوزی"},
-        {"key": "in_allowed_zone", "field": "in_allowed_zone", "label": "محدوده مجاز ساخت"},
+        {"key": "rank", "field": "rank", "label": "Rank"},
+        {"key": "name", "field": "name", "label": "Property name"},
+        {"key": "kind", "field": "kind", "label": "Type"},
+        {"key": "price", "field": "price", "label": "Price"},
+        {"key": "score", "field": "score", "label": "Score"},
+        {"key": "investment_score", "field": "investment_score", "label": "Investment score"},
+        {"key": "best_poi_distance_m", "field": "best_poi_distance_m", "label": "Nearest distance to metro/shopping centre"},
+        {"key": "distance_to_main_road_m", "field": "distance_to_main_road_m", "label": "Distance to main road"},
+        {"key": "flood_risk", "field": "flood_risk", "label": "Flood risk"},
+        {"key": "earthquake_risk", "field": "earthquake_risk", "label": "Earthquake risk"},
+        {"key": "fire_risk", "field": "fire_risk", "label": "Fire risk"},
+        {"key": "in_allowed_zone", "field": "in_allowed_zone", "label": "In permitted zone"},
     ]
 
     return {
         "meta": {
-            "title": report.get("title") or "گزارش رتبه‌بندی املاک",
+            "title": report.get("title") or "Property Ranking Report",
             "language": "fa",
             "format": "pdf",
             "domain": "real_estate_spatial_ranking",
@@ -81,7 +81,7 @@ def build_real_estate_pdf_report_payload(
         },
         "summary": pdf_summary,
         "table": {
-            "title": "جدول رتبه‌بندی املاک",
+            "title": "Property ranking table",
             "columns": columns,
             "rows": pdf_rows,
             "total_rows": len(pdf_rows),
@@ -89,8 +89,8 @@ def build_real_estate_pdf_report_payload(
         "map_layers": [
             {
                 "id": "ranked_properties",
-                "name": "املاک رتبه‌بندی‌شده",
-                "label": "املاک رتبه‌بندی‌شده",
+                "name": "Ranked properties",
+                "label": "Ranked properties",
                 "type": "vector",
                 "format": "geojson",
                 "feature_count": len(ranked_geojson.get("features") or []),

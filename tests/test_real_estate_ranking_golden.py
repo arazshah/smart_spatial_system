@@ -187,15 +187,15 @@ def test_golden_report_and_message() -> None:
     assert response is not None
     report = response["report"]
 
-    assert report["title"] == "گزارش رتبه‌بندی و تحلیل سرمایه‌گذاری املاک"
-    assert report["language"] == "fa"
+    assert report["title"] == "Property Ranking and Investment Analysis Report"
+    assert report["language"] == "en"
     assert len(report["ranking"]) == 2
     assert len(report["rejected"]) == 1
     assert len(report["notes"]) == 3
 
     assert response["answer"] == (
-        "رتبه‌بندی املاک انجام شد. از 3 ملک، 2 ملک واجد شرایط بودند."
-        " بهترین گزینه: ویلای لوکس با امتیاز 91.0."
+        "Property ranking complete. Of 3 properties, 2 were eligible."
+        " Top choice: ویلای لوکس with a score of 91.0."
     )
 
 

@@ -65,13 +65,13 @@ def _resolve_templates_dir() -> Path:
 TEMPLATES_DIR = _resolve_templates_dir()
 DEFAULT_TEMPLATE = "real_estate_report.html"
 
-RISK_LABELS_FA = {
-    "very_low": "خیلی کم",
-    "low": "کم",
-    "medium": "متوسط",
-    "high": "زیاد",
-    "very_high": "خیلی زیاد",
-    "critical": "بحرانی",
+RISK_LABELS = {
+    "very_low": "very low",
+    "low": "low",
+    "medium": "medium",
+    "high": "high",
+    "very_high": "very high",
+    "critical": "critical",
 }
 
 LAYER_COLORS = [
@@ -123,7 +123,7 @@ class PDFOut:
 # Helpers
 # ------------------------------------------------------------------ #
 
-def _format_datetime_fa(iso_str: str | None) -> str:
+def _format_datetime(iso_str: str | None) -> str:
     if not iso_str:
         return ""
     try:
@@ -178,10 +178,10 @@ def _render_html(
         "table": report.table,
         "map_layers": report.map_layers,
         "spec": report.spec,
-        "generated_at_fa": _format_datetime_fa(
+        "generated_at": _format_datetime(
             report.meta.get("generated_at")
         ),
-        "risk_labels": RISK_LABELS_FA,
+        "risk_labels": RISK_LABELS,
         "layer_colors": LAYER_COLORS,
     }
 

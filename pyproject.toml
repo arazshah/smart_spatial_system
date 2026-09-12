@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -16,7 +16,30 @@ version = "0.1.0"
 description = "Plugin-based GeoAI backend: natural-language questions become QuerySpecs, DAG plans, and map/table/report outputs."
 readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Araz Shah" }]
+keywords = ["geospatial", "gis", "geoai", "spatial-analysis", "postgis", "natural-language"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: GIS",
+]
 dependencies = [
+    # NOTE: these two are direct git references, which PyPI REJECTS. They
+    # must be switched to "geochat-sdk>=1.0.0" / "geochat-kernel>=1.0.0"
+    # immediately before publishing this package, and only after those two
+    # are actually on PyPI - see docs/PYPI_RELEASE_PLAN.md step 4. They are
+    # deliberately left as git references until then so the documented
+    # `pip install -e .` flow keeps working today.
+    # .github/workflows/publish.yml fails the build if a direct reference
+    # is still present at release time, so this cannot be forgotten.
     "geochat-sdk @ git+https://github.com/arazshah/geochat-platform.git#subdirectory=geochat-sdk",
     "geochat-kernel @ git+https://github.com/arazshah/geochat-platform.git#subdirectory=geochat-kernel",
     "fastapi",
@@ -61,6 +84,11 @@ raster = ["rasterio"]
 pdf = ["weasyprint"]
 llm = []
 dev = ["pytest", "ruff"]
+
+[project.urls]
+Homepage = "https://github.com/arazshah/smart_spatial_system"
+Repository = "https://github.com/arazshah/smart_spatial_system"
+Issues = "https://github.com/arazshah/smart_spatial_system/issues"
 
 [project.scripts]
 smart-spatial-api = "smart_spatial_system.cli:main"

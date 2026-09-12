@@ -1,0 +1,168 @@
+# PyPI Release Plan
+
+How to publish this project to PyPI, and what has to happen in what order.
+
+## Status
+
+Preparation done; **not yet published**. Everything a repository can do is
+in place (license, metadata, release workflows). What remains are steps
+that require the owner's PyPI account and cannot be done from a repository:
+the one-time Trusted Publisher configuration and the tag that triggers a
+release.
+
+## The constraint that drives the whole order
+
+`smart_spatial_system` depends on `geochat-sdk` and `geochat-kernel`, which
+live in a separate repository (`arazshah/geochat-platform`) and are
+currently declared in `pyproject.toml` as direct git references:
+
+```
+geochat-sdk @ git+https://github.com/arazshah/geochat-platform.git#subdirectory=geochat-sdk
+```
+
+**PyPI rejects any upload whose metadata contains a direct URL dependency**
+(PEP 508 `name @ url` form). So this package cannot be published while
+those references remain — and they can only be replaced with ordinary
+version specifiers (`geochat-sdk>=1.0.0`) once those two packages are
+themselves on PyPI.
+
+Hence the order:
+
+```
+geochat-sdk  ->  geochat-kernel  ->  smart_spatial_system
+```
+
+(`geochat-kernel` already declares `geochat-sdk==1.0.0` as an ordinary
+dependency, so it needs no change — only the sdk has to exist on PyPI
+before it is installable.)
+
+## Name availability
+
+Checked (2026-09): `smart-spatial-system`, `smart_spatial_system`,
+`geochat-sdk` and `geochat-kernel` all return 404 on PyPI, i.e. all four
+names are free. Re-check immediately before publishing — names can be
+taken at any time.
+
+## What is already prepared
+
+**`arazshah/geochat-platform`:**
+
+- `LICENSE` (MIT) copied into both `geochat-sdk/` and `geochat-kernel/`, so
+  each wheel carries its own license file.
+- Complete PyPI metadata in both `pyproject.toml` files: SPDX `license`
+  expression (PEP 639), `authors`, `keywords`, `classifiers`,
+  `[project.urls]`.
+- `.github/workflows/publish.yml` — builds both packages and publishes them
+  via Trusted Publishing, sdk first, kernel second.
+- Verified locally: both build clean wheels with
+  `Metadata-Version: 2.4`, `License-Expression: MIT`, and the LICENSE file
+  inside `dist-info/licenses/`.
+
+**`arazshah/smart_spatial_system`:**
+
+- `LICENSE` (MIT, same copyright holder).
+- PyPI metadata completed in `pyproject.toml` (license, authors, keywords,
+  classifiers, project URLs) on top of the packaging work from
+  `docs/PHASE8_BACKEND_PACKAGING_CLI_PLAN.md`.
+- `.github/workflows/publish.yml` — builds, then **fails the release if a
+  direct URL dependency is still present in the built metadata**, then
+  publishes via Trusted Publishing. This guard exists so step 4 below
+  cannot be silently skipped.
+
+## Release procedure
+
+### Step 1 — Configure Trusted Publishing on PyPI (one time, owner only)
+
+For each of the three projects, on pypi.org → Account settings →
+Publishing → "Add a pending publisher" (a *pending* publisher is the right
+choice while the project does not exist on PyPI yet):
+
+| Project | Owner | Repository | Workflow | Environment |
+|---|---|---|---|---|
+| `geochat-sdk` | `arazshah` | `geochat-platform` | `publish.yml` | `pypi` |
+| `geochat-kernel` | `arazshah` | `geochat-platform` | `publish.yml` | `pypi` |
+| `smart_spatial_system` | `arazshah` | `smart_spatial_system` | `publish.yml` | `pypi` |
+
+No API token is created or stored anywhere — GitHub authenticates to PyPI
+over OIDC. This is why the workflows request `id-token: write` and run in
+an `environment: pypi`.
+
+### Step 2 — Release `geochat-sdk` and `geochat-kernel`
+
+In `arazshah/geochat-platform`, push a tag:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+The workflow builds both, publishes the sdk, then publishes the kernel
+(the kernel job depends on the sdk job precisely because of the
+`geochat-sdk==1.0.0` requirement).
+
+Verify afterwards:
+
+```bash
+pip download geochat-sdk==1.0.0 --no-deps -d /tmp/verify
+pip download geochat-kernel==1.0.0 --no-deps -d /tmp/verify
+```
+
+### Step 3 — Consider a TestPyPI dry run first
+
+Optional but recommended for a first-ever publish, because **a version
+number on PyPI can never be reused**, even after deleting the release. A
+mistake in 1.0.0 means burning the number and publishing 1.0.1. TestPyPI
+(https://test.pypi.org) takes the same Trusted Publisher configuration and
+lets the whole flow be rehearsed.
+
+### Step 4 — Switch this package's dependencies, then release it
+
+Only after step 2 has actually succeeded, in `pyproject.toml`:
+
+```diff
+-    "geochat-sdk @ git+https://github.com/arazshah/geochat-platform.git#subdirectory=geochat-sdk",
+-    "geochat-kernel @ git+https://github.com/arazshah/geochat-platform.git#subdirectory=geochat-kernel",
++    "geochat-sdk>=1.0.0",
++    "geochat-kernel>=1.0.0",
+```
+
+Leave `requirements.txt` and `requirements.lock` as they are — those drive
+the Docker image and CI, which install from source on purpose and are
+unaffected by PyPI.
+
+Then verify locally before tagging:
+
+```bash
+pip wheel . --no-deps -w /tmp/w     # then check the METADATA has no "@" in Requires-Dist
+python -m pytest -q                 # still green
+```
+
+and release:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+### Step 5 — Verify the published package
+
+In a clean virtualenv, from a directory that is *not* a checkout of this
+repository (this also re-verifies the packaged-config fallback from
+`docs/PHASE8_BACKEND_PACKAGING_CLI_PLAN.md`):
+
+```bash
+python -m venv /tmp/verify-venv && source /tmp/verify-venv/bin/activate
+pip install "smart_spatial_system[postgis,raster,pdf]"
+smart-spatial-api serve --host 127.0.0.1 --port 8000
+curl -s http://127.0.0.1:8000/health
+```
+
+## Known gaps to address before a JOSS submission
+
+Not blocking for PyPI, but they will be raised in a JOSS review:
+
+- `geochat-platform` has **no tests and no CI workflow** at all. JOSS
+  requires automated tests. `smart_spatial_system` is fine here
+  (~1686 tests, CI runs pytest + ruff + a frontend build).
+- Both `geochat-sdk` and `geochat-kernel` have very short READMEs; JOSS
+  expects statement of need, installation, example usage, and community
+  guidelines (contributing/issues/support).
+- No `CITATION.cff` in either repository.

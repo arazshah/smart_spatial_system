@@ -256,12 +256,32 @@ class OrchestratorServiceConfig:
     query_spec_planning_enabled: bool = True
     llm_planning_enabled: bool = False
 
-    # REFACTOR_PLAN.md Phase 5: opt-in flag for routing real-estate ranking
-    # queries through the rule-based QuerySpec/DAG path (real_estate_spatial_enrich
-    # -> real_estate_score -> filter_attribute -> rank_features -> build_report)
-    # instead of the legacy direct handler. Default False so this is purely
-    # additive until verified equivalent and explicitly enabled - see
-    # docs/PHASE5_REAL_ESTATE_PLUGIN_PLAN.md step 5.
+    # REFACTOR_PLAN.md Phase 5: routes real-estate ranking queries through
+    # the rule-based QuerySpec/DAG path (real_estate_spatial_enrich ->
+    # real_estate_score -> filter_attribute -> rank_features -> build_report)
+    # instead of the legacy direct handler. The attempt falls back safely to
+    # the legacy handler on any failure - raised exception or a DAG result
+    # reporting success=False without raising - the same safety guarantee
+    # query_spec_planning_enabled has. See
+    # docs/PHASE5_REAL_ESTATE_PLUGIN_PLAN.md step 5. Only affects queries
+    # already classified as real-estate ranking
+    # (real_estate_classifier.looks_like_real_estate_ranking_query) - no
+    # effect on any other query type.
+    #
+    # Default stays False, NOT flipped like query_spec_planning_enabled:
+    # a successful run through this path is not response-shape-equivalent
+    # to the legacy handler. build_query_spec_planning_response() (the
+    # generic planning response builder this path reuses) never
+    # reconstructs the legacy bridge's result.ranking/result.rejected,
+    # summary, analysis inspector, ranked vector/rejected table outputs,
+    # or rendered PDF/HTML document - fields the frontend's
+    # InspectorPanel.jsx reads directly. The "parity" originally verified
+    # for this flag only checked the rule-based ranking outcome itself
+    # (report.summary/report.table: same order, scores, eligible/rejected
+    # split) - not the full response contract. Flip this only after that
+    # gap is closed (either by making the planning response reconstruct
+    # the legacy fields, or by updating the frontend to consume the
+    # planning response shape directly).
     real_estate_query_spec_planning_enabled: bool = False
 
     # Experimental opt-in: execute QuerySpec plans through the

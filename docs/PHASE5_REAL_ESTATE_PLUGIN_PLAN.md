@@ -4,12 +4,19 @@
 
 Steps 1-5 of 6 done (verified 2026-09). See `docs/REFACTOR_PLAN.md`'s
 Phase 5 status note for the up-to-date summary of what landed and what's
-still open. Step 6 (removing the legacy direct handler) is deliberately
-not done yet: the new path is opt-in via
-`real_estate_query_spec_planning_enabled` (default `False`), and per this
-plan's own rule ("remove legacy only after a tested replacement exists"),
-that removal should wait until the flag has been enabled and verified in
-real usage, not just in tests.
+still open. `real_estate_query_spec_planning_enabled` stays `False` by
+default (an attempted flip to `True` was reverted after review found the
+generic planning response builder doesn't reconstruct the legacy bridge's
+full response shape - see `docs/REFACTOR_PLAN.md`'s Phase 5 note for
+exactly which fields are missing and what closing the gap requires). The
+flag can be enabled via config for callers that only consume the planning
+response shape; it already has the same safe fallback-on-failure guarantee
+`query_spec_planning_enabled` has. Step 6 (removing the legacy direct
+handler) is still deliberately not done: per this plan's own rule
+("remove legacy only after a tested replacement exists"), that removal
+should wait until the new path has actually been used in production for
+a while, not just enabled by default and verified in tests - the legacy
+handler stays in place as the fallback target.
 
 One resolution worth calling out explicitly: Open Question 3 (how DAG
 ranking preserves both ranked and rejected properties) was resolved

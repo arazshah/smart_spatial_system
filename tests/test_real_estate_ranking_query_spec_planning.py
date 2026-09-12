@@ -1,18 +1,32 @@
 """
-Tests for REFACTOR_PLAN.md Phase 5, step 5 -- the opt-in rule-based
-QuerySpec/DAG path for real-estate ranking queries (see
-docs/PHASE5_REAL_ESTATE_PLUGIN_PLAN.md).
+Tests for REFACTOR_PLAN.md Phase 5, step 5 -- the rule-based QuerySpec/DAG
+path for real-estate ranking queries (see
+docs/PHASE5_REAL_ESTATE_PLUGIN_PLAN.md). Default stays False: a successful
+run through this path is not response-shape-equivalent to the legacy
+handler (result.ranking/result.rejected/summary/inspector/outputs/layers
+are not reconstructed by the generic planning response builder, and the
+frontend's InspectorPanel.jsx reads those fields directly) even though the
+ranking outcome itself (order/scores/eligible-rejected split) matches and
+the attempt falls back safely to the legacy handler on any failure. It can
+be enabled via config for callers that only consume the planning response
+shape.
 
 Covers:
     - build_real_estate_ranking_query_spec /
       build_real_estate_ranking_initial_inputs (pure, unit-tested directly)
     - the flag default (False -- OrchestratorService.handle_query keeps
-      using the legacy direct handler, per
-      tests/test_real_estate_ranking_golden.py)
-    - end-to-end parity when the flag is enabled: same top-level ranking
-      outcome (order, scores, eligible/rejected counts) as the legacy
-      direct handler for the same input, through a real OrchestratorService
-      instance and the real plugin registry.
+      using the legacy direct handler)
+    - the flag enabled via config -- routes through the QuerySpec/DAG path,
+      per tests/test_real_estate_ranking_golden.py
+    - end-to-end parity of the ranking outcome when the flag is enabled:
+      same top-level ranking outcome (order, scores, eligible/rejected
+      counts) as the legacy direct handler for the same input, through a
+      real OrchestratorService instance and the real plugin registry - NOT
+      full response-shape parity (see the flag's docstring in
+      orchestrator/service.py for what's still missing).
+    - safe fallback when the QuerySpec/DAG path fails (raises, or returns
+      success=False without raising) -- the legacy handler's response is
+      still returned, with the failure reason preserved in its metadata.
 
 Run:
     pytest tests/test_real_estate_ranking_query_spec_planning.py -v
@@ -186,7 +200,8 @@ def test_build_real_estate_ranking_initial_inputs_wraps_provided_layer_features(
 
 
 # ---------------------------------------------------------------------------
-# Flag default: OFF (unchanged behavior, confirmed against golden test too)
+# Flag default: OFF (response-shape parity with the legacy handler is not
+# yet complete - see the flag's docstring in orchestrator/service.py)
 # ---------------------------------------------------------------------------
 
 
@@ -213,7 +228,8 @@ def test_flag_defaults_off_and_uses_legacy_direct_handler(tmp_path, monkeypatch)
 
 
 # ---------------------------------------------------------------------------
-# Flag enabled: end-to-end parity with the legacy direct handler
+# Flag enabled: end-to-end parity of the ranking outcome (not the full
+# response shape) with the legacy direct handler
 # ---------------------------------------------------------------------------
 
 

@@ -241,10 +241,19 @@ class OrchestratorServiceConfig:
     # flags that used to be environment-only (QUERY_SPEC_PLANNING_ENABLED,
     # LLM_PLANNING_ENABLED). The env vars still work as deployment-level
     # overrides on top of these - see planning_execution_policy.py and
-    # llm_intent_adapter.py. Defaults match the env vars' prior defaults
-    # (both False) so this is a config-source change only, not a behavior
-    # change.
-    query_spec_planning_enabled: bool = False
+    # llm_intent_adapter.py.
+    #
+    # query_spec_planning_enabled default flipped to True (REFACTOR_PLAN.md
+    # Phase 4): the QuerySpec/DAG path is now attempted first for every
+    # query. It fails fast and safely falls back to the legacy
+    # run_natural_query_with_routing_evidence path when planning raises for
+    # any reason (no LLM API key configured, LLM call failure, planning/DAG
+    # error - _try_handle_query_with_planning's except clause catches
+    # broadly and returns None) - see
+    # smart_spatial_system/application/services/query_execution_service.py.
+    # llm_planning_enabled (legacy LLM *intent* planning, a separate,
+    # older mechanism - not QuerySpec generation) stays False.
+    query_spec_planning_enabled: bool = True
     llm_planning_enabled: bool = False
 
     # REFACTOR_PLAN.md Phase 5: opt-in flag for routing real-estate ranking

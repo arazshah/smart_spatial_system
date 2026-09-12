@@ -44,19 +44,31 @@ the original phase text where they disagree):
 - Phase 3 (planning default config): done - `OrchestratorServiceConfig`
   now has `query_spec_planning_enabled`/`llm_planning_enabled` fields,
   env vars remain a deployment-level override on top of them.
-- Phase 4 (migrate vector direct path): substantively done.
-  `smart_spatial_system/application/services/vector_display_handler.py`
+- Phase 4 (migrate vector direct path): substantively done, and its
+  blocking condition has since resolved. `vector_display_handler.py`
   already delegates to `inspect_vector`/`display_vector_layer`/
   `summarize_vector_layer` through the capability registry rather than
-  duplicating logic - verified no ad-hoc business logic remains outside
-  a documented fallback path. What's NOT done: this is still a direct-
-  dispatch shortcut rather than routed through QuerySpec/DAG, because
-  `query_spec_planning_enabled` defaults to False (Phase 3) and OP_CATALOG
-  already has `inspect_vector`/`display_vector_layer`/
-  `summarize_vector_layer` entries capable of handling it - flipping the
-  default or routing this specific query type through the DAG needs the
-  Phase 2 unified response first, since the DAG path and this direct
-  handler currently return different response shapes.
+  duplicating logic - no ad-hoc business logic remains outside a
+  documented fallback path. `query_spec_planning_enabled` (Phase 3) now
+  defaults to `True` (flipped 2026-09, after Phase 2's unified response
+  assembler made the DAG path's and this handler's response shapes
+  consistent): the QuerySpec/DAG path is attempted first for every
+  query now, with a verified-safe fast-fail fallback to the legacy
+  runner when planning can't run (no LLM API key configured - the
+  common case without a deployer-provided key - or any other planning
+  error; `_try_handle_query_with_planning`'s broad except clause
+  returns `None` on any failure, confirmed with a real end-to-end query
+  and no LLM configured: response still succeeds via the legacy
+  fallback, with `metadata.planning_attempted`/`planning_error`
+  recording why). Direct-dispatch handlers (real-estate, vector
+  display) still run *before* the QuerySpec/DAG attempt in
+  `direct_query_dispatch.py`, so this specific vector-display query
+  type is still reached via its direct handler first, not through the
+  DAG, when it matches - genuinely routing it through the DAG instead
+  would mean reordering or removing that handler, which is a separate,
+  not-yet-done step (see Phase 7's status note on why removing
+  direct-dispatch/fallback code stays gated on more than just this flag
+  flip).
 - Phase 5 (real estate to plugin): steps 1-5 of 6 done, per
   docs/PHASE5_REAL_ESTATE_PLUGIN_PLAN.md's migration plan. The MVP
   scoring/eligibility formula (`real_estate_scoring.py`) and the spatial

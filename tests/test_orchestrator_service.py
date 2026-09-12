@@ -287,14 +287,30 @@ def test_service_history_can_be_disabled(tmp_path: Path) -> None:
     assert service.get_request("req-service-no-history") is None
 
 
-def test_orchestrator_service_planning_flags_default_false(tmp_path: Path, monkeypatch) -> None:
+def test_orchestrator_service_planning_flags_default(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.delenv("QUERY_SPEC_PLANNING_ENABLED", raising=False)
     monkeypatch.delenv("LLM_PLANNING_ENABLED", raising=False)
 
     service = _make_service(tmp_path)
 
-    assert service._query_spec_planning_enabled() is False
+    # REFACTOR_PLAN.md Phase 4: query_spec_planning_enabled now defaults to
+    # True - the QuerySpec/DAG path is attempted first for every query and
+    # falls back safely to the legacy runner when planning fails (e.g. no
+    # LLM API key configured). llm_planning_enabled (legacy LLM *intent*
+    # planning, a separate mechanism) stays False.
+    assert service._query_spec_planning_enabled() is True
     assert service._llm_planning_enabled() is False
+
+
+def test_orchestrator_service_query_spec_planning_can_be_disabled_via_config(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.delenv("QUERY_SPEC_PLANNING_ENABLED", raising=False)
+    monkeypatch.delenv("LLM_PLANNING_ENABLED", raising=False)
+
+    service = _make_service(tmp_path, query_spec_planning_enabled=False)
+
+    assert service._query_spec_planning_enabled() is False
 
 
 def test_orchestrator_service_planning_flags_honor_config(tmp_path: Path, monkeypatch) -> None:

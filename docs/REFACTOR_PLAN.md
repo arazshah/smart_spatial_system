@@ -111,11 +111,29 @@ the original phase text where they disagree):
   detail (including that OP_CATALOG only maps 2 of these 5 plugins' 7
   capabilities, and 3 have no production caller anywhere outside their
   own tests) rather than attempted here. Treat as its own future effort.
-- Phase 7 (legacy cleanup): NOT done. `SimpleCapabilityRouter` is still
-  live (`orchestrator/capability_router.py`, used by
-  `orchestrator/natural_query_runner.py`). Per this plan's own rule,
-  remove only after Phases 4-6 give it a tested replacement path - it
-  isn't safe to touch in isolation.
+- Phase 7 (legacy cleanup): NOT done, and mostly genuinely blocked, not
+  just cautious about it - planned in detail in
+  docs/PHASE7_LEGACY_CLEANUP_PLAN.md (not yet executed). Verified: 3 of
+  the 4 named legacy items (legacy `PlanNode`/`QueryPlan` in
+  orchestrator/models.py, `run_natural_query_with_routing_evidence`,
+  the "routing-aware raster-only planner"/`RoutingAwarePlanBuilder`)
+  form one connected live production call chain rooted at
+  query_execution_service.py's fallback natural_query_runner wiring -
+  this is the path most `/query` requests still take today, since
+  Phase 4's `query_spec_planning_enabled` and Phase 5's
+  `real_estate_query_spec_planning_enabled` both default to `False`.
+  Removing any piece of that chain now would break production, not just
+  tests (11 test files exercise `run_natural_query_with_routing_evidence`
+  alone) - this is a Phase 4/5 production-default decision to unblock,
+  not a Phase 7 code task. The 4th item, `SimpleCapabilityRouter`
+  (+ its only caller, `run_natural_query`, the non-routing-evidence
+  variant), is different: no confirmed production caller found anywhere
+  in smart_spatial_system/application/services/... - only reachable via
+  orchestrator/__init__.py's package re-export and its own test suite.
+  The one action this phase's plan schedules now: mark (not remove)
+  `SimpleCapabilityRouter`/`run_natural_query` as deprecated, since "no
+  caller found by grep" isn't the same certainty as "confirmed dead" and
+  it's still public orchestrator package surface.
 
 Goal
 

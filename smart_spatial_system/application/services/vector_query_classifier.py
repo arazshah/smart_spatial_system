@@ -21,25 +21,42 @@ def is_vector_display_query(
     """
     q = str(query or "").strip().lower()
 
+    # Both languages are matched, and the English side is deliberately as
+    # wide as the Persian one: "نمایش نقاط روی نقشه" was handled here while
+    # its literal translation "display the sites on the map" was not, so an
+    # English display query fell through to the legacy routing-aware
+    # planner and failed asking for raster capabilities it never needed.
     display_tokens = [
+        # fa
         "نمایش",
         "نشان بده",
         "نشان بدهد",
         "روی نقشه",
         "نقشه",
+        # en
         "display",
         "show",
         "render",
         "draw",
+        "map",
+        "plot",
+        "visualize",
+        "visualise",
     ]
 
+    # Kept to nouns that are unambiguously vector: a token that also reads
+    # naturally in a raster question (area, zone, region) would route
+    # raster work into the vector display handler.
     vector_tokens = [
+        # fa
         "نقطه",
         "نقاط",
         "عارضه",
         "عوارض",
         "وکتور",
         "برداری",
+        "لایه",
+        # en
         "geojson",
         "feature",
         "features",
@@ -47,7 +64,17 @@ def is_vector_display_query(
         "points",
         "vector",
         "layer",
-        "لایه",
+        "site",
+        "sites",
+        "location",
+        "locations",
+        "polygon",
+        "polygons",
+        "geometry",
+        "geometries",
+        "parcel",
+        "parcels",
+        "shapefile",
     ]
 
     has_display = any(token in q for token in display_tokens)
@@ -100,6 +127,7 @@ def is_vector_summary_query(
     q = str(query or "").strip().lower()
 
     summary_tokens = [
+        # fa
         "تعداد",
         "چند",
         "گزارش",
@@ -109,9 +137,13 @@ def is_vector_summary_query(
         "آمار",
         "شمارش",
         "بشمار",
+        # en
         "count",
+        "how many",
+        "number of",
         "summary",
         "summarize",
+        "summarise",
         "inspect",
         "report",
         "statistics",
@@ -119,12 +151,16 @@ def is_vector_summary_query(
     ]
 
     vector_tokens = [
+        # fa
         "نقطه",
         "نقاط",
         "عارضه",
         "عوارض",
         "وکتور",
         "برداری",
+        "لایه",
+        "فایل",
+        # en
         "geojson",
         "feature",
         "features",
@@ -132,8 +168,18 @@ def is_vector_summary_query(
         "points",
         "vector",
         "layer",
-        "لایه",
-        "فایل",
+        "site",
+        "sites",
+        "location",
+        "locations",
+        "polygon",
+        "polygons",
+        "geometry",
+        "geometries",
+        "parcel",
+        "parcels",
+        "shapefile",
+        "file",
     ]
 
     has_summary = any(token in q for token in summary_tokens)

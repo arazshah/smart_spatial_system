@@ -1,0 +1,57 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.366,
+          48.2045
+        ]
+      },
+      "properties": {
+        "name": "Burggarten"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.38,
+          48.204
+        ]
+      },
+      "properties": {
+        "name": "Stadtpark"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.378,
+          48.227
+        ]
+      },
+      "properties": {
+        "name": "Augarten"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.4,
+          48.215
+        ]
+      },
+      "properties": {
+        "name": "Wiener Prater"
+      }
+    }
+  ]
+}

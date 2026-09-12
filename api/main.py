@@ -16,8 +16,12 @@ load_dotenv()
 
 import logging
 import os
+import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
+from pathlib import Path
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,6 +39,29 @@ from api.routers.weights import router as weights_router
 from orchestrator.service import OrchestratorService, OrchestratorServiceConfig
 
 
+def _package_version() -> str:
+    """
+    Version reported by the API and its OpenAPI docs.
+
+    Read from the installed distribution rather than hardcoded, so the two
+    cannot drift apart - they already had, with pyproject at 0.2.0 and the
+    API still announcing 0.1.0. A checkout that was never pip-installed has
+    no distribution metadata, so fall back to reading pyproject.toml, and
+    only then give up.
+    """
+    try:
+        return package_version("smart_spatial_system")
+    except PackageNotFoundError:
+        pass
+
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    try:
+        with pyproject.open("rb") as handle:
+            return str(tomllib.load(handle)["project"]["version"])
+    except (OSError, KeyError, tomllib.TOMLDecodeError):
+        return "0.0.0+unknown"
+
+
 @dataclass(frozen=True)
 class APIConfig:
     """
@@ -45,7 +72,7 @@ class APIConfig:
     """
 
     title: str = "Smart Spatial System API"
-    version: str = "0.1.0"
+    version: str = field(default_factory=_package_version)
     description: str = "MVP API for natural geospatial query execution."
 
     allow_origins: tuple[str, ...] = (

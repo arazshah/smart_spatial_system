@@ -1,0 +1,75 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.3719,
+          48.2085
+        ]
+      },
+      "properties": {
+        "name": "Stephansplatz",
+        "line": "U1/U3"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.3695,
+          48.2006
+        ]
+      },
+      "properties": {
+        "name": "Karlsplatz",
+        "line": "U1/U2/U4"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.338,
+          48.1966
+        ]
+      },
+      "properties": {
+        "name": "Westbahnhof",
+        "line": "U3/U6"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.3919,
+          48.2183
+        ]
+      },
+      "properties": {
+        "name": "Praterstern",
+        "line": "U1/U2"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.3086,
+          48.2113
+        ]
+      },
+      "properties": {
+        "name": "Ottakring",
+        "line": "U3"
+      }
+    }
+  ]
+}

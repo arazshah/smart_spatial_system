@@ -1,0 +1,57 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.352,
+          48.2005
+        ]
+      },
+      "properties": {
+        "name": "Volksschule Neubau"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.366,
+          48.193
+        ]
+      },
+      "properties": {
+        "name": "Gymnasium Wieden"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.388,
+          48.216
+        ]
+      },
+      "properties": {
+        "name": "Volksschule Leopoldstadt"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          16.315,
+          48.215
+        ]
+      },
+      "properties": {
+        "name": "Gymnasium Ottakring"
+      }
+    }
+  ]
+}

@@ -5,6 +5,7 @@ preserve_properties: true
 drop_failed: false
 
 source_crs: null
+target_crs: null
 warn_if_geographic_crs: true
 
 fields:

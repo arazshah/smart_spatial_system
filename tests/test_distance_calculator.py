@@ -31,6 +31,7 @@ from plugins.distance_calculator import (  # noqa: E402
     _point_in_ring,
     _point_segment_distance,
     _python_distance_geometry,
+    _raise_if_crs_mismatch,
     _segment_segment_distance,
     _segments_intersect,
     _validate_engine,
@@ -545,3 +546,62 @@ def test_shapely_engine_if_installed() -> None:
 
     assert result.metadata["engines_used"] == ["shapely"]
     assert props["_distance"] == 5.0
+
+
+# ------------------------------------------------------------------ #
+# source_crs / target_crs mismatch guard
+# ------------------------------------------------------------------ #
+
+def test_calculate_distances_raises_on_crs_mismatch() -> None:
+    """
+    Regression test: with no CRS awareness at all in the actual distance
+    math, feeding source/target features in two different CRSs used to
+    return a large, silently-bogus number instead of an error. Supplying
+    both source_crs and target_crs must now catch a mismatch.
+    """
+    with pytest.raises(ValueError, match="do not match"):
+        calculate_distances(
+            source_features=[SOURCE_POINT],
+            target_features=[TARGET_POINT_A],
+            source_crs="EPSG:31256",
+            target_crs="EPSG:4326",
+        )
+
+
+def test_calculate_distances_accepts_matching_crs() -> None:
+    result = calculate_distances(
+        source_features=[SOURCE_POINT],
+        target_features=[TARGET_POINT_A],
+        source_crs="EPSG:31256",
+        target_crs="EPSG:31256",
+    )
+    assert result.metadata["source_crs"] == "EPSG:31256"
+    assert result.metadata["target_crs"] == "EPSG:31256"
+
+
+def test_calculate_distances_skips_check_when_no_crs_hints_given() -> None:
+    """
+    Opt-in by design: a caller that passes neither hint keeps today's
+    behaviour unchanged rather than being forced to supply CRS metadata
+    it may not have.
+    """
+    result = calculate_distances(source_features=[SOURCE_POINT], target_features=[TARGET_POINT_A])
+    assert result.metadata["source_crs"] is None
+    assert result.metadata["target_crs"] is None
+
+
+@pytest.mark.parametrize(
+    "source_crs,target_crs",
+    [(None, None), ("EPSG:4326", None), (None, "EPSG:4326"), ("epsg:4326", "EPSG:4326")],
+)
+def test_raise_if_crs_mismatch_does_not_raise(source_crs, target_crs) -> None:
+    _raise_if_crs_mismatch(
+        source_crs=source_crs, target_crs=target_crs, capability_name="x"
+    )
+
+
+def test_raise_if_crs_mismatch_raises_on_real_mismatch() -> None:
+    with pytest.raises(ValueError, match="EPSG:31256.*EPSG:4326"):
+        _raise_if_crs_mismatch(
+            source_crs="EPSG:31256", target_crs="EPSG:4326", capability_name="x"
+        )

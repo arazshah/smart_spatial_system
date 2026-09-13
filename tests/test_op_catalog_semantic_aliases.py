@@ -113,3 +113,16 @@ def test_nearest_op_can_target_a_named_distance_field():
     for op_name in ("nearest_neighbor", "spatial_nearest"):
         op = OP_CATALOG[op_name]
         assert op.param_map["distance_field"] == "distance_field", op_name
+
+
+def test_distance_ops_expose_target_crs_param():
+    """
+    Regression test: pairing source_crs with target_crs on a plan's
+    distance/nearest-neighbor operation is what lets the capability catch
+    a source/target CRS mismatch (find_nearest_neighbors/
+    calculate_distances) instead of silently computing a meaningless
+    distance - see plugins/distance_calculator.py's _raise_if_crs_mismatch.
+    """
+    for op_name in ("spatial_nearest", "nearest_neighbor", "filter_by_distance", "distance_to"):
+        op = OP_CATALOG[op_name]
+        assert op.param_map["target_crs"] == "target_crs", op_name

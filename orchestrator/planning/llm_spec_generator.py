@@ -1023,6 +1023,25 @@ Pending operations, not executable yet:
 {pending}
 
 Important mappings:
+- CRITICAL - any distance/nearest-neighbor operation (filter_by_distance,
+  spatial_nearest, nearest_neighbor, distance_to) needs BOTH of its vector
+  inputs reprojected with crs_transform first, not just the source/site
+  layer. Distance is computed from raw geometry coordinates with zero CRS
+  awareness - if one layer is reprojected to a metric CRS and the other is
+  left in whatever CRS it was uploaded in (commonly EPSG:4326), the
+  "distance" returned is a number between two points in DIFFERENT CRSs,
+  meaningless but not an error by itself. Reproject EVERY layer that feeds
+  a distance operation to the SAME target CRS, and pass that CRS as both
+  source_crs and target_crs on the distance operation itself - this lets
+  the operation catch a mismatch and raise instead of returning a bogus
+  value:
+    crs_transform(sites) -> sites_metric                 (target_crs="EPSG:31256")
+    crs_transform(metro) -> metro_metric                 (target_crs="EPSG:31256")
+    spatial_nearest(source=sites_metric, target=metro_metric,
+      params={{"source_crs": "EPSG:31256", "target_crs": "EPSG:31256"}})
+  WRONG: spatial_nearest(source=sites_metric, target=metro) - "metro" was
+  never reprojected, so its coordinates are still in the original CRS.
+
 - "nearer than X meters to POI":
   op="filter_by_distance"
   inputs={{"vector": "<source>", "reference": "<poi>"}}
@@ -1820,6 +1839,101 @@ def _validate_score_features_field_chaining(spec: QuerySpec) -> None:
                 )
 
 
+# The two vector-bearing input roles for each distance/nearest-neighbor
+# operation, in (this-layer, other-layer) order - used to check that both
+# were reprojected to the same CRS, not just one of them.
+_DISTANCE_OPS_VECTOR_ROLES = {
+    "spatial_nearest": ("source", "target"),
+    "nearest_neighbor": ("source", "target"),
+    "filter_by_distance": ("vector", "reference"),
+    "distance_to": ("vector", "target"),
+}
+
+
+def _crs_transform_target_crs(
+    ref: str, ops_by_output: dict[str, OperationSpec]
+) -> str | None:
+    """
+    The target_crs a ref was reprojected to, if ref is literally the
+    output of a crs_transform operation - None otherwise (ref is a raw
+    entity, or the output of some other operation).
+
+    Deliberately not a full ancestor walk (contrast _ancestor_refs): this
+    only recognizes reprojection immediately before the distance op, which
+    is exactly the shape both the correct pattern
+    (accessibility_query_spec.py) and the observed bug produce - crs_transform
+    feeding straight into the distance operation. Walking further back
+    would let this claim to know a ref's CRS through operations that don't
+    preserve one (a join, a filter combining two layers), which is a
+    guess this module has no basis for making.
+    """
+    op = ops_by_output.get(ref)
+    if op is None or op.op != "crs_transform":
+        return None
+
+    target_crs = op.params.get("target_crs")
+    return str(target_crs) if target_crs else None
+
+
+def _validate_distance_op_crs_symmetry(spec: QuerySpec) -> None:
+    """
+    Catch a distance/nearest-neighbor operation whose two vector inputs
+    were reprojected asymmetrically - one just-reprojected via
+    crs_transform, the other not (or reprojected to a different CRS).
+
+    Distance here is computed from raw geometry coordinates with zero CRS
+    awareness (see calculate_distances/find_nearest_neighbors). Reprojecting
+    only the source/site layer and leaving the target/amenity layer in its
+    original CRS - typically EPSG:4326 from the source upload - produces a
+    "distance" between two points in different CRSs: a large, consistent,
+    completely bogus number, not an error, because nothing before this
+    check ever compared the two layers' actual CRSs.
+
+    Deliberately conservative, same posture as
+    _validate_score_features_field_chaining: only fires when this module
+    can see BOTH refs' immediate CRS provenance disagree (see
+    _crs_transform_target_crs's docstring for exactly what "immediate"
+    means here). A ref this module can't trace to a crs_transform output
+    at all - already in a metric CRS from its source, for instance - is
+    left unvalidated rather than guessed at.
+    """
+    ops_by_output: dict[str, OperationSpec] = {
+        op.output: op for op in spec.operations if op.output
+    }
+
+    for op in spec.operations:
+        roles = _DISTANCE_OPS_VECTOR_ROLES.get(op.op)
+        if roles is None:
+            continue
+
+        this_role, other_role = roles
+        this_ref = op.inputs.get(this_role)
+        other_ref = op.inputs.get(other_role)
+        if not this_ref or not other_ref:
+            continue
+
+        this_crs = _crs_transform_target_crs(str(this_ref), ops_by_output)
+        other_crs = _crs_transform_target_crs(str(other_ref), ops_by_output)
+
+        if this_crs is None and other_crs is None:
+            continue
+
+        if this_crs == other_crs:
+            continue
+
+        raise LLMSpecGenerationError(
+            f"{op.op!r} (output={op.output!r}) reads {this_role}={this_ref!r} "
+            f"(reprojected to {this_crs!r}) and {other_role}={other_ref!r} "
+            f"(reprojected to {other_crs!r}) - these do not match. Every "
+            "layer feeding a distance/nearest-neighbor operation must be "
+            "reprojected with crs_transform to the SAME target CRS before "
+            "the operation runs, or the resulting distance is computed "
+            "between points in two different CRSs and is meaningless. See "
+            "the 'any distance/nearest-neighbor operation needs BOTH of "
+            "its vector inputs reprojected' guidance."
+        )
+
+
 class LLMQuerySpecGenerator:
     def __init__(
         self,
@@ -1869,6 +1983,7 @@ class LLMQuerySpecGenerator:
         spec = normalize_llm_query_spec_for_planning(spec)
         _validate_operation_input_roles(spec)
         _validate_score_features_field_chaining(spec)
+        _validate_distance_op_crs_symmetry(spec)
         return spec
 
 

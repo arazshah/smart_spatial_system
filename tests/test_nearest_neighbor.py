@@ -509,3 +509,47 @@ def test_blank_distance_field_is_rejected(bad: str) -> None:
             k=1,
             distance_field=bad,
         )
+
+
+# ------------------------------------------------------------------ #
+# source_crs / target_crs mismatch guard
+# ------------------------------------------------------------------ #
+
+def test_find_nearest_neighbors_raises_on_crs_mismatch() -> None:
+    """
+    Regression test: this function computes distance from raw geometry
+    coordinates with no CRS awareness at all, so feeding source/target
+    features in two different CRSs used to return a large, silently-bogus
+    distance instead of an error. Supplying both source_crs and
+    target_crs must now catch a mismatch.
+    """
+    with pytest.raises(ValueError, match="do not match"):
+        find_nearest_neighbors(
+            source_features=[SOURCE_POINT],
+            target_features=[TARGET_POINT_A],
+            k=1,
+            source_crs="EPSG:31256",
+            target_crs="EPSG:4326",
+        )
+
+
+def test_find_nearest_neighbors_accepts_matching_crs() -> None:
+    result = find_nearest_neighbors(
+        source_features=[SOURCE_POINT],
+        target_features=[TARGET_POINT_A],
+        k=1,
+        source_crs="EPSG:31256",
+        target_crs="EPSG:31256",
+    )
+    assert result.metadata["source_crs"] == "EPSG:31256"
+    assert result.metadata["target_crs"] == "EPSG:31256"
+
+
+def test_find_nearest_neighbors_skips_check_when_no_crs_hints_given() -> None:
+    """
+    Opt-in by design: a caller that passes neither hint keeps today's
+    behaviour unchanged.
+    """
+    result = find_nearest_neighbors(source_features=[SOURCE_POINT], target_features=[TARGET_POINT_A], k=1)
+    assert result.metadata["source_crs"] is None
+    assert result.metadata["target_crs"] is None

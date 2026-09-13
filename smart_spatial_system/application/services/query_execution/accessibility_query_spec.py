@@ -191,7 +191,17 @@ def build_accessibility_query_spec(
             OperationSpec(
                 op="nearest_neighbor",
                 inputs={"source": current_sites_ref, "target": amenity_metric_ref},
-                params={"k": 1, "distance_field": amenity.distance_field},
+                # Both sides were just reprojected to target_crs above, so
+                # these are always equal here - passed anyway so
+                # find_nearest_neighbors' own source/target CRS mismatch
+                # check (plugins/distance_calculator.py) protects this
+                # call too, not only hand-written or LLM-generated plans.
+                params={
+                    "k": 1,
+                    "distance_field": amenity.distance_field,
+                    "source_crs": target_crs,
+                    "target_crs": target_crs,
+                },
                 output=enriched_ref,
             )
         )

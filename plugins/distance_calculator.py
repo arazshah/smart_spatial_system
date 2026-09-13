@@ -713,6 +713,51 @@ def _is_geographic_crs(value: Any) -> bool:
     }
 
 
+def _raise_if_crs_mismatch(
+    *,
+    source_crs: str | None,
+    target_crs: str | None,
+    capability_name: str,
+) -> None:
+    """
+    Raise if source_crs and target_crs are both supplied and don't match.
+
+    Distance/nearest-neighbor calculation here works on raw geometry
+    coordinates with zero CRS awareness - it has no way to notice on its
+    own that source_features and target_features are in different CRSs
+    (e.g. only the source layer was reprojected with crs_transform before
+    this call, or the two calls in a plan used different target CRSs).
+    Left unchecked, that produces a number - not an error - that is
+    physically meaningless: a planar distance between a point in metres
+    and a point in degrees, indistinguishable from a real distance
+    without inspecting the value by hand. This is opt-in (only checked
+    when the caller supplies BOTH hints) rather than required, so callers
+    that don't pass CRS hints at all keep today's behaviour unchanged.
+
+    Comparison is a normalized (stripped, uppercased) string match, not
+    true CRS equivalence - "EPSG:4326" and "CRS:84" describe the same CRS
+    but won't match each other here. That is a deliberately conservative
+    trade-off: false negatives (a real mismatch expressed as equivalent-
+    but-differently-spelled CRSs, missed) are possible, but false
+    positives (correctly matching CRSs rejected) are not, since this
+    module has no CRS-equivalence table to consult.
+    """
+    if not source_crs or not target_crs:
+        return
+
+    if str(source_crs).strip().upper() == str(target_crs).strip().upper():
+        return
+
+    raise ValueError(
+        f"{capability_name}: source_crs={source_crs!r} and "
+        f"target_crs={target_crs!r} do not match. Computing distance "
+        "between features in two different CRSs produces a meaningless "
+        "number, not an error - reproject both source_features and "
+        "target_features to the same CRS with crs_transform first, then "
+        "pass matching source_crs/target_crs here."
+    )
+
+
 def _make_distance_feature(
     *,
     source_feature: dict[str, Any],
@@ -846,6 +891,7 @@ def _build_vector_metadata(features: list[dict[str, Any]]) -> dict[str, Any]:
         "precision",
         "drop_failed",
         "source_crs",
+        "target_crs",
         "metadata",
     ],
     output_kind="vector",
@@ -871,6 +917,7 @@ def calculate_distances(
     precision: int | None = None,
     drop_failed: bool | None = None,
     source_crs: str | None = None,
+    target_crs: str | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> VectorOut:
     """
@@ -890,7 +937,19 @@ def calculate_distances(
         drop_failed:
             If True, failed source/pair results are removed.
         source_crs:
-            CRS hint. Used only for warning metadata.
+            CRS hint for source_features.
+        target_crs:
+            CRS hint for target_features.
+
+            Distance here is computed from raw geometry coordinates with
+            no CRS awareness at all - if source_features and
+            target_features are actually in different CRSs, the result is
+            a number, not an error: meaningless, but indistinguishable
+            from a real distance without inspecting it by hand. Supplying
+            both source_crs and target_crs lets this function catch that
+            case and raise instead of returning it. Neither hint changes
+            how distance is computed; only crs_transform actually
+            reprojects data.
         metadata:
             Optional metadata to merge.
 
@@ -920,7 +979,14 @@ def calculate_distances(
     )
 
     final_source_crs = pick_first(source_crs, config.get("source_crs"), default=None)
+    final_target_crs = pick_first(target_crs, config.get("target_crs"), default=None)
     warn_if_geographic_crs = bool(config.get("warn_if_geographic_crs", True))
+
+    _raise_if_crs_mismatch(
+        source_crs=final_source_crs,
+        target_crs=final_target_crs,
+        capability_name="calculate_distances",
+    )
 
     preserve_properties = bool(config.get("preserve_properties", True))
     fields = _configured_fields(config)
@@ -1102,6 +1168,7 @@ def calculate_distances(
         "coordinate_precision": final_precision,
         "drop_failed": final_drop_failed,
         "source_crs": final_source_crs,
+        "target_crs": final_target_crs,
         "planar_only": True,
         "warning": geographic_warning,
         "source_feature_count": len(source_items),

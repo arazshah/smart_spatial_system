@@ -45,6 +45,7 @@ from plugins.distance_calculator import (
     _calculate_distance,
     _geometry_bbox,
     _is_geographic_crs,
+    _raise_if_crs_mismatch,
     _validate_engine,
 )
 
@@ -356,6 +357,7 @@ def _build_vector_metadata(features: list[dict[str, Any]]) -> dict[str, Any]:
         "drop_unmatched",
         "include_target_geometry",
         "source_crs",
+        "target_crs",
         "metadata",
     ],
     output_kind="vector",
@@ -383,6 +385,7 @@ def find_nearest_neighbors(
     drop_unmatched: bool | None = None,
     include_target_geometry: bool | None = None,
     source_crs: str | None = None,
+    target_crs: str | None = None,
     distance_field: str | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> VectorOut:
@@ -407,7 +410,20 @@ def find_nearest_neighbors(
         include_target_geometry:
             If True, target geometry is copied into output properties.
         source_crs:
-            CRS hint. Used only for warning metadata.
+            CRS hint for source_features.
+        target_crs:
+            CRS hint for target_features.
+
+            Distance here is computed from raw geometry coordinates with no
+            CRS awareness at all - if source_features and target_features
+            are actually in different CRSs (e.g. only one of them was
+            reprojected with crs_transform before this call), the result
+            is a number, not an error: meaningless, but indistinguishable
+            from a real distance without inspecting it by hand. Supplying
+            both source_crs and target_crs lets this function catch that
+            case and raise instead of returning it - see the raise below.
+            Neither hint changes how distance is computed; only
+            crs_transform actually reprojects data.
         distance_field:
             Optional output field name for the computed distance,
             overriding the configured default (config/plugins/
@@ -460,7 +476,14 @@ def find_nearest_neighbors(
     )
 
     final_source_crs = pick_first(source_crs, config.get("source_crs"), default=None)
+    final_target_crs = pick_first(target_crs, config.get("target_crs"), default=None)
     warn_if_geographic_crs = bool(config.get("warn_if_geographic_crs", True))
+
+    _raise_if_crs_mismatch(
+        source_crs=final_source_crs,
+        target_crs=final_target_crs,
+        capability_name="find_nearest_neighbors",
+    )
 
     preserve_properties = bool(config.get("preserve_properties", True))
     fields = _configured_fields(config)
@@ -594,6 +617,7 @@ def find_nearest_neighbors(
         "drop_unmatched": final_drop_unmatched,
         "include_target_geometry": final_include_target_geometry,
         "source_crs": final_source_crs,
+        "target_crs": final_target_crs,
         "planar_only": True,
         "warning": geographic_warning,
         "source_feature_count": len(source_items),

@@ -4,6 +4,49 @@ Notable changes to Smart Spatial System. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-09-13
+
+A fourth correctness bug from the same case study, surfaced in the very
+batch that confirmed `0.2.2`'s fix working: all 20 runs called
+`crs_transform` on the sites layer only, never on the amenity layers, and
+every district got a near-identical, obviously-bogus distance (~6.4
+million or ~340,000 "meters", depending on which CRS variant the LLM
+picked) instead of a real value.
+
+### Fixed
+
+- **`find_nearest_neighbors` and `calculate_distances` had no CRS
+  awareness at all.** Distance was computed from raw geometry coordinates
+  with zero comparison between the source and target layers' actual CRS -
+  a `source_crs` param existed but was used only for a one-sided
+  geographic-CRS warning, and there was no `target_crs` parameter at all.
+  Reprojecting only one of the two layers feeding a distance call (a
+  plausible LLM mistake, and an easy human one too) silently produced a
+  number - not an error - computed between a point in metres and a point
+  in degrees.
+
+  Both capabilities now accept a `target_crs` parameter alongside the
+  existing `source_crs`. When both are supplied and don't match, the
+  capability raises instead of returning a meaningless distance. This is
+  opt-in (checked only when both hints are given) so callers that pass
+  neither keep today's behaviour unchanged; `accessibility_query_spec.py`
+  now passes both, since it already reprojects every layer to the same
+  target CRS and gets this protection for free. `distance_to`,
+  `spatial_nearest`, `nearest_neighbor` and `filter_by_distance` all
+  expose the new parameter through `OP_CATALOG`.
+
+- **The LLM prompt never said a distance operation needs BOTH its layers
+  reprojected**, only the general "use a metric CRS" framing - nothing
+  called out that the target/amenity layer needs its own `crs_transform`
+  too, not just the source/site layer. `_domain_guidance()` now spells
+  this out with a worked example (correct chained-and-matching case next
+  to the exact wrong pattern this bug's report reproduced). A new
+  generation-time check, `_validate_distance_op_crs_symmetry`, flags a
+  distance/nearest-neighbor operation whose two vector inputs were
+  reprojected to different CRSs - or where only one side was reprojected
+  at all - raising `LLMSpecGenerationError` before the plan is even
+  returned, mirroring `0.2.2`'s field-chaining check.
+
 ## [0.2.2] - 2026-09-13
 
 A third correctness bug found by the same case study, evidenced across
@@ -134,6 +177,7 @@ layers, tables, PDF/HTML reports and files with a full execution trace.
 Ships the FastAPI service, the `smart-spatial-api` CLI, 36 registered
 plugins, and the React/Leaflet workbench.
 
+[0.2.3]: https://github.com/arazshah/smart_spatial_system/releases/tag/v0.2.3
 [0.2.2]: https://github.com/arazshah/smart_spatial_system/releases/tag/v0.2.2
 [0.2.1]: https://github.com/arazshah/smart_spatial_system/releases/tag/v0.2.1
 [0.2.0]: https://github.com/arazshah/smart_spatial_system/releases/tag/v0.2.0

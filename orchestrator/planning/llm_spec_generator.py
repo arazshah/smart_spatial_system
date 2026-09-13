@@ -1052,6 +1052,45 @@ Important mappings:
 - "score/rank":
   use score_features then rank_features.
 
+- CRITICAL - scoring against MORE THAN ONE computed field (e.g. distance to
+  several different amenities/references): each computation must be CHAINED
+  onto the previous one's output, not all computed separately from the
+  original base vector. score_features.inputs.vector must be the output of
+  the LAST computation in the chain - the only ref that actually carries
+  every field the scoring factors reference. A score_features op reading
+  from the base vector, or from any computation earlier than the last one,
+  is missing every field computed after that point, and every factor
+  referencing a missing field silently scores 0 - this does not raise an
+  error, so a degenerate all-zero/near-zero score on every feature is a
+  sign this happened.
+
+  WRONG - three computations all read "sites", so only one field ever
+  reaches score_features:
+    spatial_nearest(source="sites", target="metro") -> "sites_with_metro"
+    spatial_nearest(source="sites", target="schools") -> "sites_with_schools"
+    spatial_nearest(source="sites", target="parks") -> "sites_with_parks"
+    score_features(vector="sites") - WRONG: none of the three computed
+      distance fields are on "sites" itself.
+
+  CORRECT - each step reads the PREVIOUS step's output, so fields
+  accumulate onto one ref:
+    spatial_nearest(source="sites", target="metro",
+      params={{"distance_field": "distance_to_metro"}}) -> "sites_with_metro"
+    spatial_nearest(source="sites_with_metro", target="schools",
+      params={{"distance_field": "distance_to_schools"}}) -> "sites_with_schools"
+    spatial_nearest(source="sites_with_schools", target="parks",
+      params={{"distance_field": "distance_to_parks"}}) -> "sites_with_parks"
+    score_features(vector="sites_with_parks") - CORRECT: this ref alone
+      carries distance_to_metro, distance_to_schools AND distance_to_parks,
+      because each step's "source" was the previous step's output, not
+      "sites" again. Set params.distance_field on each spatial_nearest call
+      so the fields get distinct names instead of overwriting each other.
+
+  If two computations genuinely cannot be chained (they operate on
+  unrelated feature sets that must be merged by a shared key rather than
+  by being the same features), use join_feature_properties to merge them
+  before scoring instead of chaining.
+
 - If user asks for PDF/report but report plugin is not executable yet:
   include outputs with kind="report", format="pdf".
   Do not invent unsupported operation nodes.
@@ -1625,6 +1664,162 @@ def _validate_operation_input_roles(spec: QuerySpec) -> None:
             )
 
 
+_NEAREST_OPS_WITH_DISTANCE_FIELD = {"spatial_nearest", "nearest_neighbor", "filter_by_distance"}
+
+
+def _extract_scoring_factor_fields(params: dict[str, Any]) -> list[str]:
+    """
+    Pull the "field" name out of every factor a score_features op's
+    params declare, across the shapes _normalize_scoring_spec (in
+    plugins/feature_scoring.py) accepts: top-level "factors", or
+    "scoring_spec.factors", or the older nested "scoring_spec.scoring.factors".
+    """
+    factors = params.get("factors")
+
+    if not isinstance(factors, list):
+        scoring_spec = params.get("scoring_spec")
+        if isinstance(scoring_spec, dict):
+            inner = scoring_spec.get("scoring")
+            if isinstance(inner, dict) and isinstance(inner.get("factors"), list):
+                factors = inner["factors"]
+            elif isinstance(scoring_spec.get("factors"), list):
+                factors = scoring_spec["factors"]
+
+    if not isinstance(factors, list):
+        return []
+
+    return [
+        str(factor["field"])
+        for factor in factors
+        if isinstance(factor, dict) and factor.get("field")
+    ]
+
+
+def _op_declared_output_fields(op: OperationSpec) -> list[str]:
+    """
+    Field names an operation declares it writes, from the two mechanisms
+    the system currently has for naming a computed field: an explicit
+    "distance_field" param (spatial_nearest/nearest_neighbor/
+    filter_by_distance), or enrich_feature_properties's rule targets.
+
+    Deliberately narrow: these are the only field-naming mechanisms an LLM
+    plan can currently use, so this stays a precise signal rather than a
+    guess. An op not covered here is simply not a candidate producer -
+    see _validate_score_features_field_chaining's docstring for why that
+    makes this check conservative rather than exhaustive.
+    """
+    if op.op in _NEAREST_OPS_WITH_DISTANCE_FIELD:
+        field = op.params.get("distance_field")
+        return [str(field)] if field else []
+
+    if op.op == "enrich_feature_properties":
+        rules = op.params.get("rules")
+        if isinstance(rules, list):
+            return [
+                str(rule["target"])
+                for rule in rules
+                if isinstance(rule, dict) and rule.get("target")
+            ]
+
+    return []
+
+
+def _ancestor_refs(start_ref: str, ops_by_output: dict[str, OperationSpec]) -> set[str]:
+    """
+    Every ref start_ref transitively depends on, by walking operation
+    inputs backward. Stops at any ref that isn't a known operation output
+    (an entity or an initial input), rather than erroring - this function
+    only needs to answer "was this ref produced upstream of start_ref?".
+    """
+    seen: set[str] = set()
+    stack = [start_ref]
+
+    while stack:
+        ref = stack.pop()
+        if ref in seen:
+            continue
+        seen.add(ref)
+
+        op = ops_by_output.get(ref)
+        if op is None:
+            continue
+
+        for dependency_ref in op.inputs.values():
+            if dependency_ref not in seen:
+                stack.append(str(dependency_ref))
+
+    return seen
+
+
+def _validate_score_features_field_chaining(spec: QuerySpec) -> None:
+    """
+    Catch a score_features op reading from a ref that never accumulated a
+    field its own scoring factors need.
+
+    This is the fan-out/chaining gap: an LLM asked to score against
+    distance to several different amenities routinely computes each
+    distance as its own operation off the SAME original vector (a fan-out)
+    instead of chaining each computation onto the previous one's output
+    (an accumulating chain - see the worked example in _domain_guidance).
+    The result plans and executes without error - every required input
+    role is present - but every factor referencing a field that landed on
+    a sibling branch instead of the scored ref silently scores 0. A
+    all-zero/degenerate score on every feature is exactly what that looks
+    like from the outside, with no exception to point at the cause.
+
+    Deliberately conservative to avoid false positives: only fields this
+    module can trace to a specific producing operation (see
+    _op_declared_output_fields) are checked. A factor field that already
+    exists on the raw input data, or that this function doesn't recognize
+    as a producible field, is left unvalidated rather than guessed at -
+    under-catching is the safe failure mode for a check like this, not
+    over-catching.
+    """
+    ops_by_output: dict[str, OperationSpec] = {
+        op.output: op for op in spec.operations if op.output
+    }
+
+    field_producers: dict[str, list[OperationSpec]] = {}
+    for op in spec.operations:
+        for field in _op_declared_output_fields(op):
+            field_producers.setdefault(field, []).append(op)
+
+    for op in spec.operations:
+        if op.op != "score_features":
+            continue
+
+        needed_fields = _extract_scoring_factor_fields(op.params)
+        if not needed_fields:
+            continue
+
+        scored_ref = op.inputs.get("vector")
+        if not scored_ref:
+            continue
+
+        ancestors = _ancestor_refs(str(scored_ref), ops_by_output)
+
+        for field in needed_fields:
+            producers = field_producers.get(field)
+            if not producers:
+                # Not a field this module can trace to an operation -
+                # could be a pre-existing attribute on the raw data.
+                continue
+
+            if not any(producer.output in ancestors for producer in producers):
+                producer_outputs = [p.output for p in producers]
+                raise LLMSpecGenerationError(
+                    f"score_features (output={op.output!r}) scores on field "
+                    f"{field!r}, but that field is produced by "
+                    f"{producer_outputs!r}, none of which is chained into "
+                    f"its input {scored_ref!r} (or anything {scored_ref!r} "
+                    "depends on). Each computed field must be chained onto "
+                    "the previous operation's output before scoring - see "
+                    "the 'scoring against MORE THAN ONE computed field' "
+                    "guidance - otherwise this field is silently absent and "
+                    "its factor scores 0 for every feature."
+                )
+
+
 class LLMQuerySpecGenerator:
     def __init__(
         self,
@@ -1673,6 +1868,7 @@ class LLMQuerySpecGenerator:
         spec = query_spec_from_dict(data, raw_query_fallback=raw_query)
         spec = normalize_llm_query_spec_for_planning(spec)
         _validate_operation_input_roles(spec)
+        _validate_score_features_field_chaining(spec)
         return spec
 
 

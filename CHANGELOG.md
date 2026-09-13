@@ -4,6 +4,39 @@ Notable changes to Smart Spatial System. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-09-13
+
+A third correctness bug found by the same case study, evidenced across
+two independent 20-run batches of LLM-generated plans (40 generations),
+all making the exact same structural mistake.
+
+### Fixed
+
+- **The LLM prompt never taught how to combine more than one computed
+  field into a single scoring step**, so every plan requiring distance to
+  several different amenities (metro/schools/parks) computed each
+  distance as its own operation off the *original* vector (a fan-out)
+  instead of chaining each one onto the previous computation's output (an
+  accumulating chain). The resulting plan validated and executed without
+  error - every required input role was present - but every scoring
+  factor referencing a field that landed on a sibling branch instead of
+  the scored ref silently scored 0, producing an all-zero/degenerate
+  score with no exception pointing at the cause. `smart_spatial_system`'s
+  own non-LLM code
+  (`accessibility_query_spec.py`) already implements the correct chaining
+  pattern; the LLM-facing prompt simply never surfaced it.
+
+  `_domain_guidance()` now includes a worked multi-factor example showing
+  the wrong (fan-out) and right (chained) shape side by side, plus
+  `join_feature_properties` as the documented alternative when two
+  branches genuinely can't be chained (different row semantics - merge by
+  key instead). `LLMQuerySpecGenerator.generate()` also now validates,
+  before returning, that every field a `score_features` op's factors
+  reference is actually reachable through that op's own input chain -
+  turning the previously-silent all-zero-score failure into a specific,
+  catchable `LLMSpecGenerationError` naming the missing field and where
+  it was actually produced.
+
 ## [0.2.1] - 2026-09-12
 
 Two correctness bugs found while running the LLM-backed planning path
@@ -101,6 +134,7 @@ layers, tables, PDF/HTML reports and files with a full execution trace.
 Ships the FastAPI service, the `smart-spatial-api` CLI, 36 registered
 plugins, and the React/Leaflet workbench.
 
+[0.2.2]: https://github.com/arazshah/smart_spatial_system/releases/tag/v0.2.2
 [0.2.1]: https://github.com/arazshah/smart_spatial_system/releases/tag/v0.2.1
 [0.2.0]: https://github.com/arazshah/smart_spatial_system/releases/tag/v0.2.0
 [0.1.0]: https://github.com/arazshah/smart_spatial_system/releases/tag/v0.1.0

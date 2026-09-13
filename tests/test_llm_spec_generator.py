@@ -906,3 +906,220 @@ def test_domain_guidance_documents_every_operations_required_input_roles():
 
     assert "distance_to: inputs keys = {" in system_prompt
     assert "target" in system_prompt.split("distance_to: inputs keys = {", 1)[1].split("}", 1)[0]
+
+
+# ------------------------------------------------------------------ #
+# Bug 4: fan-out instead of chaining across multiple computed fields
+# ------------------------------------------------------------------ #
+
+def _fanout_scoring_operations(sites_ref_for_score: str) -> list[dict]:
+    """
+    Three distance computations, each reading the original "sites" vector
+    (a fan-out) rather than each other's output (a chain) - the exact
+    structural mistake reported from the Vienna accessibility case study:
+    every LLM-generated plan across two independent 20-run batches made
+    this same mistake, with score_features left pointed at a ref that
+    carries none of the three computed distance fields.
+    """
+    return [
+        {
+            "op": "spatial_nearest",
+            "inputs": {"source": "sites", "target": "metro"},
+            "params": {"k": 1, "distance_field": "distance_to_metro"},
+            "output": "sites_with_metro",
+        },
+        {
+            "op": "spatial_nearest",
+            "inputs": {"source": "sites", "target": "schools"},
+            "params": {"k": 1, "distance_field": "distance_to_schools"},
+            "output": "sites_with_schools",
+        },
+        {
+            "op": "spatial_nearest",
+            "inputs": {"source": "sites", "target": "parks"},
+            "params": {"k": 1, "distance_field": "distance_to_parks"},
+            "output": "sites_with_parks",
+        },
+        {
+            "op": "score_features",
+            "inputs": {"vector": sites_ref_for_score},
+            "params": {
+                "scoring_spec": {
+                    "output_field": "accessibility_score",
+                    "factors": [
+                        {
+                            "name": "metro",
+                            "field": "distance_to_metro",
+                            "type": "inverse_distance",
+                            "max_distance": 800,
+                            "weight": 1,
+                        },
+                        {
+                            "name": "schools",
+                            "field": "distance_to_schools",
+                            "type": "inverse_distance",
+                            "max_distance": 1200,
+                            "weight": 1,
+                        },
+                        {
+                            "name": "parks",
+                            "field": "distance_to_parks",
+                            "type": "inverse_distance",
+                            "max_distance": 1000,
+                            "weight": 1,
+                        },
+                    ],
+                }
+            },
+            "output": "scored",
+        },
+        {
+            "op": "rank_features",
+            "inputs": {"vector": "scored"},
+            "params": {},
+            "output": "ranked",
+        },
+    ]
+
+
+def _fanout_spec_json(sites_ref_for_score: str) -> dict:
+    return {
+        "raw_query": "rank sites by accessibility to metro, schools and parks",
+        "goal": "score_accessibility",
+        "entities": [
+            {"ref": "sites", "kind": "vector"},
+            {"ref": "metro", "kind": "vector"},
+            {"ref": "schools", "kind": "vector"},
+            {"ref": "parks", "kind": "vector"},
+        ],
+        "operations": _fanout_scoring_operations(sites_ref_for_score),
+        "outputs": [{"kind": "vector", "source": "ranked"}],
+    }
+
+
+def test_generate_raises_when_score_features_is_not_fed_the_chained_output():
+    """
+    Regression test for the fan-out bug: score_features pointed at the
+    original "sites" vector, while the three distance fields its factors
+    reference were each computed onto a separate sibling branch
+    ("sites_with_metro"/"_schools"/"_parks") instead of being chained onto
+    one another. This must raise, naming a missing field, rather than
+    silently plan and later execute to an all-zero score.
+    """
+    llm_json = _fanout_spec_json(sites_ref_for_score="sites")
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    generator = LLMQuerySpecGenerator(client)
+
+    with pytest.raises(LLMSpecGenerationError, match="distance_to_"):
+        generator.generate("rank sites by accessibility to metro, schools and parks")
+
+
+def test_generate_raises_when_score_features_reads_only_one_of_three_branches():
+    """
+    Same fan-out shape, but score_features reads one of the three sibling
+    branches (sites_with_metro) instead of the original vector - still
+    missing the other two computed fields, so this must raise too, not
+    just the "reads the original vector" case.
+    """
+    llm_json = _fanout_spec_json(sites_ref_for_score="sites_with_metro")
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    generator = LLMQuerySpecGenerator(client)
+
+    with pytest.raises(LLMSpecGenerationError, match="distance_to_"):
+        generator.generate("rank sites by accessibility to metro, schools and parks")
+
+
+def test_generate_accepts_the_correctly_chained_equivalent():
+    """
+    The correct fix for the fan-out case: each distance computation reads
+    the previous one's output, so score_features's input ref alone carries
+    all three fields. Must plan successfully with no repairs masking a
+    real issue.
+    """
+    llm_json = _fanout_spec_json(sites_ref_for_score="sites_with_parks")
+    llm_json["operations"][1]["inputs"]["source"] = "sites_with_metro"
+    llm_json["operations"][2]["inputs"]["source"] = "sites_with_schools"
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    generator = LLMQuerySpecGenerator(client)
+
+    spec = generator.generate("rank sites by accessibility to metro, schools and parks")
+
+    assert [op.op for op in spec.operations] == [
+        "spatial_nearest",
+        "spatial_nearest",
+        "spatial_nearest",
+        "score_features",
+        "rank_features",
+    ]
+
+    plan = DeterministicPlanner().build(spec)
+    assert [node.capability_name for node in plan.nodes] == [
+        "find_nearest_neighbors",
+        "find_nearest_neighbors",
+        "find_nearest_neighbors",
+        "score_features",
+        "rank_features",
+    ]
+
+
+def test_field_chaining_check_does_not_flag_fields_it_cannot_trace():
+    """
+    A factor referencing a field with no known producer (e.g. an
+    attribute already present on the raw uploaded data) must not be
+    flagged - under-catching is the deliberately safe failure mode here,
+    since this module has no way to know the raw data's own schema.
+    """
+    llm_json = {
+        "raw_query": "score sites by an existing attribute",
+        "goal": "score_sites",
+        "entities": [{"ref": "sites", "kind": "vector"}],
+        "operations": [
+            {
+                "op": "score_features",
+                "inputs": {"vector": "sites"},
+                "params": {
+                    "scoring_spec": {
+                        "output_field": "score",
+                        "factors": [
+                            {
+                                "name": "existing",
+                                "field": "pre_existing_attribute",
+                                "type": "inverse_distance",
+                                "max_distance": 500,
+                                "weight": 1,
+                            }
+                        ],
+                    }
+                },
+                "output": "scored",
+            },
+            {
+                "op": "rank_features",
+                "inputs": {"vector": "scored"},
+                "params": {},
+                "output": "ranked",
+            },
+        ],
+        "outputs": [{"kind": "vector", "source": "ranked"}],
+    }
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    spec = LLMQuerySpecGenerator(client).generate("score sites by an existing attribute")
+
+    assert [op.op for op in spec.operations] == ["score_features", "rank_features"]
+
+
+def test_domain_guidance_documents_multi_factor_chaining_and_join_alternative():
+    """
+    The chaining-vs-fan-out guidance and the join_feature_properties
+    escape hatch for genuinely unchainable branches must both be present
+    in the LLM-facing prompt - neither existed before this fix, which is
+    exactly why the model had no way to get this right.
+    """
+    system_prompt = build_llm_messages("q")[0]["content"]
+
+    assert "MORE THAN ONE computed field" in system_prompt
+    assert "join_feature_properties" in system_prompt

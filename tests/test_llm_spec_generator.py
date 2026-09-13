@@ -1123,3 +1123,186 @@ def test_domain_guidance_documents_multi_factor_chaining_and_join_alternative():
 
     assert "MORE THAN ONE computed field" in system_prompt
     assert "join_feature_properties" in system_prompt
+
+
+# ------------------------------------------------------------------ #
+# Bug 5: asymmetric CRS reprojection across a distance op's two layers
+# ------------------------------------------------------------------ #
+
+def _crs_mismatch_spec_json(target_ref_for_spatial_nearest: str) -> dict:
+    return {
+        "raw_query": "rank sites by accessibility to metro",
+        "goal": "score_accessibility",
+        "entities": [
+            {"ref": "sites", "kind": "vector"},
+            {"ref": "metro", "kind": "vector"},
+        ],
+        "operations": [
+            {
+                "op": "crs_transform",
+                "inputs": {"vector": "sites"},
+                "params": {"source_crs": "EPSG:4326", "target_crs": "EPSG:31256"},
+                "output": "sites_metric",
+            },
+            {
+                "op": "spatial_nearest",
+                "inputs": {"source": "sites_metric", "target": target_ref_for_spatial_nearest},
+                "params": {"k": 1, "distance_field": "distance_to_metro"},
+                "output": "sites_with_metro",
+            },
+            {
+                "op": "score_features",
+                "inputs": {"vector": "sites_with_metro"},
+                "params": {
+                    "scoring_spec": {
+                        "output_field": "score",
+                        "factors": [
+                            {
+                                "name": "metro",
+                                "field": "distance_to_metro",
+                                "type": "inverse_distance",
+                                "max_distance": 800,
+                                "weight": 1,
+                            }
+                        ],
+                    }
+                },
+                "output": "scored",
+            },
+            {
+                "op": "rank_features",
+                "inputs": {"vector": "scored"},
+                "params": {},
+                "output": "ranked",
+            },
+        ],
+        "outputs": [{"kind": "vector", "source": "ranked"}],
+    }
+
+
+def test_generate_raises_when_only_one_side_of_a_distance_op_is_reprojected():
+    """
+    Regression test for the exact reported case: crs_transform was called
+    on "sites" only, never on "metro" - spatial_nearest then computed
+    "distance" between a reprojected metric point and a target still in
+    the original CRS. This produced a large, consistent, silently-bogus
+    number in the field (the same value across independent runs), not an
+    error. Must now raise before the plan is even returned.
+    """
+    llm_json = _crs_mismatch_spec_json(target_ref_for_spatial_nearest="metro")
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    generator = LLMQuerySpecGenerator(client)
+
+    with pytest.raises(LLMSpecGenerationError, match="do not match"):
+        generator.generate("rank sites by accessibility to metro")
+
+
+def test_generate_raises_when_both_sides_reprojected_to_different_crs():
+    llm_json = _crs_mismatch_spec_json(target_ref_for_spatial_nearest="metro_metric")
+    llm_json["operations"].insert(
+        1,
+        {
+            "op": "crs_transform",
+            "inputs": {"vector": "metro"},
+            # Different target CRS from the sites transform above.
+            "params": {"source_crs": "EPSG:4326", "target_crs": "EPSG:3857"},
+            "output": "metro_metric",
+        },
+    )
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    generator = LLMQuerySpecGenerator(client)
+
+    with pytest.raises(LLMSpecGenerationError, match="do not match"):
+        generator.generate("rank sites by accessibility to metro")
+
+
+def test_generate_accepts_both_sides_reprojected_to_the_same_crs():
+    llm_json = _crs_mismatch_spec_json(target_ref_for_spatial_nearest="metro_metric")
+    llm_json["operations"].insert(
+        1,
+        {
+            "op": "crs_transform",
+            "inputs": {"vector": "metro"},
+            "params": {"source_crs": "EPSG:4326", "target_crs": "EPSG:31256"},
+            "output": "metro_metric",
+        },
+    )
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    spec = LLMQuerySpecGenerator(client).generate("rank sites by accessibility to metro")
+
+    assert [op.op for op in spec.operations] == [
+        "crs_transform",
+        "crs_transform",
+        "spatial_nearest",
+        "score_features",
+        "rank_features",
+    ]
+
+
+def test_generate_does_not_flag_a_distance_op_when_neither_side_was_reprojected_here():
+    """
+    Neither ref traces to a crs_transform output in this plan - could be
+    data that already arrives in a shared metric CRS. Under-catching is
+    the deliberately safe failure mode, same as the field-chaining check.
+    """
+    llm_json = {
+        "raw_query": "distance to metro",
+        "goal": "score_accessibility",
+        "entities": [
+            {"ref": "sites", "kind": "vector"},
+            {"ref": "metro", "kind": "vector"},
+        ],
+        "operations": [
+            {
+                "op": "spatial_nearest",
+                "inputs": {"source": "sites", "target": "metro"},
+                "params": {"k": 1, "distance_field": "distance_to_metro"},
+                "output": "sites_with_metro",
+            },
+            {
+                "op": "score_features",
+                "inputs": {"vector": "sites_with_metro"},
+                "params": {
+                    "scoring_spec": {
+                        "output_field": "score",
+                        "factors": [
+                            {
+                                "name": "metro",
+                                "field": "distance_to_metro",
+                                "type": "inverse_distance",
+                                "max_distance": 800,
+                                "weight": 1,
+                            }
+                        ],
+                    }
+                },
+                "output": "scored",
+            },
+            {
+                "op": "rank_features",
+                "inputs": {"vector": "scored"},
+                "params": {},
+                "output": "ranked",
+            },
+        ],
+        "outputs": [{"kind": "vector", "source": "ranked"}],
+    }
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    spec = LLMQuerySpecGenerator(client).generate("distance to metro")
+
+    assert [op.op for op in spec.operations] == [
+        "spatial_nearest",
+        "score_features",
+        "rank_features",
+    ]
+
+
+def test_domain_guidance_documents_reprojecting_both_sides_of_a_distance_op():
+    system_prompt = build_llm_messages("q")[0]["content"]
+
+    assert "needs BOTH of" in system_prompt
+    assert "target_crs" in system_prompt

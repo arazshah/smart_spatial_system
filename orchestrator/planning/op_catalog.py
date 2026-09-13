@@ -85,6 +85,10 @@ _NEAREST_PARAM_MAP = {
     "precision": "precision",
     "include_target_geometry": "include_target_geometry",
     "source_crs": "source_crs",
+    # Passing both source_crs and target_crs lets find_nearest_neighbors
+    # catch a source/target CRS mismatch and raise instead of silently
+    # computing a meaningless planar distance - see its docstring.
+    "target_crs": "target_crs",
     # Lets a plan chain several nearest-neighbour steps over the same
     # features, each writing its own distance field - see the capability's
     # docstring.
@@ -342,6 +346,10 @@ OP_CATALOG: dict[str, OpDescriptor] = {
             "precision": "precision",
             "drop_failed": "drop_failed",
             "source_crs": "source_crs",
+            # Passing both source_crs and target_crs lets calculate_distances
+            # catch a source/target CRS mismatch and raise instead of
+            # silently computing a meaningless planar distance.
+            "target_crs": "target_crs",
             "metadata": "metadata",
         },
         output_type="vector",

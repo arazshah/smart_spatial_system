@@ -228,7 +228,29 @@ def _score_factor(properties: dict[str, Any], factor: dict[str, Any]) -> tuple[f
     if not isinstance(factor, dict):
         raise ValueError("Each scoring factor must be a dict.")
 
-    factor_type = str(factor.get("type") or "boolean")
+    raw_factor_type = factor.get("type")
+    if not raw_factor_type:
+        # A missing "type" used to default to "boolean" silently. For any
+        # factor scoring a non-boolean field - a distance, most commonly -
+        # that produces a wrong, near-constant score (0.0 whenever the
+        # field is falsy, which for a distance means "exactly zero") with
+        # no error at all: this is how a whole batch of LLM-generated
+        # scoring specs that omitted "type" on a distance factor came out
+        # 0.0 for every feature, indistinguishable from a real degenerate
+        # result. "boolean" is a valid, explicit choice (still supported
+        # below) - it must never be the unstated default for a field whose
+        # actual meaning this function has no way to guess.
+        field_name = factor.get("field") or factor.get("name") or "<unnamed>"
+        raise ValueError(
+            f"Scoring factor for field {field_name!r} has no 'type'. There "
+            "is no safe default - specify one explicitly: 'boolean', "
+            "'boolean_bonus', 'inverse_distance', 'risk_level', "
+            "'inverse_level', 'threshold', 'condition', 'direct', "
+            "'numeric', or 'inverse_numeric'. A distance field almost "
+            "always wants 'inverse_distance' with 'max_distance' set."
+        )
+
+    factor_type = str(raw_factor_type)
     name = str(factor.get("name") or factor.get("field") or factor_type)
     field = str(factor.get("field") or "")
     value = _get_property(properties, field) if field else None

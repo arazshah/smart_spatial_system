@@ -4,6 +4,48 @@ Notable changes to Smart Spatial System. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-09-16
+
+A fifth correctness bug from the same case study, found directly in
+committed run data: after `0.2.3` fixed the CRS-mismatch bug, the case
+study bumped its pin and re-ran - the plan came back completely correct
+(four layers reprojected to the same CRS, three `spatial_nearest` steps
+chained properly) and still 20/20 degenerate, every feature scoring
+`0.0`.
+
+### Fixed
+
+- **A scoring factor with no `"type"` silently defaulted to `"boolean"`.**
+  For a distance field, `_truthy(0.0)` is `False` and `_truthy(any nonzero
+  distance)` is `True`, so every factor missing `"type"` produced a
+  near-constant, meaningless score instead of an error - exactly how a
+  full batch of otherwise-correct LLM-generated plans came out `0.0` for
+  every feature with no error anywhere in the pipeline.
+
+  `plugins/feature_scoring.py`'s `_score_factor` no longer defaults a
+  missing `"type"` - it raises, naming the field and the full list of
+  valid types (`"boolean"` remains fully supported, just no longer
+  implicit). `_domain_guidance()` now states explicitly that every
+  scoring factor requires a `"type"` with no default, and
+  `LLMQuerySpecGenerator.generate()` validates this before returning a
+  plan (`_validate_score_features_factor_types`), mirroring `0.2.2`'s and
+  `0.2.3`'s checks.
+
+- **A false positive in `0.2.3`'s CRS-symmetry check**, found while
+  verifying this fix against the reported plan's exact shape: a chain of
+  more than one `spatial_nearest` step (the normal shape for scoring
+  against several amenities) only has its FIRST step's source ref
+  directly as a `crs_transform` output - every later step's source is the
+  previous step's own output. The check previously recognized only a
+  direct `crs_transform` output as "reprojected", so it rejected the
+  second and third steps of an otherwise completely correct chain -
+  structurally identical to `accessibility_query_spec.py`'s own generated
+  plan, which had never been tested against this validator directly.
+  `_crs_transform_target_crs` now walks back through a chain of distance
+  operations on their source side (which don't reproject, so they
+  preserve the CRS) to find the originating `crs_transform`, rather than
+  only checking the immediate ref.
+
 ## [0.2.3] - 2026-09-13
 
 A fourth correctness bug from the same case study, surfaced in the very
@@ -177,6 +219,7 @@ layers, tables, PDF/HTML reports and files with a full execution trace.
 Ships the FastAPI service, the `smart-spatial-api` CLI, 36 registered
 plugins, and the React/Leaflet workbench.
 
+[0.2.4]: https://github.com/arazshah/smart_spatial_system/releases/tag/v0.2.4
 [0.2.3]: https://github.com/arazshah/smart_spatial_system/releases/tag/v0.2.3
 [0.2.2]: https://github.com/arazshah/smart_spatial_system/releases/tag/v0.2.2
 [0.2.1]: https://github.com/arazshah/smart_spatial_system/releases/tag/v0.2.1

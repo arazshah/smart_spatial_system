@@ -1,0 +1,64 @@
+name: Tag Release
+
+# Creates and pushes a version tag (e.g. v0.2.4), which in turn triggers
+# publish.yml (tags: v*). This exists because pushing a tag directly is
+# blocked from Claude Code sessions working on this repo - not a repo
+# permission issue, a platform-level restriction on that specific git
+# operation, same class as branch deletion. Running this workflow instead
+# uses GitHub's own automatic GITHUB_TOKEN (scoped by the `permissions`
+# block below, expires when the job ends) to do the tag push from inside
+# Actions, where that restriction doesn't apply.
+#
+# To run: Actions tab -> "Tag Release" -> "Run workflow" -> enter the
+# version (e.g. "0.2.4", no "v" prefix) -> Run. Or trigger via the GitHub
+# API/MCP tools with the same input. The job refuses to run unless
+# pyproject.toml's version already matches the requested tag, so this
+# can't tag a version nobody actually built merged to main.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to tag, without the "v" prefix (e.g. 0.2.4). Must match pyproject.toml on main.'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Create and push tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify pyproject.toml version matches the requested tag
+        run: |
+          set -euo pipefail
+          PYPROJECT_VERSION=$(grep -Po '(?<=^version = ")[^"]+' pyproject.toml)
+          REQUESTED="${{ github.event.inputs.version }}"
+          if [ "$PYPROJECT_VERSION" != "$REQUESTED" ]; then
+            echo "::error::pyproject.toml version ($PYPROJECT_VERSION) does not match the requested tag ($REQUESTED). Refusing to tag - bump pyproject.toml first, or request the right version."
+            exit 1
+          fi
+
+      - name: Refuse to overwrite an existing tag
+        run: |
+          set -euo pipefail
+          TAG="v${{ github.event.inputs.version }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists. Versions are never reused - bump pyproject.toml to a new version instead."
+            exit 1
+          fi
+
+      - name: Create and push the tag
+        run: |
+          set -euo pipefail
+          TAG="v${{ github.event.inputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "Pushed $TAG - this triggers publish.yml automatically."

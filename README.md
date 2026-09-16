@@ -7,6 +7,8 @@
 
 **Ask a geospatial question in plain language and get map layers, tables, reports and files back.**
 
+**[s3geo.com](https://s3geo.com)** — project site, plugin catalog and case-study index.
+
 Smart Spatial System is a plugin-based GeoAI backend with a React workbench. A question such as *"rank these candidate properties by distance to metro stations, malls and main roads"* is turned into a structured `QuerySpec`, planned as a DAG of spatial operations, executed by plugins against uploaded files or PostGIS, and returned as map-ready outputs with a full execution trace.
 
 It is the application built on top of [geochat-platform](https://github.com/arazshah/geochat-platform): plugins are written with `geochat_sdk` and executed through `geochat_kernel`.

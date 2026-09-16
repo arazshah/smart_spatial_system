@@ -1071,6 +1071,21 @@ Important mappings:
 - "score/rank":
   use score_features then rank_features.
 
+- CRITICAL - every scoring factor MUST include an explicit "type". There is
+  NO default - a factor with no "type" is rejected, it does not fall back
+  to anything. (An earlier version of this system defaulted a missing
+  "type" to "boolean" silently; for a distance field that meant every
+  score came out 0.0 for every feature, with no error - that default no
+  longer exists.) Valid types: "boolean", "boolean_bonus",
+  "inverse_distance", "risk_level", "inverse_level", "threshold",
+  "condition", "direct", "numeric", "inverse_numeric". A distance field
+  (anything you computed with spatial_nearest/nearest_neighbor/distance_to)
+  needs "type": "inverse_distance" and a numeric "max_distance":
+    {{"name": "near_metro", "field": "distance_to_metro",
+      "type": "inverse_distance", "max_distance": 800, "weight": 1}}
+  WRONG (missing "type" - rejected, not defaulted):
+    {{"field": "distance_to_metro", "weight": -1}}
+
 - CRITICAL - scoring against MORE THAN ONE computed field (e.g. distance to
   several different amenities/references): each computation must be CHAINED
   onto the previous one's output, not all computed separately from the
@@ -1686,12 +1701,12 @@ def _validate_operation_input_roles(spec: QuerySpec) -> None:
 _NEAREST_OPS_WITH_DISTANCE_FIELD = {"spatial_nearest", "nearest_neighbor", "filter_by_distance"}
 
 
-def _extract_scoring_factor_fields(params: dict[str, Any]) -> list[str]:
+def _extract_scoring_factors(params: dict[str, Any]) -> list[dict[str, Any]]:
     """
-    Pull the "field" name out of every factor a score_features op's
-    params declare, across the shapes _normalize_scoring_spec (in
-    plugins/feature_scoring.py) accepts: top-level "factors", or
-    "scoring_spec.factors", or the older nested "scoring_spec.scoring.factors".
+    Pull the raw factor dicts out of a score_features op's params, across
+    the shapes _normalize_scoring_spec (in plugins/feature_scoring.py)
+    accepts: top-level "factors", or "scoring_spec.factors", or the older
+    nested "scoring_spec.scoring.factors".
     """
     factors = params.get("factors")
 
@@ -1707,10 +1722,19 @@ def _extract_scoring_factor_fields(params: dict[str, Any]) -> list[str]:
     if not isinstance(factors, list):
         return []
 
+    return [factor for factor in factors if isinstance(factor, dict)]
+
+
+def _extract_scoring_factor_fields(params: dict[str, Any]) -> list[str]:
+    """
+    Pull the "field" name out of every factor a score_features op's
+    params declare - see _extract_scoring_factors for the shapes this
+    covers.
+    """
     return [
         str(factor["field"])
-        for factor in factors
-        if isinstance(factor, dict) and factor.get("field")
+        for factor in _extract_scoring_factors(params)
+        if factor.get("field")
     ]
 
 
@@ -1768,6 +1792,64 @@ def _ancestor_refs(start_ref: str, ops_by_output: dict[str, OperationSpec]) -> s
                 stack.append(str(dependency_ref))
 
     return seen
+
+
+# Kept in sync by hand with plugins/feature_scoring.py's _score_factor -
+# there is no single source of truth to generate this from (unlike
+# OP_CATALOG for operations), so a new factor type added there needs
+# adding here too.
+_VALID_SCORING_FACTOR_TYPES = {
+    "boolean",
+    "boolean_bonus",
+    "inverse_distance",
+    "risk_level",
+    "inverse_level",
+    "threshold",
+    "condition",
+    "direct",
+    "numeric",
+    "inverse_numeric",
+}
+
+
+def _validate_score_features_factor_types(spec: QuerySpec) -> None:
+    """
+    Catch a score_features factor with no "type" before the plan is
+    returned, not when it silently scores everything 0.0.
+
+    plugins/feature_scoring.py's _score_factor has no default for a
+    missing "type" (it raises) - but that only fires at execution time,
+    several steps and possibly minutes of API-billed retries away from
+    the generation step that produced the bad spec. This catches the
+    identical condition immediately, with the same "there is no safe
+    default" reasoning, right where the LLM's output is still available
+    to name in the error.
+    """
+    for op in spec.operations:
+        if op.op != "score_features":
+            continue
+
+        for factor in _extract_scoring_factors(op.params):
+            factor_type = factor.get("type")
+            field_name = factor.get("field") or factor.get("name") or "<unnamed>"
+
+            if not factor_type:
+                raise LLMSpecGenerationError(
+                    f"score_features (output={op.output!r}) has a factor "
+                    f"for field {field_name!r} with no 'type'. There is no "
+                    "safe default - every factor must specify one "
+                    f"explicitly: {sorted(_VALID_SCORING_FACTOR_TYPES)!r}. "
+                    "A distance field almost always wants "
+                    "'inverse_distance' with 'max_distance' set."
+                )
+
+            if factor_type not in _VALID_SCORING_FACTOR_TYPES:
+                raise LLMSpecGenerationError(
+                    f"score_features (output={op.output!r}) has a factor "
+                    f"for field {field_name!r} with unsupported type "
+                    f"{factor_type!r}. Valid types: "
+                    f"{sorted(_VALID_SCORING_FACTOR_TYPES)!r}."
+                )
 
 
 def _validate_score_features_field_chaining(spec: QuerySpec) -> None:
@@ -1854,25 +1936,48 @@ def _crs_transform_target_crs(
     ref: str, ops_by_output: dict[str, OperationSpec]
 ) -> str | None:
     """
-    The target_crs a ref was reprojected to, if ref is literally the
-    output of a crs_transform operation - None otherwise (ref is a raw
-    entity, or the output of some other operation).
+    The target_crs a ref was reprojected to - either directly (ref is the
+    output of a crs_transform operation), or inherited by walking back
+    through a chain of distance/nearest-neighbor operations on their
+    source side, since those operations don't reproject and so preserve
+    whatever CRS their source input was already in.
 
-    Deliberately not a full ancestor walk (contrast _ancestor_refs): this
-    only recognizes reprojection immediately before the distance op, which
-    is exactly the shape both the correct pattern
-    (accessibility_query_spec.py) and the observed bug produce - crs_transform
-    feeding straight into the distance operation. Walking further back
-    would let this claim to know a ref's CRS through operations that don't
-    preserve one (a join, a filter combining two layers), which is a
-    guess this module has no basis for making.
+    That chain-walk matters for exactly the case
+    accessibility_query_spec.py's own multi-amenity chain produces (and
+    any equivalent LLM-generated chain): only the FIRST spatial_nearest
+    step's source is directly a crs_transform output -
+    "sites_metric" -> spatial_nearest(metro) -> "sites_with_metro" ->
+    spatial_nearest(schools, source="sites_with_metro") -> ... - every
+    later step's source is the previous step's output, not a
+    crs_transform output. An earlier version of this function checked
+    only the literal ref and treated every one of those later steps as
+    "not traceable", which made this validator raise on a plan that was
+    completely correct - caught by testing this exact function against
+    accessibility_query_spec.py's own generated chain, not by inspection.
+
+    Still deliberately narrow on the OTHER side, though: this only walks
+    through the vector-preserving "source" role of a chain of distance
+    ops, never through a join, a filter combining two layers, or any
+    other operation that doesn't obviously preserve a single input's CRS -
+    those remain untraceable (None), which is the conservative direction
+    to be wrong in.
     """
     op = ops_by_output.get(ref)
-    if op is None or op.op != "crs_transform":
+    if op is None:
         return None
 
-    target_crs = op.params.get("target_crs")
-    return str(target_crs) if target_crs else None
+    if op.op == "crs_transform":
+        target_crs = op.params.get("target_crs")
+        return str(target_crs) if target_crs else None
+
+    roles = _DISTANCE_OPS_VECTOR_ROLES.get(op.op)
+    if roles is not None:
+        this_role, _other_role = roles
+        upstream_ref = op.inputs.get(this_role)
+        if upstream_ref:
+            return _crs_transform_target_crs(str(upstream_ref), ops_by_output)
+
+    return None
 
 
 def _validate_distance_op_crs_symmetry(spec: QuerySpec) -> None:
@@ -1982,6 +2087,7 @@ class LLMQuerySpecGenerator:
         spec = query_spec_from_dict(data, raw_query_fallback=raw_query)
         spec = normalize_llm_query_spec_for_planning(spec)
         _validate_operation_input_roles(spec)
+        _validate_score_features_factor_types(spec)
         _validate_score_features_field_chaining(spec)
         _validate_distance_op_crs_symmetry(spec)
         return spec

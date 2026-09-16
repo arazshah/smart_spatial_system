@@ -1306,3 +1306,133 @@ def test_domain_guidance_documents_reprojecting_both_sides_of_a_distance_op():
 
     assert "needs BOTH of" in system_prompt
     assert "target_crs" in system_prompt
+
+
+# ------------------------------------------------------------------ #
+# Bug 6: a scoring factor with no "type" used to default to "boolean"
+# ------------------------------------------------------------------ #
+
+def _multi_amenity_chained_ops(factor_params: dict) -> list[dict]:
+    """
+    The exact plan shape from the reported case: four layers correctly
+    reprojected to the same CRS, three spatial_nearest steps correctly
+    chained (Bug 4's and Bug 5's fixes both satisfied) - only the
+    score_features factors are missing "type".
+    """
+    return [
+        {"op": "crs_transform", "inputs": {"vector": "sites"}, "params": {"target_crs": "EPSG:31256"}, "output": "sites_metric"},
+        {"op": "crs_transform", "inputs": {"vector": "metro"}, "params": {"target_crs": "EPSG:31256"}, "output": "metro_metric"},
+        {"op": "crs_transform", "inputs": {"vector": "schools"}, "params": {"target_crs": "EPSG:31256"}, "output": "schools_metric"},
+        {"op": "crs_transform", "inputs": {"vector": "parks"}, "params": {"target_crs": "EPSG:31256"}, "output": "parks_metric"},
+        {"op": "spatial_nearest", "inputs": {"source": "sites_metric", "target": "metro_metric"}, "params": {"distance_field": "distance_to_metro"}, "output": "sites_with_metro"},
+        {"op": "spatial_nearest", "inputs": {"source": "sites_with_metro", "target": "schools_metric"}, "params": {"distance_field": "distance_to_schools"}, "output": "sites_with_schools"},
+        {"op": "spatial_nearest", "inputs": {"source": "sites_with_schools", "target": "parks_metric"}, "params": {"distance_field": "distance_to_parks"}, "output": "sites_with_parks"},
+        {
+            "op": "score_features",
+            "inputs": {"vector": "sites_with_parks"},
+            "params": {
+                "factors": [
+                    {"field": "distance_to_metro", **factor_params},
+                    {"field": "distance_to_schools", **factor_params},
+                    {"field": "distance_to_parks", **factor_params},
+                ]
+            },
+            "output": "scored_sites",
+        },
+        {"op": "rank_features", "inputs": {"vector": "scored_sites"}, "params": {"score_field": "score", "rank_field": "rank"}, "output": "ranked_sites"},
+    ]
+
+
+def _multi_amenity_spec_json(factor_params: dict) -> dict:
+    return {
+        "raw_query": "rank sites by accessibility",
+        "goal": "score_accessibility",
+        "entities": [
+            {"ref": "sites", "kind": "vector"},
+            {"ref": "metro", "kind": "vector"},
+            {"ref": "schools", "kind": "vector"},
+            {"ref": "parks", "kind": "vector"},
+        ],
+        "operations": _multi_amenity_chained_ops(factor_params),
+        "outputs": [{"kind": "vector", "source": "ranked_sites"}],
+    }
+
+
+def test_generate_raises_when_a_scoring_factor_has_no_type():
+    """
+    Regression test for the exact reported case: a plan with correct
+    chaining (Bug 4) and correct, symmetric CRS reprojection (Bug 5) still
+    came back degenerate - all 20/20 runs in the batch that surfaced this
+    scored every feature 0.0, because every factor omitted "type" and it
+    silently defaulted to "boolean". Must now raise before the plan is
+    even returned.
+    """
+    llm_json = _multi_amenity_spec_json({"weight": -1})
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    generator = LLMQuerySpecGenerator(client)
+
+    with pytest.raises(LLMSpecGenerationError, match="no 'type'"):
+        generator.generate("rank sites by accessibility")
+
+
+def test_generate_raises_on_an_unsupported_factor_type():
+    llm_json = _multi_amenity_spec_json({"type": "made_up_type", "weight": 1})
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    generator = LLMQuerySpecGenerator(client)
+
+    with pytest.raises(LLMSpecGenerationError, match="unsupported type"):
+        generator.generate("rank sites by accessibility")
+
+
+def test_generate_accepts_a_correct_multi_amenity_chain_with_explicit_types():
+    """
+    The fully-correct equivalent of the reported plan: chained, CRS-matched,
+    and every factor carries an explicit type. This is also the regression
+    test for a real false positive found while verifying this fix: an
+    earlier version of _validate_distance_op_crs_symmetry only recognized
+    a ref as reprojected when it was DIRECTLY a crs_transform output, so it
+    incorrectly rejected the second and third spatial_nearest steps in
+    exactly this chain (their source is the previous step's output, not a
+    crs_transform output) - a plan structurally identical to
+    accessibility_query_spec.py's own generated chain.
+    """
+    llm_json = _multi_amenity_spec_json(
+        {"type": "inverse_distance", "max_distance": 1000, "weight": 1}
+    )
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    spec = LLMQuerySpecGenerator(client).generate("rank sites by accessibility")
+
+    assert [op.op for op in spec.operations] == [
+        "crs_transform",
+        "crs_transform",
+        "crs_transform",
+        "crs_transform",
+        "spatial_nearest",
+        "spatial_nearest",
+        "spatial_nearest",
+        "score_features",
+        "rank_features",
+    ]
+
+    plan = DeterministicPlanner().build(spec)
+    assert [node.capability_name for node in plan.nodes] == [
+        "transform_vector_crs",
+        "transform_vector_crs",
+        "transform_vector_crs",
+        "transform_vector_crs",
+        "find_nearest_neighbors",
+        "find_nearest_neighbors",
+        "find_nearest_neighbors",
+        "score_features",
+        "rank_features",
+    ]
+
+
+def test_domain_guidance_documents_that_factor_type_has_no_default():
+    system_prompt = build_llm_messages("q")[0]["content"]
+
+    assert "NO default" in system_prompt
+    assert "inverse_distance" in system_prompt

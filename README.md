@@ -1,5 +1,10 @@
 # Smart Spatial System
 
+[![PyPI](https://img.shields.io/pypi/v/smart-spatial-system)](https://pypi.org/project/smart-spatial-system/)
+[![CI](https://github.com/arazshah/smart_spatial_system/actions/workflows/ci.yml/badge.svg)](https://github.com/arazshah/smart_spatial_system/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+
 **Ask a geospatial question in plain language and get map layers, tables, reports and files back.**
 
 Smart Spatial System is a plugin-based GeoAI backend with a React workbench. A question such as *"rank these candidate properties by distance to metro stations, malls and main roads"* is turned into a structured `QuerySpec`, planned as a DAG of spatial operations, executed by plugins against uploaded files or PostGIS, and returned as map-ready outputs with a full execution trace.
@@ -7,6 +12,29 @@ Smart Spatial System is a plugin-based GeoAI backend with a React workbench. A q
 It is the application built on top of [geochat-platform](https://github.com/arazshah/geochat-platform): plugins are written with `geochat_sdk` and executed through `geochat_kernel`.
 
 > **Status:** published and usable, still refactoring internally. Logic is moving out of `orchestrator/` into the layered `smart_spatial_system/` package (see [docs/ARCHITECTURE_TARGET.md](docs/ARCHITECTURE_TARGET.md)); the `orchestrator/*_service.py` modules are compatibility shims during that move. The public surface - the CLI, the HTTP API and the documented entry points below - is stable.
+
+## Why this, not a general-purpose LLM agent with a GIS tool belt
+
+The natural alternative is: give an LLM function-calling access to some GIS
+functions and let it decide what to call. This project deliberately doesn't
+stop there, for reasons that turned out to matter in practice, not just in
+theory - see [`smart-spatial-vienna-accessibility`](https://github.com/arazshah/smart-spatial-vienna-accessibility)'s
+case study and [`CHANGELOG.md`](CHANGELOG.md)'s `0.2.1`-`0.2.4` entries for
+five real bugs this surfaced and fixed:
+
+- **A deterministic path exists alongside the LLM path**, built from the same
+  operation catalog (`OP_CATALOG`). The same analysis can be run by rule and
+  by LLM, so "is the LLM's plan reliable" is a measurable question (Plan
+  Agreement Rate, Rank Stability - see [docs/CASE_STUDIES.md](docs/CASE_STUDIES.md)), not
+  a leap of faith.
+- **Every LLM-generated plan is validated before execution**, not just before
+  syntax errors: missing input roles, an unchained multi-factor scoring step,
+  an asymmetric CRS reprojection, an untyped scoring factor - each is a
+  distinct, previously-silent failure mode this system now catches and raises
+  a specific error for, before spending a single second executing.
+- **Every plugin carries a full execution trace** - which operations ran, in
+  what order, with what parameters - so a wrong answer is debuggable, not a
+  black box.
 
 ---
 
@@ -216,12 +244,25 @@ Full deployment guide - environment variables, authentication, CORS, PostGIS:
 
 Full request and response contracts are in [docs/phase5_query_api_contract.md](docs/phase5_query_api_contract.md) and the other `docs/phase5_*` files.
 
+## Research and case studies
+
+Looking for a study to build on this system, or to see one already done?
+[docs/CASE_STUDIES.md](docs/CASE_STUDIES.md) has a catalog of suggested
+studies (accessibility, risk-aware siting, vegetation change, zoning
+compliance, and a reproducibility-methodology replication) plus what's
+*not* a good fit yet. If you use this software in published work, see
+[CITATION.cff](CITATION.cff).
+
 ## Development
 
 ```bash
 pytest                # full suite
 ruff check .          # lint
 ```
+
+Contributions are welcome - see [CONTRIBUTING.md](CONTRIBUTING.md). Found a
+security issue? See [SECURITY.md](SECURITY.md) rather than opening a public
+issue.
 
 ## Author
 

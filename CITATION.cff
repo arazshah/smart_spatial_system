@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Smart Spatial System"
+abstract: >-
+  A plugin-based GeoAI backend that turns a natural-language geospatial
+  question into a structured QuerySpec, plans it as a DAG of spatial
+  operations, executes it via vector/raster/PostGIS/reporting plugins
+  against uploads or PostGIS, and returns map-ready outputs with a full
+  execution trace. Includes a deterministic, rule-based planning path
+  alongside an LLM-backed one, and a React/Leaflet workbench.
+authors:
+  - family-names: "Shahkarami"
+    given-names: "Araz"
+    website: "https://araz.me"
+repository-code: "https://github.com/arazshah/smart_spatial_system"
+url: "https://pypi.org/project/smart-spatial-system/"
+license: MIT
+version: 0.2.4
+date-released: "2026-09-16"
+keywords:
+  - geospatial
+  - gis
+  - geoai
+  - spatial-analysis
+  - postgis
+  - natural-language-processing
+  - large-language-models

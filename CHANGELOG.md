@@ -4,6 +4,8 @@ Notable changes to Smart Spatial System. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
 ## [0.2.4] - 2026-09-16
 
 A fifth correctness bug from the same case study, found directly in

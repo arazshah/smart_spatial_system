@@ -1,0 +1,57 @@
+name: Deploy docs site to GitHub Pages
+
+# Publishes docs-site/ (the s3geo.com marketing/catalog/docs page) to GitHub
+# Pages. Static content only - no build step, so no dependency install and
+# nothing that can drift from what's actually in the repo.
+#
+# One-time setup (repository owner, in the GitHub UI - not something a
+# workflow can do for you): Settings -> Pages -> Build and deployment ->
+# Source: "GitHub Actions". After that, this workflow does the rest on
+# every push that touches docs-site/.
+#
+# Custom domain: docs-site/CNAME already contains "s3geo.com". Point your
+# domain's DNS at GitHub Pages (apex/A records, since CNAME can't be used
+# on an apex domain):
+#   185.199.108.153
+#   185.199.109.153
+#   185.199.110.153
+#   185.199.111.153
+# Once DNS resolves, Settings -> Pages will show the custom domain
+# verified and offer "Enforce HTTPS" - turn that on once available (GitHub
+# provisions the certificate automatically; this can take a few minutes to
+# a few hours after DNS propagates).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs-site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs-site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

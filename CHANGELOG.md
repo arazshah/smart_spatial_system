@@ -6,6 +6,42 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-09-18
+
+A sixth correctness bug, found in the `smart-spatial-tehran-tod-gradient`
+case study while exercising the new `0.2.5` `ring_buffer` capability
+through the LLM planning arm: a query like "for each point, tell me
+which zone it falls into" was often planned with
+`op="filter_points_in_polygon"` instead of `op="spatial_join"`. The plan
+ran without error, but `filter_points_in_polygon` only ever returns a
+boolean `__in_polygon__` membership flag - it has no way to record WHICH
+polygon a point matched. The result was a silent failure: a successful,
+crash-free plan whose output carried no zone/ring identity at all,
+useless for exactly the "label each point by its zone" use case the
+query asked for.
+
+### Fixed
+
+- **`filter_points_in_polygon` chosen for queries that actually need
+  `spatial_join`.** Root cause: the capability's keywords/description
+  ("points inside", "filter inside", "Keep only point features that fall
+  inside...") overlap heavily with the surface language of "which
+  zone/ring does each point fall into" queries, and nothing anywhere
+  drew the distinction that only `spatial_join` retains the matched
+  polygon's identity.
+
+  Same two-part shape as earlier fixes in this series: protect at the
+  capability-description layer and teach the LLM-prompt layer.
+  `plugins/spatial_predicate.py`'s `filter_points_in_polygon` description
+  now states explicitly that it returns a boolean flag only and does NOT
+  retain which polygon matched, pointing to `spatial_join` for that case.
+  `orchestrator/planning/llm_spec_generator.py`'s `_domain_guidance()`
+  now spells out both shapes side by side - a boolean keep/drop filter
+  uses `filter_points_in_polygon`; "which zone does this point belong
+  to" uses `op="spatial_join"` with
+  `params={"include_target_properties": true}`, which is what copies the
+  matched zone's own properties onto each output point.
+
 ## [0.2.5] - 2026-09-18
 
 A new capability requested for an external case study (a land-use

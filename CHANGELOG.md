@@ -6,6 +6,42 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-09-18
+
+`0.2.6`'s fix for the `filter_points_in_polygon` vs. `spatial_join`
+mix-up turned out to be incomplete: a second real run of the exact
+reported query against `gpt-4o-mini` from the
+`smart-spatial-tehran-tod-gradient` case study still picked
+`filter_points_in_polygon`, even though `_domain_guidance()`'s new text
+covered this precise scenario ("group points by distance band/ring"
+verbatim). Soft prompt guidance alone is not reliable enough here - the
+same conclusion this project already reached for `score_features` field
+chaining and CRS symmetry, both of which are hard generation-time checks
+rather than prompt text alone.
+
+### Fixed
+
+- **`filter_points_in_polygon` chosen for a query that needs to know
+  WHICH zone matched, again.** Added
+  `_validate_filter_points_in_polygon_usage` to
+  `orchestrator/planning/llm_spec_generator.py`, wired into
+  `LLMQuerySpecGenerator.generate()` alongside the other `_validate_*`
+  checks (after normalization, before the spec is returned). It scans
+  `raw_query` for explicit zone/polygon/ring-identity language ("which
+  zone", "which ring", "falls into", "group points", "label each", "for
+  each point", etc.) and, when present, raises `LLMSpecGenerationError`
+  if the plan uses `filter_points_in_polygon` without also using
+  `spatial_join` - naming exactly why and what to use instead. A plan
+  with no such signal in `raw_query` (a genuine boolean keep/drop filter)
+  is left unvalidated, same conservative under-catching posture as the
+  other checks in this module.
+
+  This turns the previous silent failure (a plan that ran and produced
+  output with no zone information, indistinguishable from success) into
+  either a corrected plan (if the caller retries generation against the
+  error) or, at minimum, a clear rejection at generation time instead of
+  a wrong answer delivered with no warning.
+
 ## [0.2.6] - 2026-09-18
 
 A sixth correctness bug, found in the `smart-spatial-tehran-tod-gradient`

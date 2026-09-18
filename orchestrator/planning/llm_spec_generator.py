@@ -1951,6 +1951,62 @@ def _validate_score_features_field_chaining(spec: QuerySpec) -> None:
                 )
 
 
+_FILTER_POINTS_IN_POLYGON_IDENTITY_SIGNALS = [
+    "which zone", "which polygon", "which ring", "which band",
+    "which distance band", "belongs to", "falls into",
+    "group by", "group points", "label each", "keep, for every",
+    "for each point", "for every matched",
+]
+
+
+def _validate_filter_points_in_polygon_usage(spec: QuerySpec) -> None:
+    """
+    Catch filter_points_in_polygon used for a query that actually needs to
+    know WHICH polygon/zone/ring matched.
+
+    filter_points_in_polygon returns nothing but a boolean __in_polygon__
+    membership flag - it has no way to carry the matched polygon's
+    identity. A plan built from a query like "for each point, tell me
+    which zone it falls into" plans and executes without error using this
+    op, but the output carries no zone information at all - a silent
+    failure indistinguishable from success anywhere in the pipeline.
+
+    The _domain_guidance() prompt text alone was not enough to prevent
+    this (confirmed against gpt-4o-mini repeating the exact reported
+    scenario even with the guidance in place), so this is enforced the
+    same way score_features field-chaining and CRS symmetry are: as a
+    hard generation-time check that rejects the plan outright rather than
+    only hoping the model reads the prompt correctly.
+
+    Deliberately keyword-based and conservative on raw_query, mirroring
+    the conservative posture of the other _validate_* checks in this
+    module: a query that doesn't match any identity signal is left
+    unvalidated rather than guessed at, so this can only ever reject a
+    plan for a query that explicitly asked "which zone" (or a synonym)
+    and got a boolean-only op in response.
+    """
+    query_lower = spec.raw_query.lower()
+
+    needs_zone_identity = any(
+        signal in query_lower for signal in _FILTER_POINTS_IN_POLYGON_IDENTITY_SIGNALS
+    )
+
+    if not needs_zone_identity:
+        return
+
+    uses_filter = any(op.op == "filter_points_in_polygon" for op in spec.operations)
+    uses_spatial_join = any(op.op == "spatial_join" for op in spec.operations)
+
+    if uses_filter and not uses_spatial_join:
+        raise LLMSpecGenerationError(
+            "Plan uses filter_points_in_polygon, but the query asks to know "
+            "WHICH specific zone/polygon/ring each point belongs to - "
+            "filter_points_in_polygon only returns a boolean membership flag "
+            "and cannot provide this. Use spatial_join with "
+            "include_target_properties=true instead."
+        )
+
+
 # The two vector-bearing input roles for each distance/nearest-neighbor
 # operation, in (this-layer, other-layer) order - used to check that both
 # were reprojected to the same CRS, not just one of them.
@@ -2120,6 +2176,7 @@ class LLMQuerySpecGenerator:
         _validate_score_features_factor_types(spec)
         _validate_score_features_field_chaining(spec)
         _validate_distance_op_crs_symmetry(spec)
+        _validate_filter_points_in_polygon_usage(spec)
         return spec
 
 

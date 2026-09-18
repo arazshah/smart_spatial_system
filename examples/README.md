@@ -8,10 +8,15 @@ scripts and the `accessibility/` folder, to run them.
 | File | What it shows |
 |---|---|
 | `accessibility_analysis.py` | The library path: build a QuerySpec by rule, plan it as a DAG, execute it, print the ranking. No server, no LLM. |
+| `s3geo_quickstart.py` | The one-call library path: `s3geo.query("...", layers={...})` plans the operation chain from the question itself and executes it. Needs a real LLM key - see below. |
 | `query_via_http.py` | The HTTP path: `/health`, `/query` with GeoJSON inputs, reading layers back, fetching the stored request. Standard library only. |
 
 ```bash
 python examples/accessibility_analysis.py
+
+# s3geo_quickstart.py plans from natural language, so it needs a real LLM key:
+export LLM_API_KEY="..."          # or AVALAI_API_KEY / OPENAI_API_KEY
+python examples/s3geo_quickstart.py
 
 # For the HTTP example, start a server first:
 smart-spatial-api serve --port 8000

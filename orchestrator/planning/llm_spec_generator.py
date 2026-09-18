@@ -1056,6 +1056,22 @@ Important mappings:
   ones), never the annulus/gap BETWEEN two radii, which is what "ring" or
   "band" means here.
 
+- CRITICAL - spatial_join's params.cardinality defaults to "first": each
+  source feature is joined to only ONE matching target feature (the first
+  one found), even if it actually matches several. This silently
+  undercounts whenever the target layer's zones can overlap - most
+  commonly a spatial_join whose target is a ring_buffer output (or any
+  other layer with multiple zones generated from separate input
+  features, e.g. several stations' service areas). A point inside two
+  overlapping rings/zones would only be counted for one of them with the
+  default. Whenever the query means for a source feature matching several
+  zones to be counted under EACH of them (e.g. "for every station, which
+  points are within its rings", "for each amenity, list every zone it
+  falls into" - i.e. a point can legitimately belong to more than one
+  zone), set params={{"cardinality": "one_to_many", "include_target_properties": true}}
+  explicitly on that spatial_join. Do not leave cardinality unset and
+  rely on the default when the target can have overlapping zones.
+
 - "inside permitted/buildable polygon":
   op="filter_points_in_polygon"
   inputs={{"vector": "<points>", "polygon": "<polygon_layer>"}}
@@ -1268,6 +1284,18 @@ def _unique_ref(base: str, used: set[str]) -> str:
     return candidate
 
 
+# Operations known to be able to produce several overlapping output zones
+# from separate input features - e.g. ring_buffer builds one ring set per
+# input feature, and two features' rings routinely overlap (two metro
+# stations 1500m apart both have a 1200m ring covering the space between
+# them). A spatial_join whose target traces back to one of these needs
+# cardinality="one_to_many" or it silently drops every match after the
+# first for any source feature that falls inside more than one zone - see
+# _default_spatial_join_cardinality_for_overlapping_zones below. Currently
+# just ring_buffer; add here if a future op gains the same shape.
+_OVERLAP_PRONE_ZONE_OPS = frozenset({"ring_buffer"})
+
+
 def normalize_llm_query_spec_for_planning(spec: QuerySpec) -> QuerySpec:
     """
     Harden and improve LLM-produced QuerySpec before deterministic planning.
@@ -1276,6 +1304,11 @@ def normalize_llm_query_spec_for_planning(spec: QuerySpec) -> QuerySpec:
         - Remove unsupported input roles.
         - Add default scoring_spec when score_features misses it.
         - Add score_field/rank_field to rank_features when missing.
+        - Default spatial_join's cardinality to "one_to_many" when its
+          target traces back to an op that can produce overlapping zones
+          (see _OVERLAP_PRONE_ZONE_OPS) and the caller left cardinality
+          unset - the plugin's own default ("first") silently keeps only
+          one match per source feature otherwise.
         - If default scoring is used, inject enrichment nodes after spatial
           operations to create stable semantic scoring fields:
               distance_to_poi
@@ -1284,6 +1317,10 @@ def normalize_llm_query_spec_for_planning(spec: QuerySpec) -> QuerySpec:
     """
     repairs: list[str] = []
     normalized_ops: list[OperationSpec] = []
+
+    ops_by_output: dict[str, OperationSpec] = {
+        op.output: op for op in spec.operations if op.output
+    }
 
     used_refs: set[str] = set()
     for op in spec.operations:
@@ -1373,6 +1410,28 @@ def normalize_llm_query_spec_for_planning(spec: QuerySpec) -> QuerySpec:
             if "rank_field" not in clean_params:
                 clean_params["rank_field"] = "rank"
                 repairs.append("added rank_field='rank' to rank_features")
+
+        if op.op == "spatial_join" and "cardinality" not in clean_params:
+            target_ref = clean_inputs.get("target")
+            if target_ref is not None:
+                ancestors = _ancestor_refs(str(target_ref), ops_by_output)
+                traces_to_overlap_prone_op = any(
+                    ops_by_output.get(ref) is not None
+                    and ops_by_output[ref].op in _OVERLAP_PRONE_ZONE_OPS
+                    for ref in ancestors
+                )
+
+                if traces_to_overlap_prone_op:
+                    clean_params["cardinality"] = "one_to_many"
+                    repairs.append(
+                        f"set cardinality='one_to_many' on spatial_join "
+                        f"(output={op.output!r}) because its target "
+                        f"{target_ref!r} traces back to an operation that "
+                        "can produce overlapping zones - the plugin's own "
+                        "default cardinality='first' would silently keep "
+                        "only one match for any source feature that falls "
+                        "in more than one zone"
+                    )
 
         normalized_op = OperationSpec(
             op=op.op,

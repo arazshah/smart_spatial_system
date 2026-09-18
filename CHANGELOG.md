@@ -6,6 +6,53 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-09-18
+
+A third distinct finding from the `smart-spatial-tehran-tod-gradient`
+case study, and unlike the first two this one isn't about which operation
+gets picked at all: `0.2.5`-`0.2.7` fixed planning (`ring_buffer` chosen
+correctly, `spatial_join` chosen instead of `filter_points_in_polygon`
+for "which zone" queries) and the resulting plan runs cleanly, but its
+*numbers* diverged from a GIS analyst's manual reference implementation
+of the same query - a genuine correctness bug in a parameter default, not
+a silent planning failure.
+
+### Fixed
+
+- **`spatial_join`'s `cardinality` default (`"first"`) silently
+  undercounts overlapping ring/zone matches.** `plugins/spatial_join.py`
+  keeps only the first target match per source feature unless
+  `cardinality="one_to_many"` is set explicitly. That's the right default
+  for a simple containment join, but wrong whenever the target layer's
+  zones can overlap - most commonly a `spatial_join` whose target is a
+  `ring_buffer` output: two stations close enough together have
+  overlapping rings, and a point inside both was being credited to only
+  one of them (whichever station happened to come first in the target
+  list), not both - a systematic undercount, not a rounding difference,
+  confirmed directly:
+  `tests/test_spatial_join_ring_buffer_cardinality.py::test_default_cardinality_undercounts_a_point_in_two_overlapping_rings`
+  shows a point equidistant from two overlapping 1200m station rings
+  producing only 1 joined feature with the default, 2 with
+  `cardinality="one_to_many"`.
+
+  Same two-part shape as the `filter_points_in_polygon` fix, but this
+  time leading with the hard fix given what `0.2.6` already taught this
+  project about relying on prompt text alone against cheaper models:
+  - `orchestrator/planning/llm_spec_generator.py`'s
+    `normalize_llm_query_spec_for_planning()` now defaults a
+    `spatial_join`'s `cardinality` to `"one_to_many"` automatically
+    whenever its target ref traces back (through `crs_transform` or any
+    other chain) to a `ring_buffer` op and the caller left `cardinality`
+    unset - fixed at the system level regardless of what the LLM writes.
+    An explicit `cardinality` (including an explicit `"first"`) is never
+    overridden. `_OVERLAP_PRONE_ZONE_OPS` names the ops this applies to
+    (currently just `ring_buffer`) so a future op with the same shape can
+    be added in one place.
+  - `_domain_guidance()` also documents the default's undercounting
+    behavior explicitly and tells the LLM to set
+    `cardinality="one_to_many"` itself whenever a query means for a
+    feature matching several zones to be counted under each of them.
+
 ## [0.2.7] - 2026-09-18
 
 `0.2.6`'s fix for the `filter_points_in_polygon` vs. `spatial_join`

@@ -1459,3 +1459,93 @@ def test_domain_guidance_documents_filter_vs_join_for_zone_identity():
     assert "which zone" in system_prompt.lower()
     assert "spatial_join" in system_prompt
     assert "include_target_properties" in system_prompt
+
+
+# ------------------------------------------------------------------ #
+# Bug 7 (hardened): the prompt guidance alone was not enough - a real
+# second run against gpt-4o-mini repeated the exact reported scenario
+# even with the "0.2.6" guidance text in place. Enforced as a hard
+# generation-time check instead, same as score_features field-chaining
+# and CRS symmetry.
+# ------------------------------------------------------------------ #
+
+def _filter_points_spec_json() -> dict:
+    return {
+        "raw_query": "for each point, tell me which zone it falls into",
+        "goal": "label_points_by_zone",
+        "entities": [
+            {"ref": "points", "kind": "vector"},
+            {"ref": "zones", "kind": "vector"},
+        ],
+        "operations": [
+            {
+                "op": "filter_points_in_polygon",
+                "inputs": {"vector": "points", "polygon": "zones"},
+                "params": {"predicate": "within"},
+                "output": "points_in_zones",
+            }
+        ],
+        "outputs": [
+            {"kind": "vector_layer", "source": "points_in_zones", "config": {}}
+        ],
+    }
+
+
+def _spatial_join_spec_json() -> dict:
+    return {
+        "raw_query": "for each point, tell me which zone it falls into",
+        "goal": "label_points_by_zone",
+        "entities": [
+            {"ref": "points", "kind": "vector"},
+            {"ref": "zones", "kind": "vector"},
+        ],
+        "operations": [
+            {
+                "op": "spatial_join",
+                "inputs": {"source": "points", "target": "zones"},
+                "params": {"predicate": "within", "include_target_properties": True},
+                "output": "points_with_zone",
+            }
+        ],
+        "outputs": [
+            {"kind": "vector_layer", "source": "points_with_zone", "config": {}}
+        ],
+    }
+
+
+def test_generate_raises_when_filter_points_in_polygon_used_for_zone_identity_query():
+    llm_json = _filter_points_spec_json()
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    generator = LLMQuerySpecGenerator(client)
+
+    with pytest.raises(LLMSpecGenerationError, match="filter_points_in_polygon"):
+        generator.generate("for each point, tell me which zone it falls into")
+
+
+def test_generate_accepts_spatial_join_for_zone_identity_query():
+    llm_json = _spatial_join_spec_json()
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    generator = LLMQuerySpecGenerator(client)
+
+    spec = generator.generate("for each point, tell me which zone it falls into")
+
+    assert [op.op for op in spec.operations] == ["spatial_join"]
+
+
+def test_generate_does_not_flag_filter_points_in_polygon_for_a_plain_boolean_filter_query():
+    """
+    A query that genuinely only wants a boolean keep/drop filter (no
+    "which zone" signal) must not be rejected just because it happens to
+    use filter_points_in_polygon - that op is exactly correct here.
+    """
+    llm_json = _filter_points_spec_json()
+    llm_json["raw_query"] = "keep only points inside the permitted area"
+
+    client = StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+    generator = LLMQuerySpecGenerator(client)
+
+    spec = generator.generate("keep only points inside the permitted area")
+
+    assert [op.op for op in spec.operations] == ["filter_points_in_polygon"]

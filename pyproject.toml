@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"
 # "Open design questions" for why a namespace migration was deliberately
 # not done here.
 name = "smart_spatial_system"
-version = "0.2.8"
+version = "0.2.9"
 description = "Plugin-based GeoAI backend: natural-language questions become QuerySpecs, DAG plans, and map/table/report outputs."
 readme = "README.md"
 requires-python = ">=3.11"

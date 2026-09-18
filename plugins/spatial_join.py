@@ -35,6 +35,20 @@ Engines:
     - python:
         Bbox-based fallback.
 
+Performance:
+    The shapely engine indexes target geometries in an STRtree (shapely's
+    own R-tree, no extra dependency) and narrows each source feature's
+    candidate targets by bounding-box overlap before evaluating the exact
+    predicate, instead of checking every source against every target.
+    This turns the join from O(n*m) into roughly O((n+m) * log(m)) for
+    the common case where every target geometry is valid - a large
+    difference at real-world scale (tens of thousands of source features
+    against hundreds of target zones). Falls back to the full O(n*m)
+    double loop automatically if shapely is unavailable, if engine is
+    forced to "python", or if any target geometry cannot be parsed by
+    shapely (that specific edge case keeps the previous per-pair error
+    handling instead of being silently skipped by the index).
+
 Important:
     The python engine is bbox-based and approximate. For production-grade
     spatial join, install shapely:
@@ -329,6 +343,44 @@ def _get_shapely_tools():
         ) from exc
 
     return shape
+
+
+def _get_strtree_tools():
+    try:
+        from shapely.geometry import shape
+        from shapely.strtree import STRtree
+    except ImportError as exc:
+        raise SDKDependencyError(
+            "spatial_join requires 'shapely' for this engine. "
+            "Install it with: pip install shapely"
+        ) from exc
+
+    return shape, STRtree
+
+
+def _strtree_query_indices(tree: Any, geometry: Any, geometries: list[Any]) -> list[int]:
+    """
+    Query an STRtree and return integer indices into `geometries`.
+
+    Handles both STRtree.query() return shapes across shapely versions:
+        - shapely>=2.0: an array-like of integer positions into the list
+          the tree was built from.
+        - shapely<2.0: a list of the matched geometry objects themselves,
+          not indices - resolved back to positions by identity, since the
+          tree stores references to the exact objects it was built from.
+    """
+    result = tree.query(geometry)
+
+    if len(result) == 0:
+        return []
+
+    first = result[0]
+
+    if hasattr(first, "geom_type"):
+        id_to_index = {id(g): i for i, g in enumerate(geometries)}
+        return [id_to_index[id(g)] for g in result if id(g) in id_to_index]
+
+    return [int(i) for i in result]
 
 
 def _shapely_predicate(
@@ -656,12 +708,72 @@ def spatial_join_features(
     failed_pair_count = 0
     dropped_failed_count = 0
 
+    # Spatial-index fast path: an STRtree of target geometries narrows the
+    # O(n*m) naive double loop down to O(n*log(m) + m*log(m)) by ruling out
+    # target features whose bbox cannot possibly satisfy any predicate
+    # against a given source feature's bbox (a necessary condition for
+    # intersects/within/contains alike), before the exact predicate is
+    # evaluated on the surviving candidates only. Only attempted when the
+    # engine can use shapely at all, and only used when every target
+    # geometry is a valid, parseable dict - any invalid target bails the
+    # whole call back to the naive loop below, which already handles a
+    # malformed geometry per-pair via _evaluate_predicate's own try/except
+    # (failed_pair_count), so that edge case's behavior is unaffected.
+    shape_fn = None
+    target_tree = None
+    target_geometries: list[Any] = []
+
+    if final_engine in ("shapely", "auto"):
+        try:
+            shape_fn, STRtree = _get_strtree_tools()
+            built_target_geometries: list[Any] = []
+            all_targets_valid = True
+
+            for target_feature in target_items:
+                geometry = target_feature.get("geometry")
+                if not isinstance(geometry, dict):
+                    all_targets_valid = False
+                    break
+                try:
+                    built_target_geometries.append(shape_fn(geometry))
+                except Exception:
+                    all_targets_valid = False
+                    break
+
+            if all_targets_valid and built_target_geometries:
+                target_geometries = built_target_geometries
+                target_tree = STRtree(target_geometries)
+        except SDKDependencyError:
+            target_tree = None
+
     for source_index, source_feature in enumerate(source_items):
         matches: list[tuple[int, dict[str, Any], str]] = []
         last_engine_used = final_engine
         last_error: str | None = None
 
-        for target_index, target_feature in enumerate(target_items):
+        candidate_target_indices: list[int] | None = None
+
+        if target_tree is not None:
+            source_geometry = source_feature.get("geometry")
+            source_geom = None
+
+            if isinstance(source_geometry, dict):
+                try:
+                    source_geom = shape_fn(source_geometry)
+                except Exception:
+                    source_geom = None
+
+            if source_geom is not None:
+                candidate_target_indices = _strtree_query_indices(
+                    target_tree, source_geom, target_geometries
+                )
+
+        if candidate_target_indices is not None:
+            target_pairs = [(i, target_items[i]) for i in candidate_target_indices]
+        else:
+            target_pairs = list(enumerate(target_items))
+
+        for target_index, target_feature in target_pairs:
             pair_count += 1
 
             try:
@@ -758,6 +870,7 @@ def spatial_join_features(
         "operation": "spatial_join",
         "engine_requested": final_engine,
         "engines_used": sorted(engines_used),
+        "spatial_index_used": target_tree is not None,
         "predicate": final_predicate,
         "join_type": final_join_type,
         "cardinality": final_cardinality,

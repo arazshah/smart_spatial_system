@@ -6,6 +6,57 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-18
+
+A usability finding from the `smart-spatial-tehran-tod-gradient` case
+study: writing a minimal "ask a question, get an answer" example required
+manually wiring five separate classes (`OpenAICompatibleLLMClient` +
+`LLMQuerySpecGenerator` + `DeterministicPlanner` + `CapabilityRegistry` +
+`RegistryCapabilityResolver` + `DagExecutor`). That level of control is
+the right shape for advanced use or debugging, but too much ceremony for
+a first example or a simple script.
+
+### Added
+
+- **New top-level `s3geo` module** with a single public entry point,
+  `s3geo.query(raw_query, *, layers, context=None, system_hints=None)`,
+  collapsing the manual pipeline above into one call:
+  ```python
+  import s3geo
+
+  result = s3geo.query(
+      "For every station, find amenity points within 300 meters, "
+      "reproject to a metric CRS first.",
+      layers={"stations": stations_gdf, "amenity": amenity_gdf},
+  )
+
+  result.goal          # str - the LLM-identified analysis goal
+  result.operations    # list[str] - operation names, in order
+  result.output        # the final DAG output
+  ```
+  `layers` accepts either GeoJSON `FeatureCollection` dicts or
+  `geopandas.GeoDataFrame` objects (detected via `hasattr(layer,
+  "to_json")`, converted with `layer.to_json(default=str)`).
+  `LLMSpecGenerationError` and `PlanningError` propagate unchanged if
+  generation or planning fails; a DAG plan that builds but fails during
+  execution raises `RuntimeError` with the executor's own error message
+  rather than returning an invalid result silently.
+  This is a thin wrapper only - no new analysis logic. Every class it
+  wires up (`orchestrator.planning`/`orchestrator.capability_registry`)
+  remains directly usable and unchanged; the acceptance test
+  (`tests/test_s3geo.py`) proves this by injecting a fixed LLM response
+  via `StaticLLMClient` and asserting `s3geo.query()`'s result matches
+  the manual Registry+Planner+Executor path exactly.
+  Registered as an installable top-level package in `pyproject.toml`, so
+  `import s3geo` works directly after `pip install smart-spatial-system`
+  - not `smart_spatial_system.s3geo` or `orchestrator.s3geo`.
+
+Bumped to `0.3.0` (minor, per semver) rather than a patch release: this
+adds a new public API surface without changing or removing any existing
+one - `LLMQuerySpecGenerator`, `DeterministicPlanner`, `DagExecutor` and
+the rest of `orchestrator.planning` are untouched and still directly
+usable.
+
 ## [0.2.9] - 2026-09-18
 
 A performance finding from the same `smart-spatial-tehran-tod-gradient`

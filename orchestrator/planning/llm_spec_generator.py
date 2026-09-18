@@ -1061,6 +1061,27 @@ Important mappings:
   inputs={{"vector": "<points>", "polygon": "<polygon_layer>"}}
   params={{"predicate": "within", "drop_outside": true}}
 
+- CRITICAL - "points inside a polygon/zone" has TWO different shapes that
+  need DIFFERENT operations - picking the wrong one plans successfully and
+  runs without error, but silently loses the information the user asked
+  for:
+  * User only wants a boolean keep/drop filter (e.g. "keep only points
+    inside the permitted area", "drop points outside the buildable zone"):
+    use op="filter_points_in_polygon". It returns nothing but a
+    __in_polygon__ true/false flag - it does NOT record which polygon
+    matched.
+  * User wants to know WHICH specific zone/polygon/ring each point falls
+    into (e.g. "for each point, tell me which zone it falls into", "label
+    each point by its zone", "group points by distance band/ring"):
+    do NOT use op="filter_points_in_polygon" for this - it has no way to
+    carry the matched polygon's identity, so the output would have no
+    zone information at all. Use op="spatial_join" instead:
+    inputs={{"source": "<points>", "target": "<zones/polygons>"}}
+    params={{"predicate": "within", "include_target_properties": true}}
+    include_target_properties=true is what copies the matched polygon's
+    own properties (id, name, zone label, ring_label, etc.) onto each
+    output point.
+
 - After a distance operation, if the resulting distance field should be used for scoring,
   use enrich_feature_properties to copy/rename it to a semantic field like:
   distance_to_poi or distance_to_road.

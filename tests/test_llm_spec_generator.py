@@ -1436,3 +1436,26 @@ def test_domain_guidance_documents_that_factor_type_has_no_default():
 
     assert "NO default" in system_prompt
     assert "inverse_distance" in system_prompt
+
+
+# ------------------------------------------------------------------ #
+# Bug 7: filter_points_in_polygon chosen for "which zone does each point
+# fall into" queries, silently discarding the matched zone's identity.
+# ------------------------------------------------------------------ #
+
+def test_domain_guidance_documents_filter_vs_join_for_zone_identity():
+    """
+    filter_points_in_polygon only ever returns a boolean __in_polygon__
+    flag - it has no way to carry which polygon matched. A query asking
+    WHICH zone/ring each point belongs to needs spatial_join with
+    include_target_properties=true instead. Before this fix, nothing in
+    the prompt drew this distinction, so the model repeatedly picked
+    filter_points_in_polygon for "which zone" queries: the plan ran
+    without error but the output carried no zone information at all.
+    """
+    system_prompt = build_llm_messages("q")[0]["content"]
+
+    assert "__in_polygon__" in system_prompt
+    assert "which zone" in system_prompt.lower()
+    assert "spatial_join" in system_prompt
+    assert "include_target_properties" in system_prompt

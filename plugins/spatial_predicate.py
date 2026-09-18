@@ -317,7 +317,10 @@ def _build_vector_metadata(features: list[dict[str, Any]]) -> dict[str, Any]:
     ],
     description=(
         "Keep only point features that fall inside one or more polygon features "
-        "(true ray-casting point-in-polygon, with hole support)."
+        "(true ray-casting point-in-polygon, with hole support). Returns a "
+        "boolean membership flag only (__in_polygon__) - does NOT retain which "
+        "specific polygon each point matched. If you need to know WHICH "
+        "polygon/zone a point belongs to, use spatial_join instead."
     ),
     required_inputs=["points", "polygons"],
     optional_inputs=["predicate", "drop_outside", "metadata"],

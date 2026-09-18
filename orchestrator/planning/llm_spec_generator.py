@@ -1047,6 +1047,15 @@ Important mappings:
   inputs={{"vector": "<source>", "reference": "<poi>"}}
   params={{"max_distance_m": X, "k": 1, "drop_unmatched": true}}
 
+- "multiple rings/distance bands around a point/line/polygon" (e.g.
+  "200m, 500m and 800m rings around each station", concentric zones, a
+  gradient outward from a feature):
+  use op="ring_buffer" with params={{"distances": [200, 500, 800]}} - do
+  NOT chain op="buffer" multiple times for this. Chaining buffer only ever
+  produces nested full-circle disks (each one containing all the smaller
+  ones), never the annulus/gap BETWEEN two radii, which is what "ring" or
+  "band" means here.
+
 - "inside permitted/buildable polygon":
   op="filter_points_in_polygon"
   inputs={{"vector": "<points>", "polygon": "<polygon_layer>"}}

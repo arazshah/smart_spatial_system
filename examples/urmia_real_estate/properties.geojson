@@ -1,0 +1,156 @@
+{
+  "type": "FeatureCollection",
+  "name": "urmia_candidate_properties",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "urmia-prop-001",
+      "properties": {
+        "id": "urmia-prop-001",
+        "property_id": "urmia-prop-001",
+        "name": "آپارتمان میدان انقلاب",
+        "title": "آپارتمان میدان انقلاب",
+        "property_type": "apartment",
+        "price": 6500000000,
+        "area_m2": 105,
+        "flood_risk": "low",
+        "earthquake_risk": "medium",
+        "fire_risk": "low",
+        "description": "آپارتمان نزدیک به مرکز شهر و میدان انقلاب ارومیه."
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          45.0759,
+          37.5527
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "urmia-prop-002",
+      "properties": {
+        "id": "urmia-prop-002",
+        "property_id": "urmia-prop-002",
+        "name": "زمین حاشیه رودخانه نازلو",
+        "title": "زمین حاشیه رودخانه نازلو",
+        "property_type": "land",
+        "price": 3200000000,
+        "area_m2": 400,
+        "flood_risk": "high",
+        "earthquake_risk": "low",
+        "fire_risk": "low",
+        "description": "زمین در حاشیه غربی شهر، نزدیک بستر رودخانه نازلو."
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          45.0201,
+          37.5552
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "urmia-prop-003",
+      "properties": {
+        "id": "urmia-prop-003",
+        "property_id": "urmia-prop-003",
+        "name": "ویلا نزدیک دانشگاه ارومیه",
+        "title": "ویلا نزدیک دانشگاه ارومیه",
+        "property_type": "villa",
+        "price": 9800000000,
+        "area_m2": 260,
+        "flood_risk": "low",
+        "earthquake_risk": "low",
+        "fire_risk": "low",
+        "description": "ویلای نوساز در نزدیکی بلوار دانشگاه و پردیس دانشگاه ارومیه."
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          45.0678,
+          37.5378
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "urmia-prop-004",
+      "properties": {
+        "id": "urmia-prop-004",
+        "property_id": "urmia-prop-004",
+        "name": "آپارتمان اسلام‌آباد",
+        "title": "آپارتمان اسلام‌آباد",
+        "property_type": "apartment",
+        "price": 4100000000,
+        "area_m2": 90,
+        "flood_risk": "low",
+        "earthquake_risk": "medium",
+        "fire_risk": "low",
+        "description": "آپارتمان در محله اسلام‌آباد در شرق شهر."
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          45.1005,
+          37.5482
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "urmia-prop-005",
+      "properties": {
+        "id": "urmia-prop-005",
+        "property_id": "urmia-prop-005",
+        "name": "ملک بازار قدیم ارومیه",
+        "title": "ملک بازار قدیم ارومیه",
+        "property_type": "apartment",
+        "price": 5200000000,
+        "area_m2": 80,
+        "flood_risk": "low",
+        "earthquake_risk": "high",
+        "fire_risk": "medium",
+        "description": "ملک در بافت قدیمی و متراکم بازار ارومیه؛ بافت فرسوده."
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          45.0782,
+          37.5501
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "urmia-prop-006",
+      "properties": {
+        "id": "urmia-prop-006",
+        "property_id": "urmia-prop-006",
+        "name": "زمین مدیریت جنوبی",
+        "title": "زمین مدیریت جنوبی",
+        "property_type": "land",
+        "price": 2800000000,
+        "area_m2": 350,
+        "flood_risk": "low",
+        "earthquake_risk": "low",
+        "fire_risk": "low",
+        "description": "زمین در توسعه جدید جنوب شهر، نزدیک بلوار مدیریت."
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          45.0716,
+          37.5098
+        ]
+      }
+    }
+  ]
+}

@@ -7,6 +7,7 @@
 /projects/
 /cache/
 /artifacts/reports/
+/examples/urmia_real_estate/output/
 
 # Local backup/temp files
 *.bak

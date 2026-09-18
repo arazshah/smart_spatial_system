@@ -1,0 +1,63 @@
+{
+  "type": "FeatureCollection",
+  "name": "urmia_main_roads",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "urmia-road-001",
+      "properties": {
+        "id": "urmia-road-001",
+        "name": "خیابان دانشگاه",
+        "layer": "main_road"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [45.0771, 37.5535],
+          [45.0700, 37.5440],
+          [45.0659, 37.5361],
+          [45.0620, 37.5290]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "urmia-road-002",
+      "properties": {
+        "id": "urmia-road-002",
+        "name": "بلوار شهید بهشتی",
+        "layer": "main_road"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [45.0620, 37.5527],
+          [45.0759, 37.5527],
+          [45.0968, 37.5471]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "urmia-road-003",
+      "properties": {
+        "id": "urmia-road-003",
+        "name": "خیابان کاشانی",
+        "layer": "main_road"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [45.0771, 37.5535],
+          [45.0745, 37.5115]
+        ]
+      }
+    }
+  ]
+}

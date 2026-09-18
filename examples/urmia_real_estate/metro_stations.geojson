@@ -1,0 +1,54 @@
+{
+  "type": "FeatureCollection",
+  "name": "urmia_transit_hubs",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "urmia-transit-001",
+      "properties": {
+        "id": "urmia-transit-001",
+        "name": "پایانه مسافربری ارومیه",
+        "layer": "transit_hub",
+        "kind": "bus_terminal"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [45.0745, 37.5115]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "urmia-transit-002",
+      "properties": {
+        "id": "urmia-transit-002",
+        "name": "ایستگاه اتوبوس میدان ساعت",
+        "layer": "transit_hub",
+        "kind": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [45.0771, 37.5535]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "urmia-transit-003",
+      "properties": {
+        "id": "urmia-transit-003",
+        "name": "ایستگاه اتوبوس تندرو دانشگاه",
+        "layer": "transit_hub",
+        "kind": "brt_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [45.0659, 37.5361]
+      }
+    }
+  ]
+}

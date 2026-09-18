@@ -8,6 +8,7 @@
 /cache/
 /artifacts/reports/
 /examples/urmia_real_estate/output/
+/examples/urmia_real_estate/osm_download/
 
 # Local backup/temp files
 *.bak

@@ -30,6 +30,7 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.slope_aspect",
     "plugins.zonal_statistics",
     "plugins.buffer_analysis",
+    "plugins.ring_buffer_analysis",
     "plugins.centroid_extractor",
     "plugins.geometry_validator",
     "plugins.spatial_query_filter",

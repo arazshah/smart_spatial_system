@@ -1,0 +1,16 @@
+default_distances: null
+default_units: m
+default_quad_segs: 8
+default_engine: auto
+
+preserve_properties: true
+
+allowed_geometry_types:
+  - Point
+  - MultiPoint
+  - LineString
+  - MultiLineString
+  - Polygon
+  - MultiPolygon
+
+metadata: {}

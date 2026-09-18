@@ -129,6 +129,17 @@ _BUFFER_PARAM_MAP = {
     "metadata": "metadata",
 }
 
+_RING_BUFFER_PARAM_MAP = {
+    "distances": "distances",
+    "units": "units",
+    "quad_segs": "quad_segs",
+    "engine": "engine",
+    "cap_style": "cap_style",
+    "join_style": "join_style",
+    "mitre_limit": "mitre_limit",
+    "metadata": "metadata",
+}
+
 
 OP_CATALOG: dict[str, OpDescriptor] = {
     # ---------------------------------------------------------------------
@@ -471,6 +482,30 @@ OP_CATALOG: dict[str, OpDescriptor] = {
             "Create buffer polygons around input features. Use for requests like "
             "'within X meters', 'حریم X متری', or proximity zones. Use metric CRS "
             "when distance is in meters."
+        ),
+    ),
+
+    "ring_buffer": OpDescriptor(
+        op_name="ring_buffer",
+        capability_name="generate_ring_buffers",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map=_RING_BUFFER_PARAM_MAP,
+        output_type="vector",
+        notes=(
+            "Create concentric ring (annulus) polygons around input features at "
+            "multiple distances, e.g. params.distances=[200, 500, 800, 1200]. "
+            "Returns the area BETWEEN consecutive radii (a true ring/annulus), "
+            "not cumulative full-circle disks. Use this instead of chaining "
+            "buffer multiple times whenever the user asks for distance bands, "
+            "zonal rings, or a gradient outward from a point/line/polygon - "
+            "chaining buffer only ever produces nested full disks, never the "
+            "gap between two radii. Use metric CRS when distances are in "
+            "meters."
         ),
     ),
 

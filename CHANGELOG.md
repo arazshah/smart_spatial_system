@@ -6,6 +6,42 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-09-18
+
+A new capability requested for an external case study (a land-use
+diversity gradient study around Tehran metro stations) that needed real
+concentric ring/annulus polygons - e.g. the area between 200m and 500m
+from a station - which the existing `buffer` operation cannot produce.
+Chaining `buffer_vector_features` at increasing distances only ever
+yields nested full-circle disks (each one containing all the smaller
+ones), never the gap between two radii.
+
+### Added
+
+- **New plugin `plugins/ring_buffer_analysis.py`, capability
+  `generate_ring_buffers`.** Given a list of positive distances (e.g.
+  `[200, 500, 800, 1200]`, automatically sorted ascending so callers don't
+  need to pre-sort), it builds a real shapely `buffer()` at each radius
+  and takes the `difference()` between consecutive buffers to produce
+  true annulus geometry - one output feature per `(input feature × ring)`,
+  each carrying the original feature's properties plus `ring_index`,
+  `ring_inner`, `ring_outer`, `ring_label` (e.g. `"200-500m"`) and
+  `source_feature_index`. Modeled on `plugins/buffer_analysis.py`
+  (shares its `_extract_features`/`_get_shapely_tools`/
+  `_build_vector_metadata`/geometry-type-validation helpers) and
+  config-aware via `config/plugins/ring_buffer_analysis.yaml`. There is no
+  pure-python fallback - polygon difference has no simple pure-python
+  approximation the way a single circle buffer does - so `engine="python"`
+  (and `"auto"` when shapely isn't installed) raises `SDKDependencyError`
+  with a message naming exactly what to install.
+- Registered in `orchestrator/plugin_modules.py`'s
+  `DEFAULT_SAFE_PLUGIN_MODULES` and reachable through planning as the new
+  `ring_buffer` op in `orchestrator/planning/op_catalog.py`.
+  `orchestrator/planning/llm_spec_generator.py`'s `_domain_guidance()` now
+  tells the LLM to use `ring_buffer` (not chained `buffer` calls) whenever
+  a request asks for multiple rings, distance bands, or a gradient
+  outward from a feature.
+
 ## [0.2.4] - 2026-09-16
 
 A fifth correctness bug from the same case study, found directly in

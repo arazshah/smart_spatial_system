@@ -6,6 +6,54 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-09-18
+
+A performance finding from the same `smart-spatial-tehran-tod-gradient`
+case study, in `plugins/spatial_join.py` alongside `0.2.8`'s cardinality
+fix: `spatial_join_features` with `engine="shapely"` checked every source
+feature against every target feature - a naive O(n\*m) double loop. At
+the case study's real scale (35,225 amenity points against 488 station
+ring/zone polygons, ~17 million predicate checks), this took several
+minutes.
+
+### Changed
+
+- **`spatial_join_features` (shapely engine) now uses an STRtree to
+  narrow candidates before evaluating the exact predicate**, instead of
+  checking every source against every target. Shapely already ships
+  `shapely.strtree.STRtree` (an R-tree) - no new dependency. Target
+  geometries are indexed once per call; each source feature's candidates
+  are narrowed to the target geometries whose bounding box could
+  possibly satisfy `intersects`/`within`/`contains` (a necessary
+  precondition for all three) before the existing exact-predicate logic
+  runs unchanged on the survivors. Result: turns the join from O(n\*m)
+  into roughly O((n+m) \* log(m)) for the common case where every target
+  geometry is valid.
+  - Falls back automatically to the previous full double loop when
+    `engine="python"` (unchanged, still the documented approximate
+    fallback), when shapely is unavailable, or when any single target
+    geometry can't be parsed by shapely - that edge case keeps the
+    previous per-pair error handling (`failed_pair_count`) rather than
+    silently dropping the bad geometry from consideration.
+  - New `spatial_index_used` boolean in the output metadata reports
+    which path actually ran.
+  - Correctness is unaffected by design, not just by testing: bounding-box
+    overlap is a necessary condition for all three supported predicates,
+    so narrowing candidates by bbox can only ever discard true non-matches,
+    never a real match. Verified directly:
+    `tests/test_spatial_join_strtree_performance.py::test_strtree_result_matches_brute_force_reference`
+    asserts the indexed result is bit-for-bit identical (same matched
+    source/target index pairs) to a brute-force reference on the same
+    100-point/10-zone dataset.
+  - Measured speedup on a synthetic 3,000-point/80-zone dataset (this
+    plugin's own full runtime, indexed vs. the same code with the index
+    forced off - not a bare geometry-check comparison):
+    `test_strtree_is_substantially_faster_than_the_naive_double_loop`
+    measured roughly 25-30x faster in this sandbox; the same comparison
+    at 4,000/100 and 10,000/200 during manual verification for this fix
+    measured similar ratios, consistent with the case study's report of
+    several minutes dropping to tens of seconds at its 35,225/488 scale.
+
 ## [0.2.8] - 2026-09-18
 
 A third distinct finding from the `smart-spatial-tehran-tod-gradient`

@@ -259,6 +259,48 @@ compliance, and a reproducibility-methodology replication) plus what's
 *not* a good fit yet. If you use this software in published work, see
 [CITATION.cff](CITATION.cff).
 
+### Case Studies
+
+**[Vienna district accessibility to metro, schools and parks](https://github.com/arazshah/smart-spatial-vienna-accessibility)** -
+the reference reproducibility study: the same analysis run two ways, a
+deterministic rule-based `QuerySpec` and one planned entirely by
+`LLMQuerySpecGenerator`, measuring Plan Agreement Rate, parametric variance
+and Rank Stability across N repeated LLM runs. Found and fixed five real
+correctness bugs upstream (`0.2.1`-`0.2.4`).
+
+**[Land-Use Diversity Gradient Around Tehran Metro Stations](https://github.com/arazshah/smart-spatial-tehran-tod-gradient)**
+(paper draft: `paper/paper.md` in that repository) - a reproducibility case
+study testing whether land-use diversity around Tehran's 122 metro stations
+changes systematically with distance (transit-oriented development
+gradient), using real OpenStreetMap data and this package's plugins. The
+analysis was run two ways - a deterministic pipeline with hand-selected
+plugin calls, and a second pipeline planned entirely from a single
+natural-language query via `LLMQuerySpecGenerator`, executed through the
+same `DeterministicPlanner`/`DagExecutor` engine either way.
+
+**Real-world validation, not a synthetic demo**: running the LLM-driven arm
+against real data and a real model (gpt-4o-mini) surfaced three genuine
+defects in this package - a missing multi-ring buffer primitive, a case
+where the planner chose a boolean membership filter
+(`filter_points_in_polygon`) over a zone-identity-preserving join
+(`spatial_join`), and a `spatial_join` cardinality parameter that defaulted
+to `"first"` and silently dropped matches for points within range of more
+than one target zone. Each was diagnosed from a real run, fixed in this
+package (released as `v0.2.5` through `v0.2.9`), and re-verified against
+the same real data. After all fixes, the natural-language-planned
+pipeline's output is bit-identical to the hand-authored one across every
+metric.
+
+This case study is also where the `ring_buffer_analysis` plugin (true
+annulus/multi-ring buffers) and the `spatial_join` performance improvement
+(STRtree-indexed shapely engine) originated - both are now part of the
+package for any user, not specific to this case study.
+
+See also: the companion Vienna accessibility case study above, which used
+the same manual-vs-LLM-driven comparison design to measure LLM planning
+*reliability* (N=20 repeated runs) rather than *correctness* (this study's
+focus).
+
 ## Development
 
 ```bash

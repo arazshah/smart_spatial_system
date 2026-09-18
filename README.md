@@ -72,6 +72,7 @@ Design decisions are recorded as ADRs in [`docs/`](docs): single kernel pipeline
 api/                     FastAPI app and routers
 orchestrator/            query parsing, planning (QuerySpec, OP_CATALOG, DAG), routing, services
 smart_spatial_system/    new layered package (application services; other layers being filled in)
+s3geo/                   one-call public entry point (s3geo.query) wrapping the planning pipeline
 plugins/                 geochat_sdk capability plugins
 config/plugins/          per-plugin YAML config (*.example.yaml are the templates)
 templates/reports/       report templates (real-estate report)
@@ -112,7 +113,7 @@ smart-spatial-api serve --port 8000     # http://127.0.0.1:8000/docs
 ## Use it
 
 Two ways in, both first-class: import the library, or call the HTTP API.
-Complete runnable versions of both are in [`examples/`](examples).
+Complete runnable versions of all of these are in [`examples/`](examples).
 
 ### As a library
 
@@ -178,6 +179,42 @@ identical plan and identical numbers.
 > (`EPSG:31256` for Vienna, the relevant UTM zone elsewhere). EPSG:3857 is a
 > safe global fallback but its metres are inflated by 1/cos(latitude) -
 > about 1.5x at Vienna's latitude.
+
+### As a library, LLM-planned in one call
+
+The `accessibility_analysis.py` path above is rule-based and wires the
+planning pipeline manually - the right level of control for a reusable
+workflow, but more ceremony than a one-off question needs. `s3geo.query()`
+collapses that same pipeline (LLM client, `LLMQuerySpecGenerator`,
+`DeterministicPlanner`, `CapabilityRegistry`, `DagExecutor`) into a single
+call that plans the operation chain from the question itself:
+
+```python
+import s3geo
+
+result = s3geo.query(
+    "For every station, find amenity points within 300 meters, "
+    "reproject to a metric CRS first.",
+    layers={"stations": stations_geojson, "amenity": amenity_geojson},
+)
+
+result.goal          # str - the LLM-identified analysis goal
+result.operations    # list[str] - operation names, in order
+result.output        # the final DAG output
+```
+
+`layers` accepts GeoJSON `FeatureCollection` dicts or
+`geopandas.GeoDataFrame` objects interchangeably. This needs an LLM key
+configured (`LLM_API_KEY` / `AVALAI_API_KEY` / `OPENAI_API_KEY`) - unlike
+the rule-based path above, the operation chain is planned by the model,
+not built mechanically from a fixed amenity list. `LLMSpecGenerationError`
+and `PlanningError` propagate unchanged if the model's plan doesn't pass
+validation or can't be built into a DAG; a plan that builds but fails
+during execution raises `RuntimeError` with the executor's own message.
+It is a thin wrapper only - every class it wires up stays directly usable
+for more control (custom `context`, a different LLM client, inspecting
+the DAG plan before executing it). `python examples/s3geo_quickstart.py`
+runs this over the same Vienna sample data as `accessibility_analysis.py`.
 
 ### Over HTTP
 

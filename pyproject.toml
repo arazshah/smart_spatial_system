@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 # alongside the existing Dockerfile/docker-compose.yml deployment path
 # (which stays requirements.lock-based and unaffected by this section).
 # Ships the current flat top-level package layout (api/, orchestrator/,
-# plugins/, smart_spatial_system/ as siblings) as-is - see the plan doc's
+# plugins/, smart_spatial_system/, s3geo/ as siblings) as-is - see the plan doc's
 # "Open design questions" for why a namespace migration was deliberately
 # not done here.
 name = "smart_spatial_system"

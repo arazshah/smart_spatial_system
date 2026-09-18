@@ -69,6 +69,8 @@ Natural-language query
 
 ADR-001 (`docs/ADR-001-single-kernel-pipeline.md`): **all new functionality must enter through this pipeline** unless explicitly transitional legacy. Do not add new direct/service-level handlers for a specific use case, data source, or output format — add a plugin capability, an `OP_CATALOG` entry, or a QuerySpec/DAG workflow instead.
 
+`s3geo` (top-level package, `s3geo/__init__.py`) is a thin convenience wrapper around exactly this pipeline's LLM-planning arm — `s3geo.query(raw_query, layers=...)` wires up `OpenAICompatibleLLMClient` + `LLMQuerySpecGenerator` + `DeterministicPlanner` + `CapabilityRegistry` + `RegistryCapabilityResolver` + `DagExecutor` in one call for library callers who don't need that level of control. It adds no analysis logic of its own — don't add any there either; new capabilities still go through a plugin/`OP_CATALOG` entry as above.
+
 Known legacy parallel paths still being migrated away (see `docs/ARCHITECTURE_CURRENT.md`): direct real-estate ranking path inside `OrchestratorService`, direct vector-display path, system-status handling inside `/query`, `SimpleCapabilityRouter` (legacy hardcoded router), multiple response builders. Real-estate-specific code currently lives under `smart_spatial_system/application/services/query_execution/real_estate_*.py` and is slated to become a plugin/workflow (`smart_spatial_system/workflows/real_estate/`), not stay as service logic.
 
 ### Response/output model

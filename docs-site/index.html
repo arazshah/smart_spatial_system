@@ -315,7 +315,7 @@
   <div class="wrap">
     <span class="eyebrow">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg>
-      Open source · MIT licensed · v0.2.4 on PyPI
+      Open source · MIT licensed · v0.3.0 on PyPI
     </span>
     <h1>Ask a geospatial question in plain language.<br>Get a <span class="accent">reproducible answer</span> back.</h1>
     <p class="lead">
@@ -346,7 +346,7 @@
     <div class="stat-row">
       <div class="stat"><b>36</b><span>plugins registered by default</span></div>
       <div class="stat"><b>1750+</b><span>automated tests in CI</span></div>
-      <div class="stat"><b>5</b><span>documented correctness fixes from real research use</span></div>
+      <div class="stat"><b>8</b><span>documented correctness fixes from real research use</span></div>
       <div class="stat"><b>2</b><span>planning paths — deterministic and LLM-backed</span></div>
     </div>
   </div>
@@ -397,9 +397,10 @@
     <div class="evidence">
       <h4>Not a design argument — evidence</h4>
       <ul>
-        <li>Five correctness bugs found and fixed via a real reproducibility case study, documented in the <a href="https://github.com/arazshah/smart_spatial_system/blob/main/CHANGELOG.md" target="_blank" rel="noopener">CHANGELOG</a> (<code>0.2.1</code>–<code>0.2.4</code>): a silent domain-wrong default, an undocumented required input role, un-chained multi-factor scoring, an asymmetric CRS mismatch, and a scoring factor silently defaulting to the wrong type.</li>
+        <li>Five correctness bugs found and fixed via the Vienna reproducibility case study, documented in the <a href="https://github.com/arazshah/smart_spatial_system/blob/main/CHANGELOG.md" target="_blank" rel="noopener">CHANGELOG</a> (<code>0.2.1</code>–<code>0.2.4</code>): a silent domain-wrong default, an undocumented required input role, un-chained multi-factor scoring, an asymmetric CRS mismatch, and a scoring factor silently defaulting to the wrong type.</li>
+        <li>Three more found and fixed via the Tehran TOD-gradient case study (<code>0.2.5</code>–<code>0.2.9</code>), running a real LLM (gpt-4o-mini) against real OpenStreetMap data: a missing multi-ring buffer primitive, a boolean-filter-vs-zone-preserving-join planning choice, and a <code>spatial_join</code> cardinality default that silently dropped matches.</li>
         <li>Each was root-caused from source, fixed at both the plugin layer (protects every caller) and the LLM-prompt/validation layer (catches what the prompt can't guarantee), and shipped with regression tests reproducing the exact failure.</li>
-        <li>See <a href="https://github.com/arazshah/smart-spatial-vienna-accessibility" target="_blank" rel="noopener">smart-spatial-vienna-accessibility</a> for the case study that found them.</li>
+        <li>See <a href="https://github.com/arazshah/smart-spatial-vienna-accessibility" target="_blank" rel="noopener">smart-spatial-vienna-accessibility</a> and <a href="https://github.com/arazshah/smart-spatial-tehran-tod-gradient" target="_blank" rel="noopener">smart-spatial-tehran-tod-gradient</a> for the case studies that found them.</li>
       </ul>
     </div>
   </div>
@@ -456,7 +457,7 @@
     <div class="section-head">
       <div class="kicker">Research</div>
       <h2>Built to be studied, not just used</h2>
-      <p>The full catalog — including what isn't a good fit yet — is in <a href="https://github.com/arazshah/smart_spatial_system/blob/main/docs/CASE_STUDIES.md" target="_blank" rel="noopener">docs/CASE_STUDIES.md</a>. Six proposed studies below, plus the reference pattern they all build on.</p>
+      <p>The full catalog — including what isn't a good fit yet — is in <a href="https://github.com/arazshah/smart_spatial_system/blob/main/docs/CASE_STUDIES.md" target="_blank" rel="noopener">docs/CASE_STUDIES.md</a>. Two studies already in progress, six more proposed below, plus the reference pattern they all build on.</p>
     </div>
 
     <div class="flagship">
@@ -477,6 +478,27 @@
 
     <div style="height:26px"></div>
 
+    <div class="section-head" style="margin-bottom:20px;">
+      <div class="kicker">In progress</div>
+      <h3 style="font-size:20px; margin:0;">Two follow-on studies already building on this</h3>
+    </div>
+    <div class="study-grid" style="margin-bottom:40px;">
+      <div class="study-card">
+        <div class="num">TOD</div>
+        <h4><a href="https://github.com/arazshah/smart-spatial-tehran-tod-gradient" target="_blank" rel="noopener">Tehran metro TOD gradient</a></h4>
+        <p>Land-use diversity vs. distance from 122 Tehran metro stations, real OSM data. Manual arm done; the LLM arm surfaced and fixed three more defects (<code>0.2.5</code>–<code>0.2.9</code>), and its output is now bit-identical to the hand-authored pipeline.</p>
+      </div>
+      <div class="study-card">
+        <div class="num">RE</div>
+        <h4><a href="https://github.com/arazshah/smart-spatial-urmia-real-estate" target="_blank" rel="noopener">Urmia real-estate ranking</a></h4>
+        <p>Real-estate suitability ranking against real Urmia OSM data (transit/mall/road proximity, flood/earthquake/fire risk, allowed-construction zoning), reusing this system's shipped real-estate workflow end to end. Scaffolded, not yet run.</p>
+      </div>
+    </div>
+
+    <div class="section-head" style="margin-bottom:20px;">
+      <div class="kicker">Suggested</div>
+      <h3 style="font-size:20px; margin:0;">Six more studies this catalog is a fit for</h3>
+    </div>
     <div class="study-grid">
       <div class="study-card"><div class="num">01</div><h4>Multi-amenity accessibility, any city</h4><p>Generalizes Vienna — swap the amenity list and OSM extract, same rule-based builder.</p></div>
       <div class="study-card"><div class="num">02</div><h4>Flood / earthquake risk-aware siting</h4><p>Combine proximity scoring with hazard exposure via <code class="mono">enrich_risk</code>.</p></div>
@@ -498,6 +520,7 @@
 
     <div class="tabs">
       <button class="tab-btn active" onclick="showTab('lib', this)">As a library</button>
+      <button class="tab-btn" onclick="showTab('s3geo', this)">One-call (s3geo)</button>
       <button class="tab-btn" onclick="showTab('http', this)">Over HTTP</button>
     </div>
 
@@ -537,6 +560,29 @@ result = DagExecutor(<span class="kw">lambda</span> name: registry.resolve(name)
   1     Site 3 - Praterstern  75.4   23.0       407.0       711.0
   2     Site 4 - Ottakring    60.8   56.0       684.0       4371.0
   3     Site 2 - Karlsplatz   59.8   128.0      782.0       630.0</pre>
+      </div>
+    </div>
+
+    <div class="code-panel" id="tab-s3geo">
+      <pre class="code"><span class="kw">import</span> s3geo
+
+result = s3geo.<span class="fn">query</span>(
+    <span class="s1">"For every station, find amenity points within 300 meters, "</span>
+    <span class="s1">"reproject to a metric CRS first."</span>,
+    layers={<span class="s1">"stations"</span>: stations_geojson, <span class="s1">"amenity"</span>: amenity_geojson},
+)
+
+result.goal          <span class="c1"># str - the LLM-identified analysis goal</span>
+result.operations    <span class="c1"># list[str] - operation names, in order</span>
+result.output        <span class="c1"># the final DAG output</span></pre>
+      <div class="out-box">
+        <div class="title">python examples/s3geo_quickstart.py</div>
+        <pre>One call wires up OpenAICompatibleLLMClient + LLMQuerySpecGenerator +
+DeterministicPlanner + CapabilityRegistry + DagExecutor - the exact
+pipeline the "As a library" tab builds by hand - for when a question
+just needs answering. `layers` accepts GeoJSON FeatureCollections or
+GeoDataFrames interchangeably. Needs a real LLM key (LLM_API_KEY /
+AVALAI_API_KEY / OPENAI_API_KEY). New in v0.3.0.</pre>
       </div>
     </div>
 

@@ -180,7 +180,6 @@ OP_CATALOG: dict[str, OpDescriptor] = {
             "user": "user",
             "password": "password",
             "connect_timeout": "connect_timeout",
-            "metadata": "metadata",
         },
         output_type="vector",
         notes=(
@@ -215,7 +214,6 @@ OP_CATALOG: dict[str, OpDescriptor] = {
             "user": "user",
             "password": "password",
             "connect_timeout": "connect_timeout",
-            "metadata": "metadata",
         },
         output_type="vector",
         notes=(
@@ -241,7 +239,7 @@ OP_CATALOG: dict[str, OpDescriptor] = {
             "offset": "offset",
             "bbox": "bbox",
             "bbox_mode": "bbox_mode",
-            "geometry_type": "geometry_type",
+            "geometry_type": "geometry_types",
             "metadata": "metadata",
         },
         output_type="vector",
@@ -993,11 +991,7 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         input_types={
             "vector": "vector",
         },
-        param_map={
-            "sample_size": "sample_size",
-            "include_geometry": "include_geometry",
-            "metadata": "metadata",
-        },
+        param_map={},
         output_type="json",
         notes=(
             "Inspect vector schema/sample. Do not use as the only operation when "
@@ -1015,9 +1009,7 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         input_types={
             "vector": "vector",
         },
-        param_map={
-            "metadata": "metadata",
-        },
+        param_map={},
         output_type="json",
         notes=(
             "Create a user-facing summary/table-like JSON for a vector layer. "
@@ -1034,11 +1026,7 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         input_types={
             "vector": "vector",
         },
-        param_map={
-            "title": "title",
-            "style": "style",
-            "metadata": "metadata",
-        },
+        param_map={},
         output_type="map",
         notes=(
             "Display vector features on map. Do not use as the only operation "

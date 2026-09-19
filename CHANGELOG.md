@@ -6,6 +6,29 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-19
+
+### Fixed
+
+- **`s3geo.query()` crashed on every call, including 100%-vector queries,
+  in any environment without `rasterio` installed.** It built its
+  `CapabilityRegistry` with `CapabilityRegistry.from_plugin_modules()`
+  (implicit `tolerant=False`), which imports all `DEFAULT_SAFE_PLUGIN_MODULES`
+  up front and aborts on the first import failure -
+  `plugins/ndvi_analysis.py`'s unconditional top-level `import rasterio`
+  (rasterio is gated behind the optional `raster` extra, not a base
+  dependency) meant any query, whatever it asked for, raised
+  `ModuleNotFoundError: No module named 'rasterio'` before the LLM's plan
+  ever ran. `query()` now builds its registry with `tolerant=True` by
+  default - the same pattern `OrchestratorService` and `s3geo.registry()`
+  already use - and takes a `tolerant: bool = True` parameter so a caller
+  can opt back into strict, fail-fast plugin imports.
+- **`plugins/ndvi_analysis.py`** no longer imports `rasterio` at module
+  top level; the import now happens lazily inside `process_ndvi()`,
+  matching its sibling raster plugins (`raster_threshold`,
+  `raster_to_vector`, `band_math`, etc.), none of which need `rasterio`
+  importable just to be registered.
+
 ## [0.4.0] - 2026-09-19
 
 `s3geo` (added in `0.3.0`) exposed only `query()` and `S3GeoResult` - the

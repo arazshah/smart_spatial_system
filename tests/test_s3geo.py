@@ -16,6 +16,7 @@ Run:
 
 from __future__ import annotations
 
+import importlib
 import json
 import sys
 from pathlib import Path
@@ -225,3 +226,62 @@ def test_query_raises_planning_error_unchanged(monkeypatch):
 
     with pytest.raises(PlanningError):
         s3geo.query(RAW_QUERY, layers={"sites": SITES})
+
+
+def test_query_defaults_to_tolerant_registry_build(monkeypatch, static_llm):
+    # Regression test for a bug where query() built its registry with
+    # CapabilityRegistry.from_plugin_modules() (implicit tolerant=False),
+    # so a single plugin with a missing optional dependency (e.g.
+    # ndvi_analysis without rasterio installed) made every query() call
+    # raise ModuleNotFoundError at registry-build time, even a 100%-vector
+    # query that never touches that plugin. query() must build its
+    # registry the same tolerant way s3geo.registry() and
+    # OrchestratorService already do.
+    real_import_module = importlib.import_module
+
+    def _import_module(name, *args, **kwargs):
+        if name == "plugins.ndvi_analysis":
+            raise ModuleNotFoundError("No module named 'rasterio'")
+        return real_import_module(name, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "orchestrator.capability_registry.importlib.import_module", _import_module
+    )
+
+    result = s3geo.query(RAW_QUERY, layers={"sites": SITES})
+
+    assert result.goal == "buffer_sites"
+
+
+def test_query_tolerant_false_reraises_broken_plugin_import(monkeypatch, static_llm):
+    real_import_module = importlib.import_module
+
+    def _import_module(name, *args, **kwargs):
+        if name == "plugins.ndvi_analysis":
+            raise ModuleNotFoundError("No module named 'rasterio'")
+        return real_import_module(name, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "orchestrator.capability_registry.importlib.import_module", _import_module
+    )
+
+    with pytest.raises(ModuleNotFoundError):
+        s3geo.query(RAW_QUERY, layers={"sites": SITES}, tolerant=False)
+
+
+def test_ndvi_analysis_plugin_imports_without_rasterio_installed(monkeypatch):
+    # Regression test: plugins/ndvi_analysis.py used to `import rasterio`
+    # at module top level, so it alone (among the raster plugins in
+    # DEFAULT_SAFE_PLUGIN_MODULES) failed to import in any environment
+    # without the "raster" extra installed. rasterio is now imported
+    # lazily inside process_ndvi(), matching its sibling raster plugins.
+    monkeypatch.setitem(sys.modules, "rasterio", None)
+    for module_name in list(sys.modules):
+        if module_name == "plugins.ndvi_analysis" or module_name.startswith(
+            "plugins.ndvi_analysis."
+        ):
+            monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+    module = importlib.import_module("plugins.ndvi_analysis")
+
+    assert not hasattr(module, "rasterio")

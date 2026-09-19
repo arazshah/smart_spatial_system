@@ -338,6 +338,23 @@ the same manual-vs-LLM-driven comparison design to measure LLM planning
 *reliability* (N=20 repeated runs) rather than *correctness* (this study's
 focus).
 
+**[Urmia real-estate suitability ranking](https://github.com/arazshah/smart-spatial-urmia-real-estate)**
+(see that repository's `paper/PLAN.md`) - a reproducibility case study
+reusing this package's shipped real-estate ranking workflow end to end
+(`real_estate_spatial_enrich` → `real_estate_score` → `filter_attribute` →
+`rank_features` → `build_report`, see `orchestrator/planning/op_catalog.py`)
+against real OpenStreetMap vector data for Urmia's roads, transit hubs and
+shopping centers, combined with flood/earthquake/fire risk and
+allowed-construction zoning (Urmia has no metro/subway, so `transit_hubs`
+stands in for the city's public-transit hubs, the same convention this
+repository's own [`urmia_real_estate_ranking.py`](examples/urmia_real_estate_ranking.py)
+example uses). Same rule-based-vs-LLM reproducibility methodology as the
+Vienna and Tehran studies above, applied to a workflow this system already
+ships rather than one built from scratch for the study. **Scaffolded, not
+yet run** - both arms are written and their non-network, non-LLM logic
+verified offline; see that repository's `paper/PLAN.md` for exactly what's
+left before a real OSM download and a real LLM run produce results.
+
 ## Development
 
 ```bash

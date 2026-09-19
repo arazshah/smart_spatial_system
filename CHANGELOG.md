@@ -6,6 +6,49 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-19
+
+`s3geo` (added in `0.3.0`) exposed only `query()` and `S3GeoResult` - the
+one-call path. Reaching the pipeline it wires up for finer-grained control
+(inspecting a plan before executing it, resolving one plugin capability
+directly, using a different LLM client) still meant importing from
+`orchestrator.*`, undercutting the point of a single top-level module to
+import.
+
+### Added
+
+- **`s3geo` now re-exports the classes `query()` wires up internally**, so
+  `import s3geo` alone reaches them: `CapabilityRegistry`,
+  `DeterministicPlanner`, `DagExecutor`, `RegistryCapabilityResolver`,
+  `LLMQuerySpecGenerator`, `OpenAICompatibleLLMClient`, `StaticLLMClient`,
+  and the errors `query()` can raise - `LLMSpecGenerationError`,
+  `PlanningError`, `DagExecutionError`, `CapabilityResolutionError`. Every
+  re-exported name is the exact same object defined in
+  `orchestrator.planning` / `orchestrator.capability_registry`, not a
+  duplicate - `tests/test_s3geo.py` asserts this with `is` identity
+  checks, so this is additive only and cannot silently drift from the
+  originals.
+- **New `s3geo.registry(tolerant=True)`** - the same
+  `CapabilityRegistry.from_plugin_modules()` call `query()` makes
+  internally, exposed directly for resolving or inspecting a specific
+  plugin capability without a full `query()` call:
+  ```python
+  import s3geo
+
+  binding = s3geo.registry().resolve("buffer_vector_features")
+  binding.callable(...)
+  ```
+
+This is still a thin wrapper only, per `s3geo`'s original design - no new
+analysis logic, just a second, shorter spelling for reaching existing
+classes. `orchestrator.planning` and `orchestrator.capability_registry`
+remain directly usable and unchanged; nothing pinned to a specific commit
+of this package (the Vienna/Tehran/Urmia case studies) imports from
+`s3geo`, so none of them are affected by this addition.
+
+Bumped to `0.4.0` (minor, per semver): new public API surface, nothing
+existing changed or removed.
+
 ## [0.3.0] - 2026-09-18
 
 A usability finding from the `smart-spatial-tehran-tod-gradient` case

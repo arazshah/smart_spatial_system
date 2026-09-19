@@ -37,6 +37,25 @@ correctness bugs found and fixed upstream this way, `0.2.1`–`0.2.4`) are also
 the best evidence this system is under active, responsive maintenance —
 worth pointing a reviewer or advisor at directly.
 
+## In progress
+
+- [`smart-spatial-urmia-real-estate`](https://github.com/arazshah/smart-spatial-urmia-real-estate) —
+  real-estate suitability ranking in Urmia (transit/mall/main-road
+  proximity, flood/earthquake/fire risk, allowed-construction zoning),
+  reusing case study 2 below but against real OpenStreetMap vector data
+  for the roads/transit/shopping layers instead of synthetic ones. Same
+  rule-based-vs-LLM reproducibility methodology as the Vienna study
+  above, applied to a workflow this system already ships end to end
+  (`real_estate_spatial_enrich` → `real_estate_score` → `rank_features` →
+  `build_report`, see `orchestrator/planning/op_catalog.py`) rather than
+  one built from scratch for the study. **Scaffolded, not yet run** — see
+  that repository's `paper/PLAN.md` for exactly what's verified so far.
+- [`smart-spatial-tehran-tod-gradient`](https://github.com/arazshah/smart-spatial-tehran-tod-gradient) —
+  land-use diversity around Tehran metro stations vs. distance from the
+  station (a zonal gradient, not a ranking). Manual/deterministic arm
+  done; LLM arm blocked on an upstream plugin — see that repository's
+  `paper/PLAN.md`.
+
 ## Suggested studies
 
 Each entry: the question, why this system's existing plugins are a real fit
@@ -61,6 +80,8 @@ worked example than a new capability. **Data:** national hazard maps (FEMA
 flood maps for the US, national geological survey earthquake zonation
 elsewhere) plus OSM for the amenity layers. **Effort:** medium — the main
 work is sourcing and reprojecting a hazard raster/vector layer per region.
+In progress: [`smart-spatial-urmia-real-estate`](https://github.com/arazshah/smart-spatial-urmia-real-estate)
+(see "In progress" above).
 
 ### 3. Facility siting / service-coverage gaps
 

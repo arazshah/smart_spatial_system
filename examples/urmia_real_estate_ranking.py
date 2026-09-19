@@ -58,7 +58,28 @@ OUTPUT_DIR = DATA_DIR / "output"
 
 # Urmia city, approximate bounding box (south, west, north, east).
 URMIA_BBOX = (37.47, 44.98, 37.60, 45.15)
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+
+# Rotated through on retry: overpass-api.de's main instance alone has been
+# seen returning 406 Not Acceptable (its Fastly edge rejecting requests
+# with no/generic User-Agent, undocumented but widely reported by other
+# Overpass clients) and plain rate-limiting under normal use - these two
+# public mirrors run the same interpreter.
+OVERPASS_URLS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.openstreetmap.ru/api/interpreter",
+]
+
+# Overpass's own wiki asks clients to send a real User-Agent; a request
+# with none (or requests' default "python-requests/x.y.z") is what
+# triggered the 406 above.
+OVERPASS_HEADERS = {
+    "User-Agent": (
+        "smart-spatial-system-urmia-example/1.0 "
+        "(+https://github.com/arazshah/smart_spatial_system)"
+    ),
+    "Accept": "*/*",
+}
 
 # One Overpass QL query body per downloaded layer. `{bbox}` is filled in
 # with "south,west,north,east". Roads come back as ways with inline
@@ -173,8 +194,11 @@ def _fetch_overpass(query_body: str, *, attempts: int = 3) -> dict[str, Any]:
 
     last_error: Exception | None = None
     for attempt in range(1, attempts + 1):
+        url = OVERPASS_URLS[(attempt - 1) % len(OVERPASS_URLS)]
         try:
-            response = requests.post(OVERPASS_URL, data={"data": ql}, timeout=90)
+            response = requests.post(
+                url, data={"data": ql}, headers=OVERPASS_HEADERS, timeout=90
+            )
             response.raise_for_status()
             return response.json()
         except requests.RequestException as exc:
@@ -182,7 +206,8 @@ def _fetch_overpass(query_body: str, *, attempts: int = 3) -> dict[str, Any]:
             if attempt < attempts:
                 time.sleep(2**attempt)
     raise SystemExit(
-        f"Could not reach Overpass API after {attempts} attempts: {last_error}"
+        f"Could not reach Overpass API after {attempts} attempts "
+        f"(tried {min(attempts, len(OVERPASS_URLS))} mirror(s)): {last_error}"
     )
 
 

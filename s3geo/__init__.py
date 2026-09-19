@@ -132,6 +132,7 @@ def query(
     layers: dict[str, Any],
     context: dict[str, Any] | None = None,
     system_hints: str | None = None,
+    tolerant: bool = True,
 ) -> S3GeoResult:
     """
     Run a single natural-language spatial query end-to-end.
@@ -150,6 +151,15 @@ def query(
         system_hints:
             Optional system hints forwarded to
             LLMQuerySpecGenerator.generate.
+        tolerant:
+            Forwarded to CapabilityRegistry.from_plugin_modules() (same
+            meaning as registry()'s tolerant argument). Defaults to True
+            so a plugin with a missing optional dependency (e.g.
+            ndvi_analysis without rasterio installed) is skipped rather
+            than crashing every query() call, even ones that never touch
+            that plugin - matching OrchestratorService's own registry
+            build. Pass False to opt back into strict, fail-fast import
+            behavior.
 
     Returns:
         S3GeoResult with the identified goal, the operations the plan
@@ -176,8 +186,8 @@ def query(
 
     plan = DeterministicPlanner().build(query_spec)
 
-    registry = CapabilityRegistry.from_plugin_modules()
-    executor = DagExecutor(RegistryCapabilityResolver(registry))
+    reg = registry(tolerant=tolerant)
+    executor = DagExecutor(RegistryCapabilityResolver(reg))
     dag_result = executor.execute(plan, initial_inputs=initial_inputs)
 
     if not dag_result.success:

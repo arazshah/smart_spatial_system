@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import numpy as np
-import rasterio
 from geochat_sdk import RasterIn, RasterOut, auto_collect, capability
 
 
@@ -14,6 +13,8 @@ from geochat_sdk import RasterIn, RasterOut, auto_collect, capability
     description="تولید نقشه NDVI برای پروژه پلتفرم تجاری مکانی"
 )
 async def process_ndvi(red_band: RasterIn, nir_band: RasterIn) -> RasterOut:
+    import rasterio
+
     red = red_band.read_numpy().astype(np.float32)
     nir = nir_band.read_numpy().astype(np.float32)
 

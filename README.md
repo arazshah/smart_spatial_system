@@ -72,7 +72,8 @@ Design decisions are recorded as ADRs in [`docs/`](docs): single kernel pipeline
 api/                     FastAPI app and routers
 orchestrator/            query parsing, planning (QuerySpec, OP_CATALOG, DAG), routing, services
 smart_spatial_system/    new layered package (application services; other layers being filled in)
-s3geo/                   one-call public entry point (s3geo.query) wrapping the planning pipeline
+s3geo/                   public entry point: s3geo.query() one-call path, plus the planning
+                         pipeline classes it wires up, re-exported for finer-grained control
 plugins/                 geochat_sdk capability plugins
 config/plugins/          per-plugin YAML config (*.example.yaml are the templates)
 templates/reports/       report templates (real-estate report)
@@ -215,6 +216,34 @@ It is a thin wrapper only - every class it wires up stays directly usable
 for more control (custom `context`, a different LLM client, inspecting
 the DAG plan before executing it). `python examples/s3geo_quickstart.py`
 runs this over the same Vienna sample data as `accessibility_analysis.py`.
+
+**`import s3geo` alone reaches that finer-grained control, too.** Every
+class `query()` wires up internally is re-exported as `s3geo.<Name>` -
+the exact same object defined in `orchestrator.planning` /
+`orchestrator.capability_registry`, not a copy (`tests/test_s3geo.py`
+asserts this with `is` identity checks). No need to know the pipeline
+lives in `orchestrator.*` to reach it:
+
+```python
+import s3geo
+
+registry = s3geo.registry()                      # every plugin loaded, tolerant=True by default
+binding = registry.resolve("buffer_vector_features")
+binding.callable(...)                             # call a specific plugin capability directly
+
+spec = s3geo.LLMQuerySpecGenerator(s3geo.OpenAICompatibleLLMClient()).generate(
+    "buffer the sites by 100 meters",
+)
+plan = s3geo.DeterministicPlanner().build(spec)   # inspect the plan before executing it
+result = s3geo.DagExecutor(s3geo.RegistryCapabilityResolver(registry)).execute(
+    plan, initial_inputs={"sites": sites_geojson},
+)
+```
+
+Also re-exported: `StaticLLMClient` (for tests/local runs without a real
+LLM key), and the errors above - `s3geo.LLMSpecGenerationError`,
+`s3geo.PlanningError`, `s3geo.DagExecutionError`,
+`s3geo.CapabilityResolutionError`.
 
 ### Over HTTP
 

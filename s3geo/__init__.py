@@ -1,9 +1,10 @@
 """
 s3geo
 
-Minimal public entry point for running a single natural-language spatial
-query end-to-end: LLM planning, deterministic DAG planning, and execution
-against the registered plugin capabilities.
+Public entry point for this package: a one-call natural-language query
+(`s3geo.query`), plus the building blocks it wires up, re-exported here so
+`import s3geo` is enough on its own - no need to know the underlying
+pipeline lives in `orchestrator.*` to reach it.
 
     import s3geo
 
@@ -17,14 +18,25 @@ against the registered plugin capabilities.
     result.operations    # list[str] - operation names, in execution order
     result.output        # the final DAG output
 
-This is a thin wrapper only - it adds no analysis logic of its own. The
-full pipeline it wires up (OpenAICompatibleLLMClient +
-LLMQuerySpecGenerator + DeterministicPlanner + CapabilityRegistry +
-RegistryCapabilityResolver + DagExecutor, all in orchestrator.planning /
-orchestrator.capability_registry) is the right level of control for
-advanced use or debugging, and stays directly usable and unchanged - this
-module only collapses that manual wiring into one call for the common
-"ask a question, get an answer" case.
+For finer-grained control than a single `query()` call - inspecting a
+plan before executing it, resolving a specific plugin capability, using a
+different LLM client - the same classes `query()` uses internally are
+available directly as `s3geo.<Name>`:
+
+    registry = s3geo.registry()                    # CapabilityRegistry, all plugins loaded
+    spec = s3geo.LLMQuerySpecGenerator(s3geo.OpenAICompatibleLLMClient()).generate(
+        "buffer the sites by 100 meters", context={}, system_hints="",
+    )
+    plan = s3geo.DeterministicPlanner().build(spec)
+    result = s3geo.DagExecutor(s3geo.RegistryCapabilityResolver(registry)).execute(
+        plan, initial_inputs={"sites": sites_geojson},
+    )
+
+This module adds no analysis logic of its own, in either form - `query()`
+and `registry()` are thin wrappers, and every re-exported name is the
+exact same class defined in `orchestrator.planning` / `orchestrator.
+capability_registry`, not a copy. Those modules remain directly usable
+and unchanged; this is only a second, shorter spelling for reaching them.
 """
 
 from __future__ import annotations
@@ -34,15 +46,38 @@ from dataclasses import dataclass
 from typing import Any
 
 from orchestrator.capability_registry import CapabilityRegistry
-from orchestrator.planning.capability_resolver import RegistryCapabilityResolver
-from orchestrator.planning.dag_executor import DagExecutor
+from orchestrator.planning.capability_resolver import (
+    CapabilityResolutionError,
+    RegistryCapabilityResolver,
+)
+from orchestrator.planning.dag_executor import DagExecutionError, DagExecutor
 from orchestrator.planning.llm_spec_generator import (
     LLMQuerySpecGenerator,
+    LLMSpecGenerationError,
     OpenAICompatibleLLMClient,
+    StaticLLMClient,
 )
-from orchestrator.planning.planner import DeterministicPlanner
+from orchestrator.planning.planner import DeterministicPlanner, PlanningError
 
-__all__ = ["query", "S3GeoResult"]
+__all__ = [
+    "query",
+    "registry",
+    "S3GeoResult",
+    # Planning pipeline classes `query()` wires up internally - re-exported
+    # so they are reachable as `s3geo.<Name>` without importing orchestrator.
+    "CapabilityRegistry",
+    "DeterministicPlanner",
+    "DagExecutor",
+    "RegistryCapabilityResolver",
+    "LLMQuerySpecGenerator",
+    "OpenAICompatibleLLMClient",
+    "StaticLLMClient",
+    # Errors `query()` (and the manual pipeline above) can raise.
+    "LLMSpecGenerationError",
+    "PlanningError",
+    "DagExecutionError",
+    "CapabilityResolutionError",
+]
 
 
 @dataclass(frozen=True)
@@ -63,6 +98,22 @@ class S3GeoResult:
     goal: str
     operations: list[str]
     output: Any
+
+
+def registry(*, tolerant: bool = True) -> CapabilityRegistry:
+    """
+    Build a CapabilityRegistry with every discoverable plugin loaded -
+    the same call query() makes internally, exposed directly for callers
+    who want to resolve or inspect a specific capability themselves
+    (`s3geo.registry().resolve("buffer_analysis").callable`) instead of
+    going through a full query() call.
+
+    tolerant:
+        When True (the default), a plugin whose import fails (e.g. a
+        missing optional dependency such as rasterio or weasyprint) is
+        skipped rather than raising - see registry.skipped_plugins.
+    """
+    return CapabilityRegistry.from_plugin_modules(tolerant=tolerant)
 
 
 def _to_geojson_dict(layer: Any) -> Any:

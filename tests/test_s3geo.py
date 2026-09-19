@@ -152,6 +152,56 @@ def test_query_raises_llm_spec_generation_error_unchanged(monkeypatch):
         s3geo.query(RAW_QUERY, layers={"sites": SITES})
 
 
+def test_reexported_names_are_the_same_objects_as_orchestrator(monkeypatch):
+    # s3geo re-exports these so `import s3geo` alone reaches them, but it
+    # must not define second copies - every name has to be the exact same
+    # class/function object the orchestrator modules define, so behavior,
+    # isinstance checks and exception handling stay identical either way.
+    assert s3geo.CapabilityRegistry is CapabilityRegistry
+    assert s3geo.DeterministicPlanner is DeterministicPlanner
+    assert s3geo.DagExecutor is DagExecutor
+    assert s3geo.RegistryCapabilityResolver is RegistryCapabilityResolver
+    assert s3geo.LLMQuerySpecGenerator is LLMQuerySpecGenerator
+    assert s3geo.StaticLLMClient is StaticLLMClient
+    assert s3geo.LLMSpecGenerationError is LLMSpecGenerationError
+    assert s3geo.PlanningError is PlanningError
+
+    from orchestrator.planning.capability_resolver import CapabilityResolutionError
+    from orchestrator.planning.dag_executor import DagExecutionError
+
+    assert s3geo.CapabilityResolutionError is CapabilityResolutionError
+    assert s3geo.DagExecutionError is DagExecutionError
+
+
+def test_registry_matches_the_manual_capability_registry_build():
+    reg = s3geo.registry()
+
+    assert isinstance(reg, CapabilityRegistry)
+    manual_reg = CapabilityRegistry.from_plugin_modules(tolerant=True)
+    assert set(reg._descriptors) == set(manual_reg._descriptors)  # noqa: SLF001
+
+    # A resolved capability is directly usable, without ever importing
+    # orchestrator - this is the "control the modules via s3geo" path.
+    binding = reg.resolve("buffer_vector_features")
+    assert callable(binding.callable)
+
+
+def test_manual_pipeline_is_reachable_through_s3geo_names_only(static_llm):
+    # Same manual path _run_manual_path exercises, but spelled entirely
+    # through s3geo.<Name> - proving s3geo's re-exports are sufficient on
+    # their own for the "advanced control" use case, not just query().
+    query_spec = s3geo.LLMQuerySpecGenerator(s3geo.OpenAICompatibleLLMClient()).generate(
+        RAW_QUERY
+    )
+    plan = s3geo.DeterministicPlanner().build(query_spec)
+    reg = s3geo.registry()
+    executor = s3geo.DagExecutor(s3geo.RegistryCapabilityResolver(reg))
+    dag_result = executor.execute(plan, initial_inputs={"sites": SITES})
+
+    assert dag_result.success, dag_result.error
+    assert query_spec.goal == "buffer_sites"
+
+
 def test_query_raises_planning_error_unchanged(monkeypatch):
     llm_json = {
         "raw_query": RAW_QUERY,

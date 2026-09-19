@@ -315,7 +315,7 @@
   <div class="wrap">
     <span class="eyebrow">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg>
-      Open source · MIT licensed · v0.3.0 on PyPI
+      Open source · MIT licensed · v0.4.0 on PyPI
     </span>
     <h1>Ask a geospatial question in plain language.<br>Get a <span class="accent">reproducible answer</span> back.</h1>
     <p class="lead">
@@ -574,15 +574,26 @@ result = s3geo.<span class="fn">query</span>(
 
 result.goal          <span class="c1"># str - the LLM-identified analysis goal</span>
 result.operations    <span class="c1"># list[str] - operation names, in order</span>
-result.output        <span class="c1"># the final DAG output</span></pre>
+result.output        <span class="c1"># the final DAG output</span>
+
+<span class="c1"># Finer-grained control? Every class query() wires up is reachable</span>
+<span class="c1"># the same way - no need to know it lives in orchestrator.* :</span>
+registry = s3geo.<span class="fn">registry</span>()
+binding  = registry.resolve(<span class="s1">"buffer_vector_features"</span>)
+binding.callable(...)</pre>
       <div class="out-box">
         <div class="title">python examples/s3geo_quickstart.py</div>
-        <pre>One call wires up OpenAICompatibleLLMClient + LLMQuerySpecGenerator +
-DeterministicPlanner + CapabilityRegistry + DagExecutor - the exact
+        <pre>s3geo.query() wires up OpenAICompatibleLLMClient + LLMQuerySpecGenerator
++ DeterministicPlanner + CapabilityRegistry + DagExecutor - the exact
 pipeline the "As a library" tab builds by hand - for when a question
 just needs answering. `layers` accepts GeoJSON FeatureCollections or
 GeoDataFrames interchangeably. Needs a real LLM key (LLM_API_KEY /
-AVALAI_API_KEY / OPENAI_API_KEY). New in v0.3.0.</pre>
+AVALAI_API_KEY / OPENAI_API_KEY). New in v0.3.0.
+
+v0.4.0: every one of those classes - plus s3geo.registry() and the
+errors query() can raise - is re-exported as s3geo.&lt;Name&gt;, the exact
+same object orchestrator.* defines, not a copy. import s3geo is enough
+on its own, for the one-call path or full manual control either way.</pre>
       </div>
     </div>
 

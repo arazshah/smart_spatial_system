@@ -6,6 +6,55 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-19
+
+### Fixed
+
+- **`OP_CATALOG`'s `filter_attribute` (and its `load_postgis_layer` alias
+  pair) mapped a `param_map` key to a target keyword the bound plugin
+  function doesn't have, so a plan that used the exact parameter name
+  `_op_param_reference()` (added in `0.4.2`) advertises to the LLM still
+  failed at execution.** `filter_attribute`'s `param_map` had
+  `"geometry_type": "geometry_type"`, but `filter_features()`'s real
+  keyword is `geometry_types` (plural, used consistently elsewhere in
+  `spatial_query_filter.py`) - `_map_params()` passed `geometry_type=`
+  straight through to `filter_features(**static_params)`, raising
+  `TypeError: filter_features() got an unexpected keyword argument
+  'geometry_type'`. `strict_params=True` (also `0.4.2`) does not catch
+  this class of bug: `geometry_type` is a genuinely valid *source* key in
+  `filter_attribute`'s own `param_map`, so strictness against the catalog
+  can't detect that the catalog's *target* side disagrees with the
+  plugin it describes. Fixed the mapping to
+  `"geometry_type": "geometry_types"`.
+- Auditing every other `param_map` target against its bound capability's
+  real signature (see "Added" below) turned up four more of the same
+  class of drift, all dead/always-`TypeError`-on-use rather than
+  reachable through today's planner defaults: `query_database` and
+  `load_postgis_layer` (alias) both advertised a `metadata` param that
+  `query_database_postgis()` doesn't accept; `inspect_vector` advertised
+  `sample_size`/`include_geometry`/`metadata` that `inspect_vector()`
+  doesn't accept; `summarize_vector` advertised `metadata` that
+  `summarize_vector_layer()` doesn't accept; `display_vector` advertised
+  `title`/`style`/`metadata` that `display_vector_layer()` doesn't
+  accept (it only takes `layer_id`/`name`/`visible`, none of which were
+  mapped either). Removed all of these from `param_map` rather than
+  guessing at an intended target keyword for each - `_op_param_reference()`
+  no longer advertises any of them to the LLM, and `strict_params=True`
+  now correctly rejects them at planning time instead of letting them
+  reach the plugin and fail there.
+
+### Added
+
+- `tests/test_op_catalog_param_map_signatures.py`: builds the real
+  `CapabilityRegistry` from `DEFAULT_SAFE_PLUGIN_MODULES` and asserts,
+  for every `OP_CATALOG` entry whose capability is registered, that
+  every `param_map` *target* is either a real keyword parameter of the
+  bound capability function (via `inspect.signature`) or the function
+  accepts `**kwargs`. This is the systematic version of the fix above:
+  it catches this class of catalog/plugin drift across all operations at
+  once, at test time, rather than relying on a downstream LLM run
+  happening to hit the exact wrong param.
+
 ## [0.5.0] - 2026-09-19
 
 ### Changed

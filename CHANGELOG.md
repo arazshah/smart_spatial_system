@@ -6,6 +6,40 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-19
+
+### Fixed
+
+- **`s3geo.query()` let an LLM-generated plan reach a plugin with a wrong
+  parameter name, failing late with a misleading raw `TypeError` instead
+  of a clear planning-time error.** `DeterministicPlanner`'s
+  `PlannerConfig.strict_params` defaults to `False`, and `query()` built
+  its plan with a bare `DeterministicPlanner()`, so an operation
+  `params` key not in `OP_CATALOG`'s `param_map` for that operation was
+  silently passed straight through to the plugin function instead of
+  being rejected at planning time - e.g. `filter_attribute`'s real
+  params are `where`/`case_sensitive`/`sort_by`/`sort_order`/`limit`/
+  `offset`/`bbox`/`bbox_mode`/`geometry_type`/`metadata`, so
+  `{"attribute": "amenity"}` reached `filter_features()` unchanged and
+  failed deep in execution with `filter_features() got an unexpected
+  keyword argument 'attribute'` - naming the internal plugin function
+  and the wrong keyword, not the op name or the right one. Every
+  `PlannerConfig` this codebase's own test suite constructs already
+  passes `strict_params=True` explicitly; `query()` now does too by
+  default, and takes a `strict_params: bool = True` parameter so a
+  caller can opt back into permissive pass-through.
+- **The LLM system prompt never documented operations' real parameter
+  names**, mirroring the exact gap `_op_input_roles_reference()`
+  already closed for input roles (see `0.2.2`'s docstring). Added
+  `_op_param_reference()` alongside it, generated directly from
+  `OP_CATALOG`'s `param_map` rather than hand-written per-operation
+  examples, and included in the system prompt - so the model has the
+  real parameter names (e.g. `filter_attribute`'s `where`) available
+  instead of guessing a plausible but wrong one (`attribute`), and a
+  wrong guess is now also caught before execution by the planner
+  change above. Per this changelog's own established pattern (`0.2.2`),
+  both the validator and the prompt are fixed together, not just one.
+
 ## [0.4.1] - 2026-09-19
 
 ### Fixed

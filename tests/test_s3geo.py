@@ -269,6 +269,61 @@ def test_query_tolerant_false_reraises_broken_plugin_import(monkeypatch, static_
         s3geo.query(RAW_QUERY, layers={"sites": SITES}, tolerant=False)
 
 
+def _unknown_param_llm_json() -> dict:
+    # filter_attribute's real params are where/case_sensitive/sort_by/
+    # sort_order/limit/offset/bbox/bbox_mode/geometry_type/metadata
+    # (op_catalog.py) - "attribute" is not one of them.
+    return {
+        "raw_query": RAW_QUERY,
+        "goal": "filter_repro",
+        "entities": [{"ref": "sites", "kind": "vector"}],
+        "operations": [
+            {
+                "op": "filter_attribute",
+                "inputs": {"vector": "sites"},
+                "params": {"attribute": "amenity"},
+                "output": "filtered",
+            }
+        ],
+        "outputs": [{"kind": "vector_layer", "source": "filtered", "config": {}}],
+    }
+
+
+def test_query_defaults_to_strict_params_and_rejects_unknown_ones(monkeypatch):
+    # Regression test: query() used to build its plan with a bare
+    # DeterministicPlanner() (implicit strict_params=False), so an
+    # operation params key not in OP_CATALOG's param_map for that
+    # operation (here, "attribute" for filter_attribute) was silently
+    # passed through to the plugin instead of being rejected at planning
+    # time - it only failed later, deep in execution, with a raw
+    # TypeError naming the internal plugin function instead of the op
+    # name or the wrong parameter.
+    llm_json = _unknown_param_llm_json()
+
+    def _factory(*args, **kwargs):
+        return StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+
+    monkeypatch.setattr(s3geo, "OpenAICompatibleLLMClient", _factory)
+
+    with pytest.raises(PlanningError, match="attribute"):
+        s3geo.query(RAW_QUERY, layers={"sites": SITES})
+
+
+def test_query_strict_params_false_passes_unknown_params_through(monkeypatch):
+    llm_json = _unknown_param_llm_json()
+
+    def _factory(*args, **kwargs):
+        return StaticLLMClient(json.dumps(llm_json, ensure_ascii=False))
+
+    monkeypatch.setattr(s3geo, "OpenAICompatibleLLMClient", _factory)
+
+    # filter_features() has no "attribute" keyword, so with the unknown
+    # param passed straight through (strict_params=False), execution
+    # fails - but only at that point, not at planning time.
+    with pytest.raises(RuntimeError):
+        s3geo.query(RAW_QUERY, layers={"sites": SITES}, strict_params=False)
+
+
 def test_ndvi_analysis_plugin_imports_without_rasterio_installed(monkeypatch):
     # Regression test: plugins/ndvi_analysis.py used to `import rasterio`
     # at module top level, so it alone (among the raster plugins in

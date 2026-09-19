@@ -908,6 +908,24 @@ def test_domain_guidance_documents_every_operations_required_input_roles():
     assert "target" in system_prompt.split("distance_to: inputs keys = {", 1)[1].split("}", 1)[0]
 
 
+def test_domain_guidance_documents_every_operations_accepted_params():
+    """
+    The per-operation params reference in the system prompt must be
+    generated from OP_CATALOG's param_map (mirroring the input-role
+    reference above), so an LLM has the real parameter names available
+    instead of guessing - e.g. filter_attribute's "where" rather than a
+    plausible but wrong name like "attribute".
+    """
+    system_prompt = build_llm_messages("q")[0]["content"]
+
+    assert "filter_attribute: params keys = {" in system_prompt
+    params_listed = system_prompt.split("filter_attribute: params keys = {", 1)[1].split(
+        "}", 1
+    )[0]
+    assert "where" in params_listed
+    assert "attribute" not in params_listed
+
+
 # ------------------------------------------------------------------ #
 # Bug 4: fan-out instead of chaining across multiple computed fields
 # ------------------------------------------------------------------ #

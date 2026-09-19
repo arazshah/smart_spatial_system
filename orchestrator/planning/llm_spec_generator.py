@@ -995,10 +995,33 @@ def _op_input_roles_reference() -> str:
     return "\n".join(lines)
 
 
+def _op_param_reference() -> str:
+    """
+    Every supported operation's accepted params - the exact keys "params"
+    may use for that operation - generated directly from OP_CATALOG's
+    param_map rather than hand-written per-operation examples.
+
+    Mirrors _op_input_roles_reference() above, for the same reason: a
+    hand-written list is exactly how an operation's real parameter names
+    go undocumented here, same as distance_to's inputs did before that
+    fix. DeterministicPlanner(PlannerConfig(strict_params=True)) rejects
+    any params key not in this list at planning time, so an LLM that
+    guesses a name not listed here fails the plan outright instead of
+    reaching a plugin with a wrong keyword argument.
+    """
+    lines = []
+    for name in list_supported_ops():
+        params = list(get_op(name).param_map)
+        param_desc = ", ".join(params) if params else "(none)"
+        lines.append(f"- {name}: params keys = {{{param_desc}}}")
+    return "\n".join(lines)
+
+
 def _domain_guidance() -> str:
     supported = ", ".join(list_supported_ops())
     pending = ", ".join(list_pending_ops())
     input_roles = _op_input_roles_reference()
+    op_params = _op_param_reference()
 
     return f"""
 You are a planning assistant for a smart spatial analysis system.
@@ -1018,6 +1041,11 @@ missing key fails to plan. This list is generated from the operation
 catalog itself, so trust it over any example below if the two ever
 disagree:
 {input_roles}
+
+Every operation only ACCEPTS these "params" keys - a params key not listed
+for that operation is rejected and fails to plan. This list is also
+generated from the operation catalog itself:
+{op_params}
 
 Pending operations, not executable yet:
 {pending}

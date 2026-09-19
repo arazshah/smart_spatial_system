@@ -57,7 +57,7 @@ from orchestrator.planning.llm_spec_generator import (
     OpenAICompatibleLLMClient,
     StaticLLMClient,
 )
-from orchestrator.planning.planner import DeterministicPlanner, PlanningError
+from orchestrator.planning.planner import DeterministicPlanner, PlannerConfig, PlanningError
 
 __all__ = [
     "query",
@@ -67,6 +67,7 @@ __all__ = [
     # so they are reachable as `s3geo.<Name>` without importing orchestrator.
     "CapabilityRegistry",
     "DeterministicPlanner",
+    "PlannerConfig",
     "DagExecutor",
     "RegistryCapabilityResolver",
     "LLMQuerySpecGenerator",
@@ -133,6 +134,7 @@ def query(
     context: dict[str, Any] | None = None,
     system_hints: str | None = None,
     tolerant: bool = True,
+    strict_params: bool = True,
 ) -> S3GeoResult:
     """
     Run a single natural-language spatial query end-to-end.
@@ -160,6 +162,16 @@ def query(
             that plugin - matching OrchestratorService's own registry
             build. Pass False to opt back into strict, fail-fast import
             behavior.
+        strict_params:
+            Forwarded to PlannerConfig. Defaults to True so a params key
+            the LLM's plan uses that isn't in OP_CATALOG's param_map for
+            that operation (e.g. a typo'd or hallucinated parameter name)
+            is rejected with a clear PlanningError at planning time,
+            instead of being passed straight through to the plugin
+            function and failing later with a raw, misleading
+            TypeError - matching every PlannerConfig this codebase's own
+            test suite constructs. Pass False to opt back into permissive
+            pass-through of unrecognized params.
 
     Returns:
         S3GeoResult with the identified goal, the operations the plan
@@ -184,7 +196,7 @@ def query(
         system_hints=system_hints or "",
     )
 
-    plan = DeterministicPlanner().build(query_spec)
+    plan = DeterministicPlanner(PlannerConfig(strict_params=strict_params)).build(query_spec)
 
     reg = registry(tolerant=tolerant)
     executor = DagExecutor(RegistryCapabilityResolver(reg))

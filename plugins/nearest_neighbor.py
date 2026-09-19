@@ -17,9 +17,18 @@ Engines:
     - auto:
         Use shapely if available, otherwise pure-python fallback from distance_calculator.
     - shapely:
-        Robust geometry distance through shapely.
+        Robust geometry distance through shapely. Candidate search is
+        accelerated with an STRtree (shapely.strtree) instead of a
+        brute-force scan of every target per source, whenever shapely is
+        importable and every target geometry parses cleanly - see
+        _prepare_target_index()/_strtree_candidates() below. Falls back
+        to the original per-pair nested loop otherwise (shapely missing,
+        or a target geometry that doesn't parse), so behavior on that
+        rare path stays exactly what it always was.
     - python:
-        Pure-python planar distance fallback.
+        Pure-python planar distance fallback. Always uses the original
+        per-pair nested loop - the indexed path is shapely-only by
+        design, since it relies on shapely's own distance() and STRtree.
 
 Important:
     Calculations are planar, not geodesic. Reproject geographic data first
@@ -28,6 +37,7 @@ Important:
 
 from __future__ import annotations
 
+import math
 from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
@@ -329,6 +339,243 @@ def _build_vector_metadata(features: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _strtree_query_indices(tree: Any, geometry: Any, geometries: list[Any]) -> list[int]:
+    """
+    Query an STRtree and return integer indices into `geometries`.
+
+    Handles both STRtree.query() return shapes across shapely versions,
+    same approach as plugins/spatial_join.py's helper of the same name:
+        - shapely>=2.0: an array-like of integer positions into the list
+          the tree was built from.
+        - shapely<2.0: a list of the matched geometry objects themselves,
+          not indices - resolved back to positions by identity, since the
+          tree stores references to the exact objects it was built from.
+    """
+    result = tree.query(geometry)
+
+    if len(result) == 0:
+        return []
+
+    first = result[0]
+
+    if hasattr(first, "geom_type"):
+        id_to_index = {id(g): i for i, g in enumerate(geometries)}
+        return [id_to_index[id(g)] for g in result if id(g) in id_to_index]
+
+    return [int(i) for i in result]
+
+
+def _prepare_target_index(
+    target_items: list[dict[str, Any]],
+    final_engine: str,
+) -> tuple[Any, Any, list[Any], list[int]]:
+    """
+    Try to build an STRtree over target_items' geometries, for the
+    STRtree-accelerated candidate search in find_nearest_neighbors().
+
+    Returns (shape_fn, tree, tree_geoms, tree_indices). shape_fn is None
+    (and the accelerated path unavailable) whenever it can't be used
+    safely, and the caller must fall back to the original per-pair
+    nested loop entirely for every source:
+        - engine is explicitly "python" - the accelerated path is
+          shapely-only by design (see the module docstring).
+        - shapely itself is not importable.
+        - any target geometry fails to parse (rare malformed input;
+          falling back keeps that case's error handling identical to
+          the pre-existing per-pair try/except instead of approximating
+          it for a build-once index).
+
+    tree_geoms/tree_indices exclude targets with a missing (None) or
+    empty geometry - shapely.distance()/STRtree can't index those, and
+    the original code already treats them as "no distance" (see
+    _shapely_distance_geometry), not a match candidate.
+    """
+    if final_engine == "python":
+        return None, None, [], []
+
+    try:
+        from shapely.geometry import shape
+        from shapely.strtree import STRtree
+    except ImportError:
+        return None, None, [], []
+
+    tree_geoms: list[Any] = []
+    tree_indices: list[int] = []
+
+    for idx, item in enumerate(target_items):
+        geometry = item.get("geometry")
+        if geometry is None:
+            continue
+        try:
+            geom = shape(geometry)
+        except Exception:
+            return None, None, [], []
+        if geom.is_empty:
+            continue
+        tree_geoms.append(geom)
+        tree_indices.append(idx)
+
+    tree = STRtree(tree_geoms) if tree_geoms else None
+    return shape, tree, tree_geoms, tree_indices
+
+
+def _initial_radius_guess(tree_geoms: list[Any]) -> float:
+    """
+    Rough expected nearest-neighbor spacing, used only to pick a
+    starting search radius for _strtree_candidates()'s growing search -
+    a bad guess costs a few extra doublings, not correctness (see that
+    function's docstring for the correctness argument, which does not
+    depend on this estimate).
+    """
+    try:
+        minx = min(g.bounds[0] for g in tree_geoms)
+        miny = min(g.bounds[1] for g in tree_geoms)
+        maxx = max(g.bounds[2] for g in tree_geoms)
+        maxy = max(g.bounds[3] for g in tree_geoms)
+    except Exception:
+        return 1.0
+
+    diagonal = math.hypot(maxx - minx, maxy - miny)
+    n = len(tree_geoms)
+    if diagonal <= 0 or n <= 0:
+        return 1.0
+
+    estimate = diagonal / math.sqrt(n)
+    return estimate if estimate > 0 else 1.0
+
+
+def _strtree_candidates(
+    source_geom: Any,
+    tree: Any,
+    tree_geoms: list[Any],
+    tree_indices: list[int],
+    k: int,
+    max_distance: float | None,
+    initial_radius: float,
+) -> list[tuple[float, int]]:
+    """
+    Return up to k (distance, target_index) pairs - targets from
+    tree_geoms/tree_indices nearest to source_geom - sorted by
+    (distance, target_index), the same order and tie-break a full
+    pairwise scan followed by candidate_rows.sort() would produce.
+
+    Correctness of the growing search below: querying
+    tree.query(source_geom.buffer(r)) returns every target whose
+    bounding box intersects source_geom's bounding box expanded by r in
+    every direction. If a target's true distance to source_geom is <=
+    r, some point of that target lies within r of source_geom, and
+    that point lies within source_geom's expanded bounding box - so the
+    target's own bounding box must intersect it too. A target NOT
+    returned by that query is therefore guaranteed to have true
+    distance > r. Growing r until at least k confirmed candidates are
+    found with their k-th real distance <= r proves no closer,
+    unqueried target exists - the same guarantee an exhaustive scan
+    gives, just without computing an exact distance to every target.
+
+    (This buffer+bbox-query approach, rather than shapely 2.x's
+    query(..., predicate="dwithin", distance=r), matches
+    _strtree_query_indices()'s existing shapely<2.0 compatibility
+    handling elsewhere in this codebase - see plugins/spatial_join.py.)
+    """
+    n = len(tree_geoms)
+    if n == 0 or tree is None:
+        return []
+
+    if max_distance is not None:
+        hit_positions = _strtree_query_indices(tree, source_geom.buffer(max_distance), tree_geoms)
+        candidates = [
+            (float(source_geom.distance(tree_geoms[pos])), tree_indices[pos])
+            for pos in hit_positions
+        ]
+        candidates = [item for item in candidates if item[0] <= max_distance]
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        return candidates[:k]
+
+    radius = initial_radius
+
+    # Doubling from any positive start converges in O(log(true_radius /
+    # start)) steps; 200 doublings covers any representable float range
+    # many times over, so this cap only exists to guarantee termination,
+    # not to affect correctness (the exhaustive fallback below always
+    # returns the exact answer regardless of how the loop exits).
+    for _ in range(200):
+        hit_positions = _strtree_query_indices(tree, source_geom.buffer(radius), tree_geoms)
+        exhaustive = len(hit_positions) >= n
+        if exhaustive:
+            hit_positions = range(n)
+
+        candidates = [
+            (float(source_geom.distance(tree_geoms[pos])), tree_indices[pos])
+            for pos in hit_positions
+        ]
+        candidates.sort(key=lambda item: (item[0], item[1]))
+
+        if exhaustive or (len(candidates) >= k and candidates[k - 1][0] <= radius):
+            return candidates[:k]
+
+        radius *= 2
+
+    candidates = [
+        (float(source_geom.distance(tree_geoms[pos])), tree_indices[pos]) for pos in range(n)
+    ]
+    candidates.sort(key=lambda item: (item[0], item[1]))
+    return candidates[:k]
+
+
+def _brute_force_candidates(
+    source_feature: dict[str, Any],
+    target_items: list[dict[str, Any]],
+    final_engine: str,
+    final_max_distance: float | None,
+    engines_used: set[str],
+) -> tuple[list[tuple[float, int, dict[str, Any], str]], int, int, str, str | None]:
+    """
+    Original per-pair nested-loop candidate search for one source
+    feature against every target - unindexed, unchanged from before the
+    STRtree-accelerated path existed. Used as the exact-fidelity
+    fallback whenever that path can't be used: engine="python", shapely
+    unavailable, or a target/source geometry that doesn't parse.
+
+    Returns (candidate_rows, pair_count_delta, failed_pair_count_delta,
+    last_engine_used, last_error) - candidate_rows sorted by
+    (distance, target_index), same as the accelerated path returns.
+    """
+    candidate_rows: list[tuple[float, int, dict[str, Any], str]] = []
+    last_engine_used = final_engine
+    last_error: str | None = None
+    pair_count_delta = 0
+    failed_pair_count_delta = 0
+
+    for target_index, target_feature in enumerate(target_items):
+        pair_count_delta += 1
+
+        try:
+            distance, engine_used = _calculate_distance(
+                source_geometry=source_feature.get("geometry"),
+                target_geometry=target_feature.get("geometry"),
+                engine=final_engine,
+            )
+            engines_used.add(engine_used)
+            last_engine_used = engine_used
+
+            if distance is None:
+                failed_pair_count_delta += 1
+                continue
+
+            if final_max_distance is not None and distance > final_max_distance:
+                continue
+
+            candidate_rows.append((float(distance), target_index, target_feature, engine_used))
+
+        except Exception as exc:
+            failed_pair_count_delta += 1
+            last_error = str(exc)
+            engines_used.add(final_engine)
+
+    candidate_rows.sort(key=lambda item: (item[0], item[1]))
+    return candidate_rows, pair_count_delta, failed_pair_count_delta, last_engine_used, last_error
+
+
 @capability(
     name="find_nearest_neighbors",
     keywords=[
@@ -510,36 +757,81 @@ def find_nearest_neighbors(
     failed_pair_count = 0
     dropped_unmatched_count = 0
 
+    shape_fn, tree, tree_geoms, tree_indices = _prepare_target_index(target_items, final_engine)
+    indexed_available = shape_fn is not None
+    # Targets with no usable geometry aren't in the tree, but the
+    # original per-pair loop still "evaluates" them (getting a None
+    # distance, i.e. a failed pair) for every source - match that here
+    # so pair_count/failed_pair_count stay consistent between the two
+    # paths for the same inputs.
+    missing_target_count = len(target_items) - len(tree_geoms) if indexed_available else 0
+    # Computed once for the whole call (it only depends on tree_geoms,
+    # not on any one source) - recomputing it per source would itself be
+    # an O(source * target) bounds scan, defeating the point of indexing.
+    initial_radius = _initial_radius_guess(tree_geoms) if tree_geoms else 1.0
+
     for source_index, source_feature in enumerate(source_items):
         candidate_rows: list[tuple[float, int, dict[str, Any], str]] = []
         last_engine_used = final_engine
         last_error: str | None = None
+        used_index_for_source = False
 
-        for target_index, target_feature in enumerate(target_items):
-            pair_count += 1
+        if indexed_available:
+            source_geometry = source_feature.get("geometry")
+            source_geom = None
+            geom_build_failed = False
 
-            try:
-                distance, engine_used = _calculate_distance(
-                    source_geometry=source_feature.get("geometry"),
-                    target_geometry=target_feature.get("geometry"),
-                    engine=final_engine,
-                )
-                engines_used.add(engine_used)
-                last_engine_used = engine_used
+            if source_geometry is not None:
+                try:
+                    source_geom = shape_fn(source_geometry)
+                except Exception:
+                    geom_build_failed = True
 
-                if distance is None:
-                    failed_pair_count += 1
-                    continue
+            if not geom_build_failed:
+                used_index_for_source = True
+                # _shapely_distance_geometry (what the brute-force path
+                # calls for every pair) resolves engine_used to "shapely"
+                # before checking whether either geometry is missing or
+                # empty - so that's the engine_used here too, even for a
+                # source/target pair that ends up with no distance.
+                last_engine_used = "shapely"
 
-                if final_max_distance is not None and distance > final_max_distance:
-                    continue
+                if source_geometry is None or source_geom is None or source_geom.is_empty:
+                    pair_count += len(target_items)
+                    failed_pair_count += len(target_items)
+                else:
+                    pair_count += missing_target_count
+                    failed_pair_count += missing_target_count
+                    pair_count += len(tree_geoms)
 
-                candidate_rows.append((float(distance), target_index, target_feature, engine_used))
+                    fast_candidates = _strtree_candidates(
+                        source_geom,
+                        tree,
+                        tree_geoms,
+                        tree_indices,
+                        final_k,
+                        final_max_distance,
+                        initial_radius,
+                    )
+                    for distance, target_index in fast_candidates:
+                        candidate_rows.append(
+                            (distance, target_index, target_items[target_index], "shapely")
+                        )
 
-            except Exception as exc:
-                failed_pair_count += 1
-                last_error = str(exc)
-                engines_used.add(final_engine)
+                engines_used.add("shapely")
+
+        if not used_index_for_source:
+            (
+                candidate_rows,
+                pair_delta,
+                failed_delta,
+                last_engine_used,
+                last_error,
+            ) = _brute_force_candidates(
+                source_feature, target_items, final_engine, final_max_distance, engines_used
+            )
+            pair_count += pair_delta
+            failed_pair_count += failed_delta
 
         candidate_rows.sort(key=lambda item: (item[0], item[1]))
         selected = candidate_rows[:final_k]
@@ -619,6 +911,7 @@ def find_nearest_neighbors(
         "source_crs": final_source_crs,
         "target_crs": final_target_crs,
         "planar_only": True,
+        "spatial_index_used": indexed_available,
         "warning": geographic_warning,
         "source_feature_count": len(source_items),
         "target_feature_count": len(target_items),

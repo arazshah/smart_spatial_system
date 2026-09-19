@@ -8,12 +8,14 @@ scripts and the `accessibility/` folder, to run them.
 | File | What it shows |
 |---|---|
 | `accessibility_analysis.py` | The library path: build a QuerySpec by rule, plan it as a DAG, execute it, print the ranking. No server, no LLM. |
+| `s3geo_accessibility_demo.py` | The same ranking as `accessibility_analysis.py`, called entirely through `s3geo.<Name>` (`s3geo.DeterministicPlanner`, `s3geo.registry()`, `s3geo.DagExecutor`) instead of `orchestrator.*` - proving `import s3geo` alone reaches full manual control, not just `s3geo.query()`. No server, no LLM. This is the source recording for `docs/assets/demo.gif`. |
 | `s3geo_quickstart.py` | The one-call library path: `s3geo.query("...", layers={...})` plans the operation chain from the question itself and executes it. Needs a real LLM key - see below. |
 | `query_via_http.py` | The HTTP path: `/health`, `/query` with GeoJSON inputs, reading layers back, fetching the stored request. Standard library only. |
 | `urmia_real_estate_ranking.py` | The one-call library path end to end, on real data: downloads OSM vector layers for Urmia (roads, transit stops, shopping centers), loads LLM settings from `.env`, then asks `s3geo.query()` three plain-language questions over the same layers and saves whatever each plan produces - a map layer, a ranked table, a PDF report. Needs a real LLM key and network access (LLM endpoint + Overpass API). |
 
 ```bash
 python examples/accessibility_analysis.py
+python examples/s3geo_accessibility_demo.py
 
 # s3geo_quickstart.py and urmia_real_estate_ranking.py plan from natural
 # language, so they need a real LLM key:

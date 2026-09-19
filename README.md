@@ -11,9 +11,9 @@
 
 Smart Spatial System is a plugin-based GeoAI backend with a React workbench. A question such as *"rank these candidate properties by distance to metro stations, malls and main roads"* is turned into a structured `QuerySpec`, planned as a DAG of spatial operations, executed by plugins against uploaded files or PostGIS, and returned as map-ready outputs with a full execution trace.
 
-![Running the rule-based accessibility example end to end: the planned DAG, then the ranked output](docs/assets/demo.gif)
+![Running the Vienna accessibility ranking end to end through s3geo: the planned DAG, then the ranked output](docs/assets/demo.gif)
 
-Real, unedited terminal output from [`examples/accessibility_analysis.py`](examples/accessibility_analysis.py) — no server, no LLM, deterministic by construction. Run it yourself after installing below.
+Real, unedited terminal output from [`examples/s3geo_accessibility_demo.py`](examples/s3geo_accessibility_demo.py) — the same deterministic ranking as `accessibility_analysis.py`, called entirely through `import s3geo` (no server, no LLM key needed for this rule-based path). Run it yourself after installing below.
 
 It is the application built on top of [geochat-platform](https://github.com/arazshah/geochat-platform): plugins are written with `geochat_sdk` and executed through `geochat_kernel`.
 

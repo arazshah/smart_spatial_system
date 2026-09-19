@@ -6,6 +6,57 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-19
+
+### Changed
+
+- **`plugins/nearest_neighbor.py::find_nearest_neighbors` no longer
+  scans every target for every source.** It computed nearest neighbors
+  with a brute-force `O(source * target)` nested loop - one
+  `_calculate_distance()` call per pair, no spatial index anywhere in
+  the file - found while diagnosing a downstream case study's
+  `s3geo.query()` calls taking ~120-130s for a 964-polygon x
+  1020-point nearest-facility query. `spatial_join.py` already
+  indexes target geometries in an STRtree for this exact reason
+  (`spatial_index_used` in its own metadata); `find_nearest_neighbors`
+  just hadn't followed that precedent. It now does the same, with a
+  growing-radius STRtree search (bbox-query on a buffered source
+  geometry, doubling the radius until enough confirmed candidates are
+  found - see `_strtree_candidates()`'s docstring for the correctness
+  argument) so `k`-nearest-with-`max_distance` still comes out exactly
+  right, not just `k=1`. On a synthetic 1000x1000 benchmark
+  (`tests/test_nearest_neighbor_strtree_performance.py`), this took the
+  plugin's own runtime from ~33s to ~0.2s (~150x) with identical
+  output; on the reported 964x1020 case-study shape, ~32s to ~0.2s.
+  - The indexed path is shapely-only, matching `spatial_join.py`'s own
+    engine boundary: `engine="python"` always uses the original nested
+    loop unchanged, and `engine="auto"`/`"shapely"` fall back to it too
+    whenever shapely is unavailable or any target geometry fails to
+    parse (rather than approximating that rare case through the index).
+  - Every existing output contract is unchanged: same fields
+    (`_nearest_distance`, `_neighbor_rank`, `_source_index`,
+    `_target_index`, `_nearest_status`, `_nearest_engine`,
+    `_target_properties`, `_target_geometry`), same `k`/`max_distance`/
+    `drop_unmatched`/`precision`/`distance_field`/
+    `include_target_geometry` semantics, same tie-break order
+    (distance, then target index). `metadata.pair_count` and
+    `failed_pair_count` are also kept numerically identical to the old
+    nested loop (not just the per-feature output), even though the
+    indexed path doesn't literally evaluate every pair. New metadata
+    field: `spatial_index_used` (bool), mirroring `spatial_join.py`'s
+    field of the same name.
+  - Regression tests compare the indexed and brute-force paths on the
+    same datasets (points/polygons/lines, `k=1` and `k>1`, `max_distance`
+    exclusion, `drop_unmatched`, missing geometries, an invalid target
+    geometry forcing full fallback) and assert byte-for-byte identical
+    output, plus a performance test asserting the indexed path is at
+    least 5x faster at 1000x1000.
+
+Bumped to `0.5.0` (minor, per semver): `find_nearest_neighbors`'s
+observable output contract is unchanged, but `engine="auto"`'s runtime
+behavior and code path materially changed internally, and a new
+metadata field (`spatial_index_used`) was added.
+
 ## [0.4.2] - 2026-09-19
 
 ### Fixed

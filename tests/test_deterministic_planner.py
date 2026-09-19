@@ -8,7 +8,7 @@ if str(ROOT) not in sys.path:
 import pytest
 
 from orchestrator.planning.dag_executor import DagExecutor
-from orchestrator.planning.planner import DeterministicPlanner, PlanningError
+from orchestrator.planning.planner import DeterministicPlanner, PlannerConfig, PlanningError
 from orchestrator.planning.spec import EntitySpec, OperationSpec, OutputSpec, QuerySpec
 from plugins.feature_scoring import rank_features, score_features
 
@@ -282,6 +282,49 @@ def test_planner_rejects_unknown_operation():
 
     with pytest.raises(PlanningError):
         DeterministicPlanner().build(spec)
+
+
+def _unknown_param_spec() -> QuerySpec:
+    # filter_attribute's real params are where/case_sensitive/sort_by/
+    # sort_order/limit/offset/bbox/bbox_mode/geometry_type/metadata
+    # (op_catalog.py) - "attribute" is not one of them.
+    return QuerySpec(
+        raw_query="repro",
+        goal="repro",
+        entities=[EntitySpec(ref="features", kind="vector")],
+        operations=[
+            OperationSpec(
+                op="filter_attribute",
+                inputs={"vector": "features"},
+                params={"attribute": "amenity"},
+                output="filtered",
+            )
+        ],
+    )
+
+
+def test_planner_passes_unknown_params_through_when_not_strict():
+    # Default PlannerConfig().strict_params is False - unknown params are
+    # passed through with their original name rather than rejected. This
+    # is the permissive default that made an unrecognized param reach
+    # filter_features() and fail late with a raw TypeError instead of a
+    # PlanningError at planning time.
+    plan = DeterministicPlanner().build(_unknown_param_spec())
+
+    node = next(n for n in plan.nodes if n.id == "filtered")
+    assert node.static_params == {"attribute": "amenity"}
+
+
+def test_planner_rejects_unknown_params_when_strict():
+    # Regression test: an operation params key not in OP_CATALOG's
+    # param_map for that operation (e.g. "attribute" for
+    # filter_attribute, whose real params are where/case_sensitive/
+    # sort_by/sort_order/limit/offset/bbox/bbox_mode/geometry_type/
+    # metadata) must be rejected at planning time with a PlanningError
+    # when strict_params=True, instead of silently passing through to
+    # fail later inside the plugin with a misleading raw TypeError.
+    with pytest.raises(PlanningError, match="attribute"):
+        DeterministicPlanner(PlannerConfig(strict_params=True)).build(_unknown_param_spec())
 
 
 def test_planner_rejects_missing_required_input_role():

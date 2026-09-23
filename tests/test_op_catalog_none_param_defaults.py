@@ -14,7 +14,9 @@ Fixed twice over:
 - spatial_query_filter.filter_features resolves sort_order via pick_first(),
   like bbox_mode.
 - DagExecutor drops None-valued static params whose target keyword has a
-  non-None signature default, so the capability's real default applies. This
+  non-None signature default and an annotation that doesn't accept None
+  (e.g. sort_order: str = "asc"), so the capability's real default applies.
+  Params typed to accept None (precision: int | None = 6) keep it. This
   closes the same gap for every other operation too (e.g. rank_features
   descending=None used to silently sort ascending; filter_points_in_polygon
   predicate=None raised).
@@ -23,13 +25,14 @@ Fixed twice over:
 from __future__ import annotations
 
 import inspect
+import typing
 
 import pytest
 
 from orchestrator.capability_registry import CapabilityRegistry
 from orchestrator.planning.capability_resolver import RegistryCapabilityResolver
 from orchestrator.planning.dag import DagNode, DagPlan
-from orchestrator.planning.dag_executor import DagExecutor, _build_kwargs
+from orchestrator.planning.dag_executor import DagExecutor, _annotation_allows_none, _build_kwargs
 from orchestrator.planning.op_catalog import OP_CATALOG
 from orchestrator.plugin_modules import DEFAULT_SAFE_PLUGIN_MODULES
 from plugins.spatial_query_filter import filter_features
@@ -97,6 +100,12 @@ def test_filter_ops_execute_with_null_sort_order(registry: CapabilityRegistry, o
 
 
 def test_every_non_none_default_catalog_param_drops_explicit_none(registry: CapabilityRegistry) -> None:
+    """
+    For every OP_CATALOG param with a non-None default, an explicit None must
+    either be dropped (so the default applies) or be something the
+    capability's annotation declares it accepts (e.g. `str | None`), in which
+    case the capability handles None itself.
+    """
     checked = 0
     leaks: list[str] = []
 
@@ -107,6 +116,7 @@ def test_every_non_none_default_catalog_param_drops_explicit_none(registry: Capa
             continue
 
         params = inspect.signature(binding.callable).parameters
+        hints = typing.get_type_hints(binding.callable)
         for source_key, target_key in descriptor.param_map.items():
             param = params.get(target_key)
             if param is None or param.default is inspect.Parameter.empty or param.default is None:
@@ -115,28 +125,46 @@ def test_every_non_none_default_catalog_param_drops_explicit_none(registry: Capa
             node = DagNode(id="n", capability_name=descriptor.capability_name, static_params={target_key: None})
             kwargs = _build_kwargs(node, initial_inputs={}, state={}, capability_fn=binding.callable)
             checked += 1
-            if target_key in kwargs:
+            annotation = hints.get(target_key, param.annotation)
+            if target_key in kwargs and not _annotation_allows_none(annotation):
                 leaks.append(
                     f"op '{op_name}' -> {descriptor.capability_name}({target_key}=None) "
-                    f"would override its default {param.default!r}"
+                    f"would override its default {param.default!r} (annotation {annotation!r})"
                 )
 
     assert checked > 0
     assert not leaks, "Explicit None overrides a real default:\n" + "\n".join(leaks)
 
 
-def test_none_is_kept_for_params_whose_default_is_none() -> None:
-    def capability(features, limit=None, mode="a", **extra):
+def test_none_is_kept_unless_default_is_real_and_annotation_excludes_none() -> None:
+    def capability(
+        features,
+        limit=None,
+        mode: str = "a",
+        precision: int | None = 6,
+        **extra,
+    ):
         return None
 
     node = DagNode(
         id="n",
         capability_name="capability",
-        static_params={"limit": None, "mode": None, "unknown": None, "other": 1},
+        static_params={"limit": None, "mode": None, "precision": None, "unknown": None, "other": 1},
     )
     kwargs = _build_kwargs(node, initial_inputs={}, state={}, capability_fn=capability)
 
-    assert kwargs == {"limit": None, "unknown": None, "other": 1}
+    assert kwargs == {"limit": None, "precision": None, "unknown": None, "other": 1}
+
+
+def test_explicit_none_is_kept_where_the_capability_gives_it_meaning() -> None:
+    # calculate_attribute_statistics(precision: int | None = 6): None means
+    # "don't round". The executor must not rewrite that to the default 6.
+    from plugins.attribute_statistics import calculate_attribute_statistics
+
+    node = DagNode(id="n", capability_name="calculate_attribute_statistics", static_params={"precision": None})
+    kwargs = _build_kwargs(node, initial_inputs={}, state={}, capability_fn=calculate_attribute_statistics)
+
+    assert kwargs == {"precision": None}
 
 
 def test_rank_features_descending_null_keeps_real_default(registry: CapabilityRegistry) -> None:

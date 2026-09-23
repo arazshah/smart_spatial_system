@@ -1,0 +1,965 @@
+osm_id,name,dist_boundary_m,dist_centroid_m,centroid_outside_polygon,facility_count,underserved_1000,underserved_1500,underserved_2000
+1275322,Kadıköy Mahallesi,4262.575775,4984.031691,False,0,True,True,True
+1275323,Çelebi Mahallesi,4837.994483,7612.899015,False,0,True,True,True
+1276035,Paşaköy Mahallesi,851.209864,4141.667764,False,0,True,True,True
+2463274,Ayvansaray Mahallesi,0.0,250.226567,False,3,False,False,False
+2463371,Balat Mahallesi,16.525087,317.512199,False,0,False,False,False
+2463390,Derviş Ali Mahallesi,0.0,117.189993,False,2,False,False,False
+2464768,Atikali Mahallesi,0.0,225.660061,False,3,False,False,False
+2464918,Yavuz Sultan Selim Mahallesi,0.0,253.556141,False,2,False,False,False
+2468218,Karagümrük Mahallesi,0.0,126.051422,False,4,False,False,False
+2468219,Hırka-i Şerif Mahallesi,0.0,107.529328,False,4,False,False,False
+2468242,Topkapı Mahallesi,0.0,72.841859,False,9,False,False,False
+3403828,İçerenköy Mahallesi,0.0,61.923156,False,8,False,False,False
+3866327,Cumhuriyet Mahallesi,0.0,338.925687,False,1,False,False,False
+3866328,Ünalan Mahallesi,0.0,302.783567,False,3,False,False,False
+3866467,Bulgurlu Mahallesi,0.0,470.872924,False,2,False,False,False
+3866468,Kısıklı Mahallesi,0.0,260.56484,False,6,False,False,False
+6648205,Yunus Emre Mahallesi,174.303681,1055.050831,False,0,True,False,False
+6648277,Atatürk Mahallesi,289.509504,877.884122,False,0,False,False,False
+6648717,Anadolu Mahallesi,52.517532,999.262379,False,0,False,False,False
+6648841,Hicret Mahallesi,0.0,387.653532,False,1,False,False,False
+6648854,Bolluca Mahallesi,132.110146,2829.393681,False,0,True,True,True
+6648907,Mavigöl Mahallesi,92.909888,1107.244886,False,0,True,False,False
+6670488,Gümüşyaka Mahallesi,960.241636,5213.399803,False,0,True,True,True
+6841016,Bahçelievler Mahallesi,0.0,291.416659,False,12,False,False,False
+6841110,Siyavuşpaşa Mahallesi,0.0,249.502758,False,3,False,False,False
+6868850,Şehremini Mahallesi,0.0,164.736025,False,4,False,False,False
+7404512,Basınköy Mahallesi,827.524327,1560.416849,False,0,True,True,False
+7648808,Mevlanakapı Mahallesi,0.0,288.732493,False,2,False,False,False
+7648809,Seyyid Ömer Mahallesi,0.0,125.804592,False,4,False,False,False
+7648810,Silivrikapı Mahallesi,0.0,335.21692,False,1,False,False,False
+7648811,Sümbül Efendi Mahallesi,4.978463,206.356148,False,0,False,False,False
+7648812,Koca Mustafapaşa Mahallesi,0.0,133.704302,False,4,False,False,False
+7648813,Yedikule Mahallesi,0.0,436.634589,False,1,False,False,False
+7648814,Cerrahpaşa Mahallesi,0.0,184.631324,False,4,False,False,False
+7648815,Haseki Sultan Mahallesi,0.0,116.535305,False,4,False,False,False
+7648816,Molla Gürani Mahallesi,0.0,179.637711,False,3,False,False,False
+7648817,Akşemsettin Mahallesi,0.0,327.540147,False,1,False,False,False
+7648818,Ali Kuşçu Mahallesi,0.0,26.456318,False,5,False,False,False
+7648819,Cibali Mahallesi,48.950531,298.195586,False,0,False,False,False
+7648820,Zeyrek Mahallesi,0.0,198.469007,False,2,False,False,False
+7648821,İskenderpaşa Mahallesi,0.0,248.537006,False,3,False,False,False
+7648822,Aksaray Mahallesi,0.0,560.161507,False,2,False,False,False
+7648823,Katip Kasım Mahallesi,392.653212,695.458318,False,0,False,False,False
+7648824,Mesihpaşa Mahallesi,314.819674,479.874281,False,0,False,False,False
+7648825,Kemalpaşa Mahallesi,163.657406,429.882121,False,0,False,False,False
+7648826,Kalenderhane Mahallesi,35.478012,297.478297,False,0,False,False,False
+7648827,Molla Hüsrev Mahallesi,0.0,214.642058,False,1,False,False,False
+7648828,Hacı Kadın Mahallesi,142.130984,259.838956,False,0,False,False,False
+7648829,Hoca Gıyasettin Mahallesi,195.924459,441.156784,False,0,False,False,False
+7648830,Yavuz Sinan Mahallesi,331.998892,462.943366,False,0,False,False,False
+7648831,Demirtaş Mahallesi,372.647632,492.953967,False,0,False,False,False
+7648832,Sarıdemir Mahallesi,488.604442,713.15821,False,0,False,False,False
+7648833,Süleymaniye Mahallesi,0.0,144.336369,False,1,False,False,False
+7648834,Balabanağa Mahallesi,293.324823,418.968457,False,0,False,False,False
+7648835,Nişanca Mahallesi,503.063297,694.282499,False,0,False,False,False
+7648836,Tahtakale Mahallesi,457.784142,603.03383,False,0,False,False,False
+7648837,Rüstempaşa Mahallesi,581.387808,747.99196,False,0,False,False,False
+7648838,Mercan Mahallesi,317.783384,461.930477,False,0,False,False,False
+7648839,Taya Hatun Mahallesi,432.340855,566.289888,False,0,False,False,False
+7648840,Beyazıt Mahallesi,322.174133,555.564966,False,0,False,False,False
+7648841,Mimar Kemalettin Mahallesi,356.978509,624.662859,True,0,False,False,False
+7648842,Saraç İshak Mahallesi,275.796455,410.590571,False,0,False,False,False
+7648843,Mimar Hayrettin Mahallesi,92.572909,273.715197,False,0,False,False,False
+7648845,Muhsine Hatun Mahallesi,211.016549,483.313357,False,0,False,False,False
+7648846,Şehsuvar Bey Mahallesi,0.0,116.206301,False,1,False,False,False
+7648847,Emin Sinan Mahallesi,100.297498,288.396622,False,0,False,False,False
+7648848,Molla Fenari Mahallesi,14.654558,245.964932,False,0,False,False,False
+7648849,Hobyar Mahallesi,166.05374,424.990139,False,0,False,False,False
+7648850,Sultan Ahmet Mahallesi,265.760448,629.691047,False,0,False,False,False
+7648851,Küçük Ayasofya Mahallesi,128.044088,450.590568,False,0,False,False,False
+7648852,Binbirdirek Mahallesi,26.307147,185.906671,False,0,False,False,False
+7648853,Alemdar Mahallesi,0.0,92.16954,False,2,False,False,False
+7648854,Hocapaşa Mahallesi,0.0,337.32753,False,1,False,False,False
+7648855,Cankurtaran Mahallesi,83.193391,478.978581,False,0,False,False,False
+7666484,Necip Fazıl Mahallesi,146.895822,1092.926633,False,0,True,False,False
+7666485,Orhangazi Mahallesi,0.0,264.485281,False,1,False,False,False
+7666486,Yavuz Selim Mahallesi,0.0,660.781424,False,2,False,False,False
+7666487,Fatih Mahallesi,0.0,280.965954,False,2,False,False,False
+7666488,Mehmet Akif Mahallesi,0.0,87.255902,False,6,False,False,False
+7666489,Abdurrahmangazi Mahallesi,0.0,20.325823,False,7,False,False,False
+7666490,Hasanpaşa Mahallesi,0.0,124.096035,False,3,False,False,False
+7666491,Akşemsettin Mahallesi,0.0,219.274694,False,1,False,False,False
+7666492,Mecidiye Mahallesi,0.0,576.734295,False,1,False,False,False
+7666493,Turgut Reis Mahallesi,0.0,489.510362,False,2,False,False,False
+7666495,Adil Mahallesi,0.0,263.009232,False,2,False,False,False
+7666496,Battalgazi Mahallesi,0.0,59.231123,False,3,False,False,False
+7666497,Mimar Sinan Mahallesi,0.0,505.539049,False,2,False,False,False
+7772852,Ahmet Yesevi Mahallesi,0.0,155.767548,False,3,False,False,False
+7786480,Fevzi Çakmak Mahallesi,19.707203,578.733985,False,0,False,False,False
+7786481,Cennet Mahallesi,0.0,336.167965,False,1,False,False,False
+7786482,Yeni Mahalle Mahallesi,0.0,458.891191,False,1,False,False,False
+7786483,Yeşilova Mahallesi,0.0,393.303962,False,1,False,False,False
+7786484,Gültepe Mahallesi,0.0,24.444307,False,2,False,False,False
+7786485,Beşyol Mahallesi,197.536131,533.73568,False,0,False,False,False
+7786486,Kartaltepe Mahallesi,54.514125,652.396814,False,0,False,False,False
+7786487,Kemalpaşa Mahallesi,29.773667,347.070454,False,0,False,False,False
+7786488,Sultan Murat Mahallesi,22.099389,367.871493,False,0,False,False,False
+7786489,Cumhuriyet Mahallesi,27.019377,435.384403,False,0,False,False,False
+7786490,Tevfikbey Mahallesi,0.0,397.311855,False,5,False,False,False
+7786491,Kanarya Mahallesi,729.687549,1329.131241,False,0,True,False,False
+7786492,Söğütlü Çeşme Mahallesi,0.0,258.693774,False,2,False,False,False
+7786493,İnönü Mahallesi,68.43808,770.625833,False,0,False,False,False
+7786494,İstasyon Mahallesi,0.0,1195.027966,False,1,True,False,False
+7786495,Halkalı Merkez Mahallesi,0.0,756.59562,False,2,False,False,False
+7786496,Yarımburgaz Mahallesi,157.420482,1899.456153,False,0,True,True,False
+7786497,Fatih Mahallesi,771.717618,1311.492382,True,0,True,False,False
+7786499,Atakent Mahallesi,0.0,644.027526,False,7,False,False,False
+7786500,Atatürk Mahallesi,0.0,321.862033,False,1,False,False,False
+7786501,Mehmet Akif Mahallesi,0.0,537.04635,False,1,False,False,False
+7964540,Maltepe Mahallesi,0.0,463.000041,False,7,False,False,False
+7964551,Merkezefendi Mahallesi,0.0,297.587469,False,2,False,False,False
+7964967,Seyitnizam Mahallesi,0.0,333.594779,False,1,False,False,False
+7965030,Telsiz Mahallesi,0.0,165.155025,False,3,False,False,False
+7965031,Beştelsiz Mahallesi,0.0,310.579342,False,2,False,False,False
+7965032,Çırpıcı Mahallesi,0.0,134.993861,False,2,False,False,False
+7965519,Kazlıçeşme Mahallesi,0.0,450.803709,False,9,False,False,False
+7965520,Yenidoğan Mahallesi,0.0,154.012239,False,1,False,False,False
+7965521,Gökalp Mahallesi,27.919499,441.385371,False,0,False,False,False
+7965522,Nuripaşa Mahallesi,21.195541,346.285085,False,0,False,False,False
+7965523,Yeşiltepe Mahallesi,0.0,259.845423,False,1,False,False,False
+7965524,Sümer Mahallesi,0.0,451.932414,False,1,False,False,False
+7965525,Veliefendi Mahallesi,0.0,116.937951,False,4,False,False,False
+7968240,Bereketzade Mahallesi,0.0,112.524704,False,4,False,False,False
+7968241,Emekyemez Mahallesi,196.941298,359.586229,False,0,False,False,False
+7968242,Kemankeş Karamustafa Paşa Mahallesi,0.0,284.044999,False,1,False,False,False
+7968243,Arap Cami Mahallesi,10.879503,219.298209,False,0,False,False,False
+7980653,Şahkulu Mahallesi,140.139554,338.350326,False,0,False,False,False
+7980654,Hacımimi Mahallesi,88.802963,298.676672,False,0,False,False,False
+7980655,Müeyyedzade Mahallesi,58.00445,157.020498,False,0,False,False,False
+7980975,Kılıçali Paşa Mahallesi,26.748894,256.394696,False,0,False,False,False
+7980976,Firuzağa Mahallesi,0.0,197.802677,False,1,False,False,False
+7980977,Tomtom Mahallesi,37.548668,225.41219,False,0,False,False,False
+7980978,Asmalı Mescit Mahallesi,0.0,52.985376,False,2,False,False,False
+7980979,Evliya Çelebi Mahallesi,20.406483,188.409095,False,0,False,False,False
+7980980,Bedrettin Mahallesi,225.859454,578.770321,False,0,False,False,False
+7982393,Katip Mustafa Çelebi Mahallesi,0.0,157.60012,False,1,False,False,False
+7982394,Cihangir Mahallesi,0.0,185.626176,False,1,False,False,False
+7982395,Gümüşsuyu Mahallesi,0.0,151.003021,False,2,False,False,False
+7982396,Ömer Avni Mahallesi,98.180428,355.985249,False,0,False,False,False
+7982397,Pürtelaş Hasan Efendi Mahallesi,193.244256,409.447756,False,0,False,False,False
+7982471,Yenişehir Mahallesi,144.370357,355.615256,False,0,False,False,False
+7982472,Bostan Mahallesi,405.5296,585.100901,False,0,False,False,False
+7982473,Kalyoncu Kulluğu Mahallesi,436.296877,571.795811,False,0,False,False,False
+7982474,Çukur Mahallesi,439.753094,589.774184,False,0,False,False,False
+7982475,Bülbül Mahallesi,138.280984,322.996703,False,0,False,False,False
+7982476,Kocatepe Mahallesi,18.971914,197.591274,False,0,False,False,False
+7982477,Şehit Muhtar Mahallesi,273.16433,421.399908,False,0,False,False,False
+7982478,Hüseyinağa Mahallesi,260.284992,443.711062,False,0,False,False,False
+7982479,Kamer Hatun Mahallesi,187.808425,372.589403,False,0,False,False,False
+7982480,Yahya Kahya Mahallesi,248.528716,397.000892,False,0,False,False,False
+7982481,Çatma Mescit Mahallesi,113.414332,269.395365,False,0,False,False,False
+7982482,Kuloğlu Mahallesi,7.694945,240.069051,False,0,False,False,False
+8040974,Kadı Mehmet Efendi Mahallesi,0.0,81.451099,False,2,False,False,False
+8040975,Camiikebir Mahallesi,42.818198,425.201747,False,0,False,False,False
+8040976,Küçük Piyale Mahallesi,159.494546,462.393381,False,0,False,False,False
+8040977,İstiklal Mahallesi,624.460273,985.28879,False,0,False,False,False
+8040978,Hacıahmet Mahallesi,403.050893,701.819408,False,0,False,False,False
+8040979,Sururi Mehmet Efendi Mahallesi,435.974311,633.962805,False,0,False,False,False
+8041035,Kaptanpaşa Mahallesi,495.356798,959.004809,False,0,False,False,False
+8041036,Keçeci Piri Mahallesi,373.113271,859.249068,False,0,False,False,False
+8041037,Kulaksız Mahallesi,216.637399,542.900143,False,0,False,False,False
+8041154,Sütlüce Mahallesi,429.559454,787.786192,False,0,False,False,False
+8041155,Halıcıoğlu Mahallesi,324.1152,947.761438,False,0,False,False,False
+8041156,Piri Paşa Mahallesi,265.512559,832.500783,False,0,False,False,False
+8041157,Örnektepe Mahallesi,148.677261,560.584291,False,0,False,False,False
+8041158,Fetihtepe Mahallesi,54.531639,530.173246,False,0,False,False,False
+8041159,Piyalepaşa Mahallesi,0.0,519.972975,False,1,False,False,False
+8111527,Sururi Mahallesi,330.086623,501.478604,False,0,False,False,False
+8320926,Hamidiye Mahallesi,0.0,557.207282,False,1,False,False,False
+8766077,Aydınlı Mahallesi,0.0,439.14961,False,3,False,False,False
+8766082,Mescit Mahallesi,398.012806,1302.359914,False,0,True,False,False
+8766277,Orhanlı Mahallesi,898.524587,2126.911107,True,0,True,True,True
+8766278,Anadolu Mahallesi,1277.917382,2168.765061,False,0,True,True,True
+8766279,Fatih Mahallesi,1278.476371,2192.247863,False,0,True,True,True
+8766662,Tepeören Mahallesi,0.0,1042.070334,False,1,True,False,False
+8766663,Orta Mahallesi,703.184729,1761.954383,False,0,True,True,False
+8766844,Akfırat Mahallesi,1621.304466,4922.250323,False,0,True,True,True
+8766896,Şifa Mahallesi,0.0,60.643933,False,2,False,False,False
+8766897,Mimar Sinan Mahallesi,0.0,292.730274,False,3,False,False,False
+8767043,İstasyon Mahallesi,0.0,1448.505806,False,1,True,False,False
+8767105,Cami Mahallesi,23.510804,560.310609,False,0,False,False,False
+8767114,Yayla Mahallesi,0.0,237.748722,False,5,False,False,False
+8767167,Postane Mahallesi,0.0,1981.374142,False,2,True,True,False
+8767841,Evliya Çelebi Mahallesi,0.0,882.80928,False,2,False,False,False
+8767842,İçmeler Mahallesi,0.0,282.7145,False,3,False,False,False
+8767843,Aydıntepe Mahallesi,0.0,390.549756,False,2,False,False,False
+8796660,Çağlayan Mahallesi,0.0,507.355193,False,1,False,False,False
+8796814,Akşemseddin Mahallesi,142.69231,709.704977,False,0,False,False,False
+8800853,Ramazanoğlu Mahallesi,311.19203,1108.029497,False,0,True,False,False
+8824054,Yeşilce Mahallesi,289.755658,712.766669,False,0,False,False,False
+8824111,Güneşli Mahallesi,0.0,137.872436,False,3,False,False,False
+8824112,Bağlar Mahallesi,0.0,601.723761,False,1,False,False,False
+8832576,Zübeyde Hanım Mahallesi,349.402233,1148.083111,False,0,True,False,False
+8832577,Gazi Mahallesi,0.0,376.289319,False,1,False,False,False
+8832578,Yunus Emre Mahallesi,0.0,273.681565,False,3,False,False,False
+8839337,Firuzköy Mahallesi,32.991277,1334.55621,False,0,True,False,False
+8852697,Kozyatağı Mahallesi,0.0,332.622723,False,7,False,False,False
+8857261,Küçükbakkalköy Mahallesi,0.0,64.176738,False,32,False,False,False
+8863399,Vatan Mahallesi,0.0,297.802925,False,1,False,False,False
+8866766,Çınardere Mahallesi,0.0,545.846994,False,1,False,False,False
+8894351,Göçbeyli Mahallesi,7444.369445,11639.019192,False,0,True,True,True
+8894395,Bucaklı Mahallesi,242.827264,2706.340264,False,0,True,True,True
+8894396,Geredeli Mahallesi,3407.362589,6738.186553,False,0,True,True,True
+8894397,Göçe Mahallesi,1040.439689,2842.378359,False,0,True,True,True
+8894398,Ağva Merkez Mahallesi,0.0,645.459449,False,1,False,False,False
+8894445,Kurfallı Mahallesi,739.925882,2097.415003,False,0,True,True,True
+8894446,İsaköy Mahallesi,2459.636337,3799.918764,False,0,True,True,True
+8894447,Soğullu Mahallesi,4456.719079,8259.588676,False,0,True,True,True
+8894466,Kalem Mahallesi,3500.674158,8475.453381,False,0,True,True,True
+8894727,Çataklı Mahallesi,6648.008544,10663.904779,False,0,True,True,True
+8894728,Göksu Mahallesi,6069.247787,8931.973135,False,0,True,True,True
+8894729,Gökmaşlı Mahallesi,4712.397136,5818.827832,False,0,True,True,True
+8897352,Şuayipli Mahallesi,2871.781482,4791.561662,False,0,True,True,True
+8897385,Hacıllı Mahallesi,6381.661218,9059.971104,False,0,True,True,True
+8900397,Bozgoca Mahallesi,5730.610223,6624.41342,False,0,True,True,True
+8900398,Karacaköy Mahallesi,6817.298287,7842.084945,False,0,True,True,True
+8900415,İmrenli Mahallesi,7912.964085,9743.260285,False,0,True,True,True
+8902002,Mehmet Akif Ersoy Mahallesi,0.0,431.865658,False,1,False,False,False
+8905922,Sortullu Mahallesi,4448.90704,6170.468389,False,0,True,True,True
+8906003,Karabeyli Mahallesi,4873.640777,6906.076533,False,0,True,True,True
+8906049,Akçakese Mahallesi,6210.873309,8749.357181,False,0,True,True,True
+8906089,Kabakoz Mahallesi,3559.913857,6623.97858,False,0,True,True,True
+8917831,Balibey Mahallesi,0.0,1709.020782,False,2,True,True,False
+8918298,Hacı Kasım Mahallesi,302.577052,575.361726,False,0,False,False,False
+8939333,Çavuş Mahallesi,0.0,1083.865187,False,1,True,False,False
+8939334,İmrendere Mahallesi,1861.494273,3600.574141,False,0,True,True,True
+8996428,Ağaçdere Mahallesi,3306.119216,4728.127658,False,0,True,True,True
+8996776,Osmanköy Mahallesi,3302.393175,4727.852506,False,0,True,True,True
+9027454,Yeniköy Mahallesi,1555.774325,4719.658979,False,0,True,True,True
+9027455,Yaylalı Mahallesi,1346.05157,2897.518758,False,0,True,True,True
+9027503,Çayırbaşı Mahallesi,2504.335347,4054.059058,False,0,True,True,True
+9042591,Ahmet Yesevi Mahallesi,0.0,418.665861,False,2,False,False,False
+9042592,Fatih Mahallesi,20.097815,367.400723,False,0,False,False,False
+9064755,Kumbaba Mahallesi,0.0,849.725685,False,1,False,False,False
+9064777,Ahmetli Mahallesi,370.009254,1670.162213,False,0,True,True,False
+9064778,Meşrutiyet Mahallesi,89.431279,702.594536,False,0,False,False,False
+9064892,Çengilli Mahallesi,4791.249473,7262.810052,False,0,True,True,True
+9064925,Hasanlı Mahallesi,2563.219446,4400.971233,False,0,True,True,True
+9064926,Yazımanayır Mahallesi,1010.009162,2233.599902,False,0,True,True,True
+9064974,Teke Mahallesi,0.0,3282.575685,False,1,True,True,True
+9064975,Yaka Mahallesi,4715.049463,8203.224457,False,0,True,True,True
+9064976,Değirmen Çayırı Mahallesi,8297.076006,10144.447725,False,0,True,True,True
+9065274,Darlık Mahallesi,5311.088628,7505.227946,False,0,True,True,True
+9065275,Oruçoğlu Mahallesi,9139.637051,12544.306455,False,0,True,True,True
+9065276,Ulupelit Mahallesi,7266.827057,9400.452972,False,0,True,True,True
+9066780,Karamandere Mahallesi,1996.807962,5874.423753,False,0,True,True,True
+9066781,Ovacık Mahallesi,3617.875756,5830.829858,False,0,True,True,True
+9066783,Korucu Mahallesi,2436.811806,5100.420565,False,0,True,True,True
+9066788,Satmazlı Mahallesi,2523.085296,4328.603695,False,0,True,True,True
+9066804,Erenler Mahallesi,4666.616253,7211.603411,False,0,True,True,True
+9078093,Esenyalı Mahallesi,424.014676,767.471622,False,0,False,False,False
+9078094,Orhangazi Mahallesi,672.415566,1124.759273,False,0,True,False,False
+9078111,Güzelyalı Mahallesi,944.865709,1841.126021,False,0,True,True,False
+9218021,Kaynarca Mahallesi,0.0,802.975168,False,2,False,False,False
+9218075,Doğu Mahallesi,0.0,463.66985,False,11,False,False,False
+9218100,Batı Mahallesi,0.0,221.195516,False,5,False,False,False
+9218225,Yeşilbağlar Mahallesi,0.0,228.964867,False,1,False,False,False
+9218298,Sapan Bağları Mahallesi,0.0,374.823149,False,1,False,False,False
+9218331,Yeni Mahallesi,0.0,404.029136,False,2,False,False,False
+9218332,Bahçelievler Mahallesi,0.0,166.553389,False,4,False,False,False
+9219444,Çamçeşme Mahallesi,0.0,731.086758,False,1,False,False,False
+9219465,Kavakpınar Mahallesi,0.0,276.879155,False,2,False,False,False
+9219466,Esenler Mahallesi,17.594859,343.909329,False,0,False,False,False
+9219471,Fevzi Çakmak Mahallesi,0.0,389.056645,False,5,False,False,False
+9220784,Dumlupınar Mahallesi,56.398643,620.736476,False,0,False,False,False
+9268730,Sanayi Mahallesi,27.689084,1385.399316,False,0,True,False,False
+9268783,Güllü Bağlar Mahallesi,0.0,475.829482,False,1,False,False,False
+9268801,Şeyhli Mahallesi,22.170676,787.842779,False,0,False,False,False
+9268907,Orta Mahallesi,0.0,123.066367,False,1,False,False,False
+9268910,Velibaba Mahallesi,0.0,209.536599,False,1,False,False,False
+9268920,Ertuğrul Gazi Mahallesi,724.701461,1642.538832,False,0,True,True,False
+9268921,Yayalar Mahallesi,0.0,386.507505,False,1,False,False,False
+9269124,Sülüntepe Mahallesi,0.0,303.614701,False,2,False,False,False
+9285741,Orhantepe Mahallesi,0.0,615.692049,False,3,False,False,False
+9285742,Kordonboyu Mahallesi,12.554385,460.478613,False,0,False,False,False
+9285966,Atalar Mahallesi,0.0,187.536601,False,5,False,False,False
+9285980,Cevizli Mahallesi,0.0,177.020609,False,5,False,False,False
+9286009,Yakacık Çarşı Mahallesi,0.0,794.841717,False,2,False,False,False
+9286043,Petrol İş Mahallesi,0.0,137.820088,False,4,False,False,False
+9286068,Esentepe Mahallesi,0.0,485.739521,False,3,False,False,False
+9286088,Yukarı Mahallesi,0.0,172.315643,False,2,False,False,False
+9286104,Karlıktepe Mahallesi,0.0,132.862105,False,2,False,False,False
+9286195,Çavuşoğlu Mahallesi,38.900726,766.212247,False,0,False,False,False
+9286238,Yunus Mahallesi,0.0,266.603208,False,3,False,False,False
+9286262,Topselvi Mahalesi,0.0,406.545758,False,1,False,False,False
+9286269,Yalı Mahallesi,0.0,312.644891,False,1,False,False,False
+9286337,Cumhuriyet Mahallesi,0.0,186.018759,False,1,False,False,False
+9286355,Orta Mahallesi,0.0,365.70507,False,4,False,False,False
+9286388,Soğanlık Yeni Mahallesi,0.0,798.571869,False,1,False,False,False
+9286428,Gümüşpınar Mahallesi,0.0,404.896773,False,1,False,False,False
+9286454,Hürriyet Mahallesi,0.0,289.585072,False,3,False,False,False
+9286485,Uğur Mumcu Mahallesi,0.0,428.972363,False,1,False,False,False
+9286522,Yakacık Yeni Mahallesi,0.0,1772.885657,False,2,True,True,False
+9286607,Bostancı Mahallesi,0.0,177.718829,False,5,False,False,False
+9286614,Suadiye Mahallesi,0.0,230.923462,False,3,False,False,False
+9286639,Rasimpaşa Mahallesi,0.0,404.761629,False,2,False,False,False
+9286657,Ferhatpaşa Mahallesi,0.0,529.878283,False,1,False,False,False
+9286658,Fetih Mahallesi,253.175992,548.781796,False,0,False,False,False
+9287004,Kayışdağı Mahallesi,0.0,703.749011,False,3,False,False,False
+9288091,Yenişehir Mahallesi,226.489374,689.860559,False,0,False,False,False
+9288097,İnönü Mahallesi,0.0,517.045904,False,1,False,False,False
+9289098,Ambarlı Mahallesi,0.0,542.823153,False,2,False,False,False
+9289128,Tahtakale Mahallesi,0.0,1539.452041,False,1,True,True,False
+9289261,Gürpınar Mahallesi,111.930709,1137.294462,False,0,True,False,False
+9289278,Taşdelen Mahallesi,247.217856,1355.476402,False,0,True,False,False
+9293239,Yakuplu Mahallesi,0.0,1077.231284,False,1,True,False,False
+9296001,Vişnezade Mahallesi,168.794984,679.61882,False,0,False,False,False
+9308675,Şerifali Mahallesi,209.505447,883.417777,False,0,False,False,False
+9308676,Yukarı Dudullu Mahallesi,0.0,559.577805,False,1,False,False,False
+9309043,Haznedar Mahallesi,24.183469,395.787122,False,0,False,False,False
+9309109,Çifte Havuzlar Mahallesi,0.0,413.422779,False,1,False,False,False
+9314634,Ahmediye Mahallesi,5022.639561,6436.057851,False,0,True,True,True
+9318611,Davutpaşa Mahallesi,490.697517,868.831046,False,0,False,False,False
+9318612,Namık Kemal Mahallesi,183.101236,478.605472,False,0,False,False,False
+9318613,Yavuz Selim Mahallesi,217.637304,762.081422,False,0,False,False,False
+9319824,Harbiye Mahallesi,0.0,328.852359,False,2,False,False,False
+9319855,İnönü Mahallesi,0.0,175.748828,False,2,False,False,False
+9319943,Ergenekon Mahallesi,302.729205,573.753622,False,0,False,False,False
+9320234,Eskişehir Mahallesi,143.975426,433.123771,False,0,False,False,False
+9320236,Bozkurt Mahallesi,86.504084,415.749291,False,0,False,False,False
+9320291,Feriköy Mahallesi,0.0,156.054545,False,1,False,False,False
+9321888,Mahmut Şevket Paşa Mahallesi,174.91083,462.547831,False,0,False,False,False
+9321890,Halil Rıfat Paşa Mahallesi,48.310135,486.717263,False,0,False,False,False
+9321891,Kaptanpaşa Mahallesi,0.0,87.583801,False,2,False,False,False
+9321912,Halide Edip Adıvar Mahallesi,0.0,337.369457,False,1,False,False,False
+9321929,Paşa Mahallesi,215.743136,532.891239,False,0,False,False,False
+9321930,Duatepe Mahallesi,31.885827,261.471182,False,0,False,False,False
+9322001,Yayla Mahallesi,47.109545,311.644671,False,0,False,False,False
+9324375,İzzetpaşa Mahallesi,0.0,199.689897,False,1,False,False,False
+9324437,Merkez Mahallesi,0.0,189.554807,False,4,False,False,False
+9324438,Cumhuriyet Mahallesi,0.0,298.408165,False,2,False,False,False
+9324445,19 Mayıs Mahallesi,0.0,112.664565,False,4,False,False,False
+9324450,Halaskargazi Mahallesi,51.973293,264.732217,False,0,False,False,False
+9324472,Meşrutiyet Mahallesi,12.020016,322.045598,False,0,False,False,False
+9324473,Teşvikiye Mahallesi,0.0,196.61803,False,6,False,False,False
+9327583,Fulya Mahallesi,0.0,308.588758,False,4,False,False,False
+9327603,Esentepe Mahallesi,0.0,411.029016,False,3,False,False,False
+9327605,Mecidiyeköy Mahallesi,0.0,148.384756,False,2,False,False,False
+9327610,Gülbahar Mahallesi,0.0,130.463342,False,3,False,False,False
+9327636,Muradiye Mahallesi,229.741365,421.196371,False,0,False,False,False
+9327651,Türkali Mahallesi,411.585408,683.402906,False,0,False,False,False
+9327671,Sinanpaşa Mahallesi,430.412545,690.838881,False,0,False,False,False
+9327672,Cihannüma Mahallesi,320.316125,537.354499,False,0,False,False,False
+9327673,Abbasağa Mahallesi,635.677124,833.479601,False,0,False,False,False
+9335346,Gayrettepe Mahallesi,0.0,196.512283,False,2,False,False,False
+9335348,Balmumcu Mahallesi,279.121275,862.942056,False,0,False,False,False
+9335349,Dikilitaş Mahallesi,0.0,449.078833,False,1,False,False,False
+9335350,Yıldız Mahallesi,0.0,481.602924,False,1,False,False,False
+9335638,Mecidiye Mahallesi,784.947103,1100.69387,False,0,True,False,False
+9335689,Ortaköy Mahallesi,22.198368,691.479152,False,0,False,False,False
+9338580,Levazım Mahallesi,218.520084,788.066654,False,0,False,False,False
+9338582,Ulus Mahallesi,0.0,425.981394,False,2,False,False,False
+9338583,Nisbetiye Mahallesi,0.0,239.302312,False,5,False,False,False
+9338584,Kültür Mahallesi,0.0,153.354918,False,1,False,False,False
+9338586,Arnavutköy Mahallesi,538.292645,885.8518,False,0,False,False,False
+9340106,Kuruçeşme Mahallesi,203.322266,490.10553,False,0,False,False,False
+9340873,Konaklar Mahallesi,68.289485,1008.562187,False,0,True,False,False
+9340882,Levent Mahallesi,0.0,533.048815,False,2,False,False,False
+9340899,Akat Mahallesi,98.537553,977.87611,False,0,False,False,False
+9343684,Bebek Mahallesi,0.0,695.652178,False,1,False,False,False
+9343698,Etiler Mahallesi,0.0,233.276075,False,2,False,False,False
+9343740,Rumelihisarı Mahallesi,0.0,391.610735,False,1,False,False,False
+9343795,Baltalimanı Mahallesi,0.0,466.341242,False,7,False,False,False
+9343796,Fatih Sultan Mehmet Mahallesi,0.0,294.35445,False,1,False,False,False
+9345828,Emirgan Mahallesi,152.929029,939.812298,False,0,False,False,False
+9345829,Reşitpaşa Mahallesi,732.136693,1454.139575,False,0,True,False,False
+9354191,Talatpaşa Mahallesi,0.0,309.102726,False,1,False,False,False
+9354239,Merkez Mahallesi,0.0,332.120364,False,2,False,False,False
+9354260,Gürsel Mahallesi,0.0,292.981376,False,1,False,False,False
+9354273,Nurtepe Mahallesi,60.590407,822.592401,False,0,False,False,False
+9356990,Emniyettepe Mahallesi,264.905388,806.623012,False,0,False,False,False
+9357003,Güzeltepe Mahallesi,0.0,362.488625,False,1,False,False,False
+9357083,Alibeyköy Mahallesi,237.28234,371.20211,False,0,False,False,False
+9361618,Çamlık Mahallesi,0.0,1025.495529,False,1,True,False,False
+9362930,Hamidiye Mahallesi,0.0,805.178709,False,2,False,False,False
+9362961,Seyrantepe Mahallesi,0.0,168.258952,False,1,False,False,False
+9362979,Sultan Selim Mahallesi,0.0,611.087041,False,1,False,False,False
+9363036,Şirintepe Mahallesi,554.533795,1007.860981,False,0,True,False,False
+9363037,Emniyetevleri Mahallesi,192.012229,413.114984,False,0,False,False,False
+9363124,Çeliktepe Mahallesi,0.0,490.339721,False,1,False,False,False
+9363127,Ortabayır Mahallesi,48.194187,467.058298,False,0,False,False,False
+9363133,Telsizler Mahallesi,437.08391,716.386536,False,0,False,False,False
+9363158,Gültepe Mahallesi,244.514894,593.710682,False,0,False,False,False
+9363201,Harmantepe Mahallesi,119.098403,545.112922,False,0,False,False,False
+9363203,Yahya Kemal Mahallesi,322.857919,788.282627,False,0,False,False,False
+9363232,Hürriyet Mahallesi,27.567053,482.158872,False,0,False,False,False
+9363902,Yenişehir Mahallesi,0.0,735.000985,False,6,False,False,False
+9379470,Orta Mahallesi,98.839933,261.131463,False,0,False,False,False
+9379494,Yenidoğan Mahallesi,144.181657,446.291674,False,0,False,False,False
+9379509,Terazidere Mahallesi,10.769784,368.981992,False,0,False,False,False
+9379510,Altıntepsi Mahallesi,0.0,270.258544,False,3,False,False,False
+9379589,İsmet Paşa Mahallesi,0.0,275.075933,False,2,False,False,False
+9379597,Muratpaşa Mahallesi,174.958059,726.07957,False,0,False,False,False
+9379598,Kartaltepe Mahallesi,0.0,395.792295,False,1,False,False,False
+9379636,Cevatpaşa Mahallesi,0.0,330.248029,False,2,False,False,False
+9379637,Yıldırım Mahallesi,0.0,132.098259,False,1,False,False,False
+9379638,Kocatepe Mahallesi,107.984834,847.926709,False,0,False,False,False
+9381516,Defterdar Mahallesi,0.0,101.103231,False,3,False,False,False
+9381520,Nişancı Mahallesi,67.043627,546.681806,False,0,False,False,False
+9381554,Merkez Mahallesi,0.0,438.276429,False,1,False,False,False
+9381555,Silahtarağa Mahallesi,239.353796,502.497766,False,0,False,False,False
+9381563,İslambey Mahallesi,373.788809,718.149723,False,0,False,False,False
+9381569,Düğmeciler Mahallesi,163.452662,548.201497,False,0,False,False,False
+9381669,Rami Cuma Mahallesi,0.0,175.67681,False,1,False,False,False
+9381694,Topçular Mahallesi,0.0,602.281937,False,1,False,False,False
+9381765,Rami Yeni Mahallesi,0.0,277.300763,False,1,False,False,False
+9381807,Sakarya Mahallesi,11.039732,176.764155,False,0,False,False,False
+9381849,Esentepe Mahallesi,0.0,159.692786,False,1,False,False,False
+9381850,Karadolap Mahallesi,0.0,483.926411,False,3,False,False,False
+9381851,Yeşilpınar Mahallesi,0.0,669.478659,False,1,False,False,False
+9381855,Çırçır Mahallesi,0.0,445.368045,False,1,False,False,False
+9381869,Akşemsettin Mahallesi,0.0,352.135371,False,1,False,False,False
+9381909,Yıldıztabya Mahallesi,450.425257,979.798455,False,0,False,False,False
+9381914,Pazariçi Mahallesi,208.166816,590.746705,False,0,False,False,False
+9381933,Karlıtepe Mahallesi,539.021697,1010.564059,False,0,True,False,False
+9381934,Yenidoğan Mahallesi,488.089926,784.20762,False,0,False,False,False
+9387083,Altıntepe Mahallesi,0.0,155.818515,False,2,False,False,False
+9387779,Sarıgöl Mahallesi,83.376032,389.767383,False,0,False,False,False
+9387789,Merkez Mahallesi,0.0,196.22137,False,5,False,False,False
+9387822,Bağlarbaşı Mahallesi,39.719607,642.731926,False,0,False,False,False
+9388924,Karadeniz Mahallesi,0.0,106.770107,False,2,False,False,False
+9388925,Barbaros Hayrettin Paşa Mahallesi,0.0,277.767264,False,2,False,False,False
+9388940,Yeni Mahalle Mahallesi,0.0,472.887587,False,3,False,False,False
+9388951,Hürriyet Mahallesi,0.0,279.151957,False,1,False,False,False
+9388968,Şemsipaşa Mahallesi,0.0,410.208045,False,1,False,False,False
+9389046,Karayolları Mahallesi,0.0,88.29531,False,3,False,False,False
+9389048,Mevlana Mahallesi,0.0,394.643895,False,2,False,False,False
+9389050,Fevzi Çakmak Mahallesi,0.0,304.571816,False,1,False,False,False
+9389063,Kazım Karabekir Mahallesi,0.0,23.195639,False,2,False,False,False
+9389916,75. Yıl Mahallesi,21.85276,475.907247,False,0,False,False,False
+9389934,Cumhuriyet Mahallesi,0.0,288.490471,False,1,False,False,False
+9389950,Esentepe Mahallesi,0.0,228.069287,False,1,False,False,False
+9390752,50. Yıl Mahallesi,0.0,197.581628,False,1,False,False,False
+9390753,Uğur Mumcu Mahallesi,0.0,357.919128,False,6,False,False,False
+9390800,Sultançiftliği Mahallesi,0.0,548.208255,False,5,False,False,False
+9390849,İsmetpaşa Mahallesi,0.0,567.13131,False,1,False,False,False
+9390850,Malkoçoğlu Mahallesi,361.512323,1743.611116,True,0,True,True,False
+9390851,Cebeci Mahallesi,21.634252,1810.637573,False,0,True,True,False
+9390946,Eski Habipler Mahallesi,0.0,53.826898,False,1,False,False,False
+9391277,Yayla Mahallesi,0.0,301.701514,False,1,False,False,False
+9391290,Habibler Mahallesi,310.487916,1626.834209,False,0,True,True,False
+9391449,Abdurrahman Nafiz Gürman Mahallesi,194.113167,980.572164,False,0,False,False,False
+9391461,Mehmet Nesih Özmen Mahallesi,471.542945,1156.950226,False,0,True,False,False
+9391469,Tozkoparan Mahallesi,37.307512,567.445449,False,0,False,False,False
+9393065,Sanayi Mahallesi,268.256069,870.59778,False,0,False,False,False
+9393066,Gençosman Mahallesi,108.885788,773.226293,False,0,False,False,False
+9393094,Güven Mahallesi,381.758656,741.998842,False,0,False,False,False
+9393125,Mareşal Çakmak Mahallesi,0.0,354.221385,False,1,False,False,False
+9393126,Akıncılar Mahallesi,249.569716,638.709862,False,0,False,False,False
+9393147,Güneştepe Mahallesi,17.956924,560.131069,False,0,False,False,False
+9393153,Merkez Mahallesi,0.0,230.493644,False,2,False,False,False
+9395063,Karakiraz Mahallesi,2970.724818,5590.854822,False,0,True,True,True
+9395077,Kurna Mahallesi,5198.090744,7750.928406,False,0,True,True,True
+9397085,Örnek Mahallesi,0.0,410.13881,False,1,False,False,False
+9397114,Esatpaşa Mahallesi,0.0,168.140054,False,1,False,False,False
+9397171,Yenisahra Mahallesi,0.0,362.344814,False,2,False,False,False
+9397186,Aşıkveysel Mahallesi,179.315883,498.089245,False,0,False,False,False
+9397189,Mustafa Kemal Mahallesi,449.896142,743.482405,False,0,False,False,False
+9397234,Barbaros Mahallesi,0.0,490.732343,False,4,False,False,False
+9397246,Atatürk Mahallesi,0.0,257.376945,False,5,False,False,False
+9397264,Mevlana Mahallesi,0.0,274.96004,False,1,False,False,False
+9397321,Mimar Sinan Mahallesi,63.074322,531.89963,False,0,False,False,False
+9397322,Yeni Çamlıca Mahallesi,211.344483,804.051372,False,0,False,False,False
+9397725,Marmara Mahallesi,519.987425,1649.159019,False,0,True,True,False
+9397726,Adnan Kahveci Mahallesi,0.0,383.719985,False,4,False,False,False
+9397727,Dereağzı Mahallesi,0.0,1360.666086,False,1,True,False,False
+9397784,Büyükşehir Mahallesi,0.0,649.16414,False,1,False,False,False
+9397785,Cumhuriyet Mahallesi,0.0,375.784102,False,1,False,False,False
+9399640,Kızılcaköy Mahallesi,859.94962,4092.038466,False,0,True,True,True
+9399739,Sofular Mahallesi,4326.040665,6888.866488,False,0,True,True,True
+9399740,Alacalı Mahallesi,7916.568405,9851.465401,False,0,True,True,True
+9399760,Doğancılı Mahallesi,7996.276752,10584.025942,False,0,True,True,True
+9399761,Avcıkoru Mahallesi,3769.969958,6631.571763,False,0,True,True,True
+9399808,Yeşilvadi Mahallesi,6387.186701,8596.430971,False,0,True,True,True
+9399866,Bıçkıdere Mahallesi,9460.920763,12131.241902,False,0,True,True,True
+9399878,Kervansaray Mahallesi,7654.606261,10613.517585,False,0,True,True,True
+9399909,Esenceli Mahallesi,4242.155821,6290.875951,False,0,True,True,True
+9399910,Kömürlük Mahallesi,4822.682594,7342.782328,False,0,True,True,True
+9399929,Üvezli Mahallesi,6993.962582,9943.163873,False,0,True,True,True
+9400038,Sahilköy Mahallesi,6231.266221,9276.720012,False,0,True,True,True
+9421907,Fevzi Çakmak Mahallesi,27.04461,193.415077,False,0,False,False,False
+9421908,Mimar Sinan Mahallesi,381.381022,832.630975,False,0,False,False,False
+9422004,Nine Hatun Mahallesi,246.252217,598.566823,False,0,False,False,False
+9422033,Menderes Mahallesi,0.0,346.165107,False,3,False,False,False
+9422081,Fatih Mahallesi,0.0,349.34829,False,2,False,False,False
+9422082,Kazım Karabekir Mahallesi,0.0,165.266751,False,2,False,False,False
+9422209,Tuna Mahallesi,0.0,168.044581,False,1,False,False,False
+9423100,Kemer Mahallesi,0.0,204.549749,False,1,False,False,False
+9423101,Birlik Mahallesi,0.0,345.626614,False,2,False,False,False
+9423103,Atışalanı Mahallesi,0.0,156.709983,False,5,False,False,False
+9423121,Turgut Reis Mahallesi,182.300766,697.509559,False,0,False,False,False
+9423122,Oruçreis Mahallesi,0.0,1264.48642,False,1,True,False,False
+9423794,Yenigün Mahallesi,0.0,35.018631,False,1,False,False,False
+9423795,Merkez Mahallesi,0.0,455.533887,False,2,False,False,False
+9423797,Yıldıztepe Mahallesi,0.0,288.911598,False,2,False,False,False
+9424008,100. Yıl Mahallesi,0.0,284.119751,False,4,False,False,False
+9424009,Mahmutbey Mahallesi,123.82431,1333.490395,False,0,True,False,False
+9424010,Göztepe Mahallesi,0.0,157.90426,False,5,False,False,False
+9424011,Fatih Mahallesi,0.0,303.581504,False,3,False,False,False
+9424012,Demirkapı Mahallesi,0.0,412.279289,False,3,False,False,False
+9424080,Kemalpaşa Mahallesi,38.303002,447.504932,False,0,False,False,False
+9424081,Fevzi Çakmak Mahallesi,0.0,443.564001,False,2,False,False,False
+9424082,15 Temmuz Mahallesi,0.0,661.362367,False,1,False,False,False
+9424874,Yenimahalle Mahallesi,0.0,299.541602,False,1,False,False,False
+9424883,Yavuz Selim Mahallesi,0.0,437.109698,False,2,False,False,False
+9424884,Kirazlı Mahallesi,0.0,134.753935,False,2,False,False,False
+9424885,İnönü Mahallesi,0.0,185.341547,False,3,False,False,False
+9424886,Kâzım Karabekir Mahallesi,0.0,290.481628,False,2,False,False,False
+9424887,Sancaktepe Mahallesi,0.0,272.014032,False,1,False,False,False
+9424888,Çınar Mahallesi,0.0,374.694837,False,1,False,False,False
+9424901,Barbaros Mahallesi,0.0,457.55207,False,1,False,False,False
+9424902,Hürriyet Mahallesi,0.0,235.156005,False,1,False,False,False
+9426227,Osmanağa Mahallesi,0.0,434.810711,False,2,False,False,False
+9432145,Kurna Mahallesi,0.0,965.796743,False,1,False,False,False
+9432146,Harmandere Mahallesi,0.0,388.825418,False,1,False,False,False
+9432147,Kurtköy Mahallesi,0.0,159.866437,False,3,False,False,False
+9432148,Kurtdoğmuş Mahallesi,380.976,6336.009844,False,0,True,True,True
+9432149,Emirli Mahallesi,1908.940758,3634.638819,False,0,True,True,True
+9432150,Ballıca Mahallesi,4145.386902,7946.76013,False,0,True,True,True
+9437877,Soğanlı Mahallesi,0.0,80.652467,False,2,False,False,False
+9437947,Cumhuriyet Mahallesi,0.0,576.369414,False,1,False,False,False
+9437957,Kocasinan Merkez Mahallesi,0.0,460.83616,False,2,False,False,False
+9437990,Şirinevler Mahallesi,0.0,441.313406,False,1,False,False,False
+9437991,Hürriyet Mahallesi,0.0,186.416239,False,1,False,False,False
+9437992,Zafer Mahallesi,0.0,522.855236,False,3,False,False,False
+9437993,Yenibosna Merkez Mahallesi,0.0,1039.902337,False,3,True,False,False
+9437994,Çobançeşme Mahallesi,0.0,318.2639,False,6,False,False,False
+9437995,Fevzi Çakmak Mahallesi,11.641153,193.248016,False,0,False,False,False
+9439702,Osmaniye Mahallesi,0.0,413.331067,False,1,False,False,False
+9439829,Kartaltepe Mahallesi,0.0,534.127442,False,4,False,False,False
+9439830,Zuhuratbaba Mahallesi,0.0,154.904698,False,9,False,False,False
+9439859,Yenimahalle Mahallesi,361.367252,797.493457,False,0,False,False,False
+9439860,Cevizlik Mahallesi,85.528723,250.679295,False,0,False,False,False
+9439861,Sakızağacı Mahallesi,361.371254,864.636109,False,0,False,False,False
+9439884,Zeytinlik Mahallesi,0.0,74.254158,False,3,False,False,False
+9441032,Caferağa Mahallesi,0.0,234.453235,False,1,False,False,False
+9441078,Koşuyolu Mahallesi,0.0,108.05267,False,4,False,False,False
+9441153,Fındıklı Mahallesi,0.0,283.421921,False,1,False,False,False
+9441289,Selimiye Mahallesi,0.0,469.684237,False,7,False,False,False
+9441320,Kuştepe Mahallesi,19.013121,280.778523,False,0,False,False,False
+9441339,Hasanpaşa Mahallesi,0.0,104.97099,False,2,False,False,False
+9443987,Acıbadem Mahallesi,0.0,481.616542,False,6,False,False,False
+9444034,Zühtüpaşa Mahallesi,0.0,112.018975,False,2,False,False,False
+9444099,Eğitim Mahallesi,0.0,137.950092,False,4,False,False,False
+9444116,Fikirtepe Mahallesi,0.0,145.337045,False,2,False,False,False
+9444828,Feneryolu Mahallesi,0.0,355.287981,False,4,False,False,False
+9444841,Fenerbahçe Mahallesi,0.0,241.234434,False,2,False,False,False
+9444876,Dumlupınar Mahallesi,13.083796,526.939789,False,0,False,False,False
+9444892,Göztepe Mahallesi,0.0,460.811452,False,3,False,False,False
+9444902,Merdivenköy Mahallesi,0.0,338.628629,False,7,False,False,False
+9444910,Caddebostan Mahallesi,0.0,227.614828,False,6,False,False,False
+9444927,Sahrayıcedit Mahallesi,0.0,380.35908,False,4,False,False,False
+9444949,19 Mayıs Mahallesi,0.0,24.355198,False,6,False,False,False
+9444950,Erenköy Mahallesi,0.0,40.045486,False,1,False,False,False
+9445120,Küçükyalı Merkez Mahallesi,0.0,329.604235,False,1,False,False,False
+9445147,Aydınevler Mahallesi,55.375654,584.737036,False,0,False,False,False
+9445177,Başıbüyük Mahallesi,0.0,179.531835,False,7,False,False,False
+9445218,Büyükbakkalköy Mahallesi,0.0,786.973995,False,1,False,False,False
+9445274,Çınar Mahallesi,0.0,169.3293,False,1,False,False,False
+9445299,İdealtepe Mahallesi,0.0,25.147026,False,3,False,False,False
+9445317,Yalı Mahallesi,0.0,461.188579,False,1,False,False,False
+9445332,Feyzullah Mahallesi,0.0,333.21122,False,4,False,False,False
+9445347,Altayçeşme Mahallesi,0.0,79.84941,False,3,False,False,False
+9445356,Girne Mahallesi,0.0,141.351784,False,3,False,False,False
+9445445,Zümrütevler Mahallesi,0.0,557.818073,False,2,False,False,False
+9445460,Bağlarbaşı Mahallesi,0.0,383.205107,False,7,False,False,False
+9445486,Gülensu Mahallesi,401.916524,982.567828,False,0,False,False,False
+9445507,Cevizli Mahallesi,0.0,393.192593,False,2,False,False,False
+9445548,Esenkent Mahallesi,0.0,403.760434,False,2,False,False,False
+9445549,Gülsuyu Mahallesi,0.0,234.895586,False,1,False,False,False
+9445707,Barış Mahallesi,0.0,334.331616,False,5,False,False,False
+9445744,Sahil Mahallesi,700.643119,1537.334173,False,0,True,True,False
+9445745,Kavaklı Mahallesi,0.0,434.253115,False,3,False,False,False
+9446484,Şamlar Mahallesi,1330.479753,4398.192476,True,0,True,True,True
+9447736,Denizköşkler Mahallesi,0.0,313.100861,False,1,False,False,False
+9449359,Ataköy 1. Kısım Mahallesi,35.430339,515.935213,False,0,False,False,False
+9449571,Ataköy 3-4-11. Kısım Mahallesi,15.555301,494.962923,False,0,False,False,False
+9449572,Ataköy 2-5-6. Kısım Mahallesi,0.0,122.351476,False,1,False,False,False
+9449682,Ataköy 7-8-9-10. Kısım Mahallesi,58.654628,663.844232,False,0,False,False,False
+9449714,Yeşilköy Mahallesi,0.0,1148.987028,False,2,True,False,False
+9449760,Yeşilyurt Mahallesi,211.659374,1181.018071,False,0,True,False,False
+9451432,Şenlikköy Mahallesi,280.150039,1211.404019,False,0,True,False,False
+9453999,Gümüşpala Mahallesi,0.0,497.072942,False,1,False,False,False
+9454000,Yeşilkent Mahallesi,0.0,619.311277,False,1,False,False,False
+9454013,Üniversite Mahallesi,0.0,288.037121,False,5,False,False,False
+9454014,Mustafa Kemal Paşa Mahallesi,0.0,427.239344,False,1,False,False,False
+9454020,Merkez Mahallesi,0.0,97.219785,False,1,False,False,False
+9454022,Cihangir Mahallesi,0.0,874.414668,False,3,False,False,False
+9460089,Muratbey Merkez Mahallesi,2582.470048,6113.280166,False,0,True,True,True
+9460103,Celaliye Mahallesi,2150.51694,3952.11963,False,0,True,True,True
+9460117,Kamiloba Mahallesi,4942.596814,7166.794609,False,0,True,True,True
+9460130,Kumburgaz Mahallesi,5373.239245,6464.333023,False,0,True,True,True
+9460292,Yenimahalle Mahallesi,4324.282315,5089.510748,False,0,True,True,True
+9460298,Bahçelievler Mahallesi,2402.154775,3928.609083,False,0,True,True,True
+9460313,Türkoba Mahallesi,1408.535934,3979.038565,False,0,True,True,True
+9460363,Güzelce Mahallesi,421.248453,1428.578892,False,0,True,False,False
+9460377,Mimarsinan Mahallesi,0.0,153.817689,False,2,False,False,False
+9460378,Murat Çesme Mahallesi,56.137589,819.178979,False,0,False,False,False
+9460393,Kınalıada Mahallesi,0.0,933.202093,True,1,False,False,False
+9460394,Burgazada Mahallesi,0.0,1005.607388,False,1,True,False,False
+9460395,Heybeliada Mahallesi,844.341831,1834.721598,False,0,True,True,False
+9460396,Nizam Mahallesi,0.0,1556.678585,False,2,True,True,False
+9460397,Maden Mahallesi,0.0,1388.721402,True,1,True,False,False
+9461411,Başak Mahallesi,0.0,1921.814644,False,2,True,True,False
+9461512,Ziya Gökalp Mahallesi,0.0,455.50895,False,1,False,False,False
+9461575,Başakşehir Mahallesi,0.0,182.628749,False,7,False,False,False
+9461576,Güvercintepe Mahallesi,0.0,396.275797,False,4,False,False,False
+9461611,İkitelli OSB Mahallesi,0.0,666.917528,False,2,False,False,False
+9462467,Esenşehir Mahallesi,424.662167,1183.72582,False,0,True,False,False
+9462497,Madenler Mahallesi,0.0,483.616935,False,1,False,False,False
+9462498,Esenkent Mahallesi,196.41407,989.13505,True,0,False,False,False
+9462526,Necip Fazıl Mahallesi,0.0,386.450265,False,1,False,False,False
+9462528,Aşağı Dudullu Mahallesi,0.0,844.880186,False,1,False,False,False
+9462535,Huzur Mahallesi,693.704516,1422.656818,False,0,True,False,False
+9462548,Adem Yavuz Mahallesi,187.773648,787.137083,False,0,False,False,False
+9462585,Parseller Mahallesi,713.022478,1712.730772,False,0,True,True,False
+9462597,Hekimbaşı Mahallesi,268.610535,1162.875051,False,0,True,False,False
+9462625,Topağacı Mahallesi,0.0,635.063582,False,1,False,False,False
+9462638,Kazım Karabekir Mahallesi,0.0,196.943107,False,2,False,False,False
+9462650,İnkılap Mahallesi,162.068749,835.685891,False,0,False,False,False
+9462671,Dumlupınar Mahallesi,0.0,147.108866,False,1,False,False,False
+9462686,Elmalıkent Mahallesi,0.0,673.101462,False,1,False,False,False
+9462693,Tantavi Mahallesi,0.0,38.968651,False,1,False,False,False
+9462770,Atatürk Mahallesi,0.0,139.816908,False,2,False,False,False
+9462798,Yamanevler Mahallesi,0.0,405.502413,False,2,False,False,False
+9462821,Namık Kemal Mahallesi,0.0,192.143709,False,1,False,False,False
+9462835,Fatih Sultan Mehmet Mahallesi,75.266175,1568.707651,False,0,True,True,False
+9462845,Esenevler Mahallesi,312.380375,759.458431,False,0,False,False,False
+9462868,İstiklal Mahallesi,0.0,337.138236,False,4,False,False,False
+9462888,Atakent Mahallesi,0.0,486.092363,False,1,False,False,False
+9462890,Finanskent Mahallesi,0.0,749.431831,False,1,False,False,False
+9462897,Armağanevler Mahallesi,55.99955,886.740579,False,0,False,False,False
+9462905,Site Mahallesi,312.872039,807.940182,False,0,False,False,False
+9462915,Çamlık Mahallesi,0.0,208.14094,False,2,False,False,False
+9462938,Tatlısu Mahallesi,0.0,466.995764,False,1,False,False,False
+9462941,Çakmak Mahallesi,0.0,295.090984,False,1,False,False,False
+9462967,Tepeüstü Mahallesi,41.865206,441.394188,False,0,False,False,False
+9462968,Ihlamurkuyu Mahallesi,333.686694,1040.496539,False,0,True,False,False
+9462977,Mehmet Akif Mahallesi,0.0,90.220084,False,1,False,False,False
+9462981,Altınşehir Mahallesi,126.518767,623.755791,False,0,False,False,False
+9462984,Cemil Meriç Mahallesi,279.590747,1427.68596,False,0,True,False,False
+9463224,Salacak Mahallesi,0.0,161.912378,False,1,False,False,False
+9463235,Aziz Mahmut Hüdayi Mahallesi,0.0,106.939083,False,2,False,False,False
+9463238,Ahmediye Mahallesi,0.0,125.428056,False,1,False,False,False
+9463242,Mimar Sinan Mahallesi,0.0,99.22112,False,3,False,False,False
+9463258,Sultantepe Mahallesi,0.0,75.140689,False,1,False,False,False
+9463276,Zeynep Kamil Mahallesi,0.0,313.270288,False,2,False,False,False
+9463280,Barbaros Mahallesi,0.0,458.346824,False,2,False,False,False
+9463281,Valide-i Atik Mahallesi,0.0,296.343507,False,2,False,False,False
+9463285,Muratreis Mahallesi,129.994524,387.414547,False,0,False,False,False
+9463286,Selami Ali Mahallesi,54.938958,611.153035,False,0,False,False,False
+9463313,Kuzguncuk Mahallesi,9.227117,370.852211,False,0,False,False,False
+9463324,Kandilli Mahallesi,462.694843,937.695023,False,0,False,False,False
+9463333,İcadiye Mahallesi,0.0,366.799959,False,2,False,False,False
+9463334,Göksu Mahallesi,0.0,117.47034,False,2,False,False,False
+9463364,Beylerbeyi Mahallesi,0.0,533.273343,False,1,False,False,False
+9463376,Çengelköy Mahallesi,17.934753,719.283729,False,0,False,False,False
+9463385,Küçük Çamlıca Mahallesi,190.613529,986.418115,False,0,False,False,False
+9463387,Burhaniye Mahallesi,0.0,417.510301,False,1,False,False,False
+9463388,Kuleli Mahallesi,419.002642,913.627017,False,0,False,False,False
+9463391,Acıbadem Mahallesi,0.0,559.813682,False,1,False,False,False
+9463396,Altunizade Mahallesi,0.0,193.075929,False,6,False,False,False
+9463397,Küplüce Mahallesi,14.140323,418.004462,False,0,False,False,False
+9463407,Kirazlıtepe Mahallesi,0.0,295.635084,False,2,False,False,False
+9463410,Ferah Mahallesi,118.240225,664.505337,False,0,False,False,False
+9463414,Mehmet Akif Ersoy Mahallesi,0.0,632.639484,False,1,False,False,False
+9463416,Küçüksu Mahallesi,0.0,504.714851,False,2,False,False,False
+9463417,Güzeltepe Mahallesi,0.0,312.550363,False,2,False,False,False
+9463420,Bahçelievler Mahallesi,20.09712,318.883398,False,0,False,False,False
+9463421,Yavuztürk Mahallesi,0.0,100.177795,False,2,False,False,False
+9463491,Mehmet Akif Mahallesi,0.0,469.879871,False,1,False,False,False
+9463508,Çamlık Mahallesi,0.0,319.752004,False,3,False,False,False
+9463512,Hamidiye Mahallesi,0.0,599.861088,False,1,False,False,False
+9463567,Sinanoba Mahallesi,387.038298,1014.810297,False,0,True,False,False
+9463576,Mimaroba Mahallesi,0.0,372.99638,False,2,False,False,False
+9463578,Ekinoba Mahallesi,226.437443,725.954402,False,0,False,False,False
+9463584,Ulus Mahallesi,697.854851,3202.177755,False,0,True,True,True
+9463590,Hürriyet Mahallesi,1218.648367,3744.260837,False,0,True,True,True
+9463608,Karaağaç Mahallesi,0.0,1462.784356,False,1,True,False,False
+9463624,Alkent 2000 Mahallesi,764.875553,1565.005984,False,0,True,True,False
+9463636,Çakmaklı Mahallesi,1340.756315,2835.156171,False,0,True,True,True
+9463650,19 Mayıs Mahallesi,54.783962,2558.744867,False,0,True,True,True
+9464083,Dizdariye Mahallesi,0.0,470.415279,False,3,False,False,False
+9464095,Pınartepe Mahallesi,0.0,1025.141613,False,2,True,False,False
+9464113,Fatih Mahallesi,18.057647,965.274715,False,0,False,False,False
+9464129,Cumhuriyet Mahallesi,0.0,832.726018,False,2,False,False,False
+9464130,Atatürk Mahallesi,0.0,385.463503,False,1,False,False,False
+9464444,Mimar Sinan Mahallesi,0.0,262.996904,False,1,False,False,False
+9466595,Fatih Mahallesi,576.134389,1967.811512,False,0,True,True,False
+9467293,Bahşayiş Mahallesi,4029.688677,5601.779649,False,0,True,True,True
+9471951,Nakkaş Mahallesi,1498.08615,4668.173523,False,0,True,True,True
+9472571,Aşık Veysel Mahallesi,0.0,285.510831,False,1,False,False,False
+9472572,Esenkent Mahallesi,0.0,311.118669,False,1,False,False,False
+9472573,Ardıçlı Mahallesi,258.796304,704.287794,False,0,False,False,False
+9475337,Kısırkaya Mahallesi,4053.736568,6320.272057,False,0,True,True,True
+9475338,Gümüşdere Mahallesi,1823.115024,3813.19857,False,0,True,True,True
+9475439,Altınşehir Mahallesi,0.0,465.224557,False,1,False,False,False
+9475447,Kayabaşı Mahallesi,0.0,783.034934,False,3,False,False,False
+9475448,Şahintepe Mahallesi,0.0,2306.472054,False,1,True,True,True
+9475457,Bahçeşehir 2. Kısım Mahallesi,0.0,1208.381995,False,2,True,False,False
+9475458,Bahçeşehir 1. Kısım Mahallesi,0.0,1809.879427,False,3,True,True,False
+9479743,İshaklı Mahallesi,0.0,719.916657,False,1,False,False,False
+9479744,Kılıçlı Mahallesi,1216.783113,2493.356705,False,0,True,True,True
+9479745,Bozhane Mahallesi,2235.444922,4653.338148,False,0,True,True,True
+9479803,Polonezköy Mahallesi,3925.934422,7479.829413,False,0,True,True,True
+9479804,Cumhuriyetköy Mahallesi,2146.882783,4456.150752,False,0,True,True,True
+9479805,Öğümce Mahallesi,3615.655143,5172.457937,False,0,True,True,True
+9479806,Göllü Mahallesi,4649.046085,6932.425104,False,0,True,True,True
+9479807,Paşamandıra Mahallesi,5356.629569,6941.526967,False,0,True,True,True
+9479808,Riva Mahallesi,7024.949041,9838.126221,False,0,True,True,True
+9479839,Alibahadır Mahallesi,6893.01172,10122.023025,False,0,True,True,True
+9479917,Görele Mahallesi,2707.365614,4166.494509,False,0,True,True,True
+9479970,Mahmutşevketpaşa Mahallesi,6379.931387,8544.969727,False,0,True,True,True
+9480875,Akpınar Mahallesi,479.290269,1354.760586,False,0,True,False,False
+9480877,Emek Mahallesi,0.0,298.405598,False,3,False,False,False
+9480879,Meclis Mahallesi,28.108609,464.31961,False,0,False,False,False
+9480886,Veysel Karani Mahallesi,0.0,957.374839,False,1,False,False,False
+9481740,Merkez Mahallesi,0.0,795.289193,False,1,False,False,False
+9481748,Kirazlıdere Mahallesi,25.138186,766.78643,False,0,False,False,False
+9483017,Ferhatpaşa Mahallesi,0.0,2672.715528,False,1,True,True,True
+9483212,Kaleiçi Mahallesi,1048.349508,3458.399648,False,0,True,True,True
+9483660,İzzettin Mahallesi,2528.361547,4991.386289,False,0,True,True,True
+9488959,Anadolufeneri Mahallesi,4826.232697,8285.729194,False,0,True,True,True
+9488961,Kaynarca Mahallesi,2970.279046,5381.107687,False,0,True,True,True
+9488997,Poyrazköy Mahallesi,3108.331903,5256.200708,False,0,True,True,True
+9488998,Anadolu Kavağı Mahallesi,725.042098,1764.476914,False,0,True,True,False
+9488999,Tokatköy Mahallesi,0.0,1154.05164,False,1,True,False,False
+9489001,Akbaba Mahallesi,377.022754,1641.950803,False,0,True,True,False
+9489100,Merkez Mahallesi,0.0,1623.877368,False,1,True,True,False
+9489133,Elmalı Mahallesi,1200.748156,3214.43846,False,0,True,True,True
+9489219,Zerzavatçı Mahallesi,3830.187678,5618.851013,False,0,True,True,True
+9489220,Örnekköy Mahallesi,3309.927958,5169.317234,False,0,True,True,True
+9489253,Dereseki Mahallesi,2134.619854,4672.403804,False,0,True,True,True
+9489323,Ortaçeşme Mahallesi,446.159279,913.340488,False,0,False,False,False
+9489348,Çamlıbahçe Mahallesi,626.391959,1060.437361,False,0,True,False,False
+9493908,Yalıköy Mahallesi,321.429224,1021.862208,False,0,True,False,False
+9493939,Gümüşsuyu Mahallesi,397.189015,1415.953895,False,0,True,False,False
+9493940,İncirköy Mahallesi,0.0,1399.186628,False,1,True,False,False
+9493958,Acarlar Mahallesi,616.687402,2423.241644,False,0,True,True,True
+9493991,Paşabahçe Mahallesi,67.607243,583.259626,False,0,False,False,False
+9494014,Soğuksu Mahallesi,701.394314,1223.836192,False,0,True,False,False
+9495280,Sarıgazi Mahallesi,0.0,328.899211,False,4,False,False,False
+9525823,Aydınlar Mahallesi,300.142791,805.908901,False,0,False,False,False
+9526165,Soğukpınar Mahallesi,966.501489,1456.305615,False,0,True,False,False
+9526221,Cumhuriyet Mahallesi,257.371367,646.481527,False,0,False,False,False
+9526222,Güngören Mahallesi,0.0,892.880973,False,1,False,False,False
+9526253,Sultançiftliği Mahallesi,287.61983,1930.38166,False,0,True,True,False
+9530301,Çakıl Mahallesi,1274.55593,3599.236345,False,0,True,True,True
+9531481,Ovayenice Mahallesi,3279.361252,5849.535503,False,0,True,True,True
+9531489,Elbasan Mahallesi,2851.763188,5543.648818,False,0,True,True,True
+9531780,Selimpaşa Mahallesi,0.0,1490.019972,False,1,True,False,False
+9531802,İnceğiz Mahallesi,3158.158637,5375.665239,False,0,True,True,True
+9531810,Gökçeali Mahallesi,936.983388,2436.820671,False,0,True,True,True
+9533391,Kabakça Mahallesi,235.95734,1555.685272,False,0,True,True,False
+9533419,Akalan Mahallesi,2007.7156,4174.567287,False,0,True,True,True
+9533502,Subaşı Mahallesi,0.0,269.242479,False,1,False,False,False
+9533706,Oklalı Mahallesi,1164.467264,1951.216465,False,0,True,True,False
+9533733,Kestanelik Mahallesi,2569.94392,3457.680528,False,0,True,True,True
+9533881,Örcünlü Mahallesi,4212.497204,5793.558233,False,0,True,True,True
+9533888,Kızılcaali Mahallesi,5697.070176,7996.435441,False,0,True,True,True
+9533923,Çanakça Mahallesi,3537.413606,6464.748858,False,0,True,True,True
+9536586,İhsaniye Mahallesi,0.0,4584.592549,False,1,True,True,True
+9536741,Dağyenice Mahallesi,3171.02604,6507.661328,False,0,True,True,True
+9536790,Yazlık Mahallesi,7431.387227,10850.125479,False,0,True,True,True
+9577224,Maden Mahallesi,421.435965,1825.692133,False,0,True,True,False
+9577538,Göztepe Mahallesi,235.825059,1218.562014,False,0,True,False,False
+9577570,Yeni Mahalle Mahallesi,0.0,1036.077305,False,1,True,False,False
+9577603,Baklacı Mahallesi,939.403869,2800.413417,False,0,True,True,True
+9577627,Fatih Mahallesi,931.50275,2095.638935,False,0,True,True,True
+9577636,Rüzgarlıbahçe Mahallesi,0.0,792.940347,False,1,False,False,False
+9578449,Anadolu Hisarı Mahallesi,128.367264,671.649684,False,0,False,False,False
+9578450,Kanlıca Mahallesi,395.433596,1130.166728,False,0,True,False,False
+9578464,Çubuklu Mahallesi,0.0,356.071346,False,2,False,False,False
+9578496,Çiğdem Mahallesi,0.0,840.660507,False,1,False,False,False
+9578568,Kavacık Mahallesi,0.0,301.334818,False,3,False,False,False
+9586433,Kalfa Mahallesi,3522.192719,6946.955979,False,0,True,True,True
+9617957,Örencik Mahallesi,8254.572713,12181.884009,False,0,True,True,True
+9617980,Celepköy Mahallesi,13895.635278,16304.727248,False,0,True,True,True
+9618065,Başak Mahallesi,9029.461555,12266.842709,False,0,True,True,True
+9618269,Gümüşpınar Mahallesi,0.0,1628.252105,False,1,True,True,False
+9618275,Hisarbeyli Mahallesi,13428.607749,15998.01133,False,0,True,True,True
+9618395,Belgrat Mahallesi,6126.525675,9593.649981,False,0,True,True,True
+9618406,Çiftlikköy,8309.805646,11996.821339,False,0,True,True,True
+9618646,Ormanlı Mahallesi,12834.616526,16558.627087,False,0,True,True,True
+9618736,Karamandere Mahallesi,3890.231323,6429.763278,False,0,True,True,True
+9619158,Aydınlar Mahallesi,1947.492403,5333.096585,False,0,True,True,True
+9619159,Yaylacık Mahallesi,5319.709071,6916.271028,False,0,True,True,True
+9619392,Karacaköy Merkez Mahallesi,6867.67593,12514.11528,False,0,True,True,True
+9619871,Hallaçlı Mahallesi,6537.336926,10470.350685,False,0,True,True,True
+9619872,Fatih Mahallesi,251.087938,7788.637303,False,0,True,True,True
+9619873,Yalıköy Mahallesi,4111.495207,9146.603491,False,0,True,True,True
+9619874,Atatürk Mahallesi,0.0,3776.03045,False,1,True,True,True
+9620132,Yassıören Mahallesi,251.426404,7699.882771,False,0,True,True,True
+9620409,Akçaburgaz Mahallesi,1314.099584,2679.121648,False,0,True,True,True
+9620429,Orhan Gazi Mahallesi,396.64984,1153.728344,False,0,True,False,False
+9620430,Koza Mahallesi,470.268322,1063.35556,False,0,True,False,False
+9620439,Osmangazi Mahallesi,0.0,960.613669,False,1,False,False,False
+9620447,Süleymaniye Mahallesi,0.0,337.661279,False,1,False,False,False
+9620448,Yenikent Mahallesi,0.0,428.661821,False,1,False,False,False
+9620521,İnönü Mahallesi,0.0,451.570135,False,1,False,False,False
+9620523,Kemal Türkler Mahallesi,0.0,383.966445,False,1,False,False,False
+9620544,Ekşioğlu Mahallesi,0.0,889.833187,False,3,False,False,False
+9623005,Atatürk Mahallesi,0.0,333.013578,False,1,False,False,False
+9623018,Eyüp Sultan Mahallesi,0.0,478.329183,False,6,False,False,False
+9623052,Osmangazi Mahallesi,0.0,988.893879,False,2,False,False,False
+9623060,Yenidoğan Mahallesi,121.805745,658.548976,False,0,False,False,False
+9623078,Yunus Emre Mahallesi,0.0,672.740676,False,1,False,False,False
+9623096,Hilal Mahallesi,311.420639,786.259511,False,0,False,False,False
+9623102,Safa Mahallesi,416.54644,1186.755063,False,0,True,False,False
+9623105,Mevlana Mahallesi,179.458922,819.817774,False,0,False,False,False
+9623145,Abdurrahmangazi Mahallesi,0.0,600.764562,False,3,False,False,False
+9623146,Merve Mahallesi,0.0,723.423007,False,1,False,False,False
+9623215,Yeşilbayır Mahallesi,1514.115248,3572.714322,False,0,True,True,True
+9642513,Gökevler Mahallesi,0.0,265.538203,False,1,False,False,False
+9642514,Atatürk Mahallesi,523.131702,1080.313864,False,0,True,False,False
+9642530,Yunus Emre Mahallesi,485.217753,923.249831,False,0,False,False,False
+9642531,İncirtepe Mahallesi,232.244079,724.492779,False,0,False,False,False
+9642576,Sultaniye Mahallesi,0.0,224.654844,False,1,False,False,False
+9642577,Balıkyolu Mahallesi,0.0,643.015661,False,1,False,False,False
+9642578,İnönü Mahallesi,0.0,312.844684,False,1,False,False,False
+9642609,Zafer Mahallesi,0.0,482.071323,False,1,False,False,False
+9642610,Namık Kemal Mahallesi,13.202155,678.956787,False,0,False,False,False
+9642611,Turgut Özal Mahallesi,559.303851,1089.394041,False,0,True,False,False
+9642612,Saadetdere Mahallesi,501.142879,809.085819,False,0,False,False,False
+9642644,Örnek Mahallesi,134.515082,443.466874,False,0,False,False,False
+9642645,Çınar Mahallesi,0.0,369.442668,False,1,False,False,False
+9642646,Selahaddin Eyyubi Mahallesi,527.868458,1416.744818,False,0,True,False,False
+9642748,Mevlana Mahallesi,0.0,89.125683,False,3,False,False,False
+9642749,Cumhuriyet Mahallesi,27.02564,210.274212,False,0,False,False,False
+9642750,Piri Reis Mahallesi,338.023633,881.258669,False,0,False,False,False
+9642751,Barbaros Hayrettin Paşa Mahallesi,248.044165,675.611832,False,0,False,False,False
+9642765,Güzelyurt Mahallesi,0.0,413.678385,False,1,False,False,False
+9642812,Pınar Mahallesi,88.1881,679.726988,False,0,False,False,False
+9642813,Battalgazi Mahallesi,0.0,383.639213,False,1,False,False,False
+9642814,Şehitler Mahallesi,45.619671,291.755059,False,0,False,False,False
+9642815,Necip Fazıl Kısakürek Mahallesi,0.0,368.208433,False,1,False,False,False
+9642816,Hürriyet Mahallesi,554.708325,999.936853,False,0,False,False,False
+9642817,İstiklal Mahallesi,22.466734,406.175233,False,0,False,False,False
+9642893,Mehterçeşme Mahallesi,0.0,280.941399,False,1,False,False,False
+9642894,Yeşilkent Mahallesi,119.415483,642.694937,False,0,False,False,False
+9642964,Merkez Mahallesi,0.0,376.652356,False,1,False,False,False
+9642965,Üçevler Mahallesi,129.622494,456.504079,False,0,False,False,False
+9642966,Fatih Mahallesi,0.0,409.751855,False,2,False,False,False
+9642967,Talatpaşa Mahallesi,67.812254,626.068183,False,0,False,False,False
+9642968,Akevler Mahallesi 7 sokak,611.753717,1117.132806,False,0,True,False,False
+9642969,Mehmet Akif Ersoy Mahallesi,262.646756,645.778734,False,0,False,False,False
+9643178,Ortaköy Mahallesi,2536.448948,5231.880816,False,0,True,True,True
+9643188,Kavaklı Hürriyet Mahallesi,2966.697487,5216.297391,False,0,True,True,True
+9643199,Kavaklı İstiklal Mahallesi,3191.142871,5200.748407,False,0,True,True,True
+9643200,Cumhuriyet Mahallesi,118.73501,1933.775593,False,0,True,True,False
+9643210,Gazitepe Mahallesi,4227.748524,7139.265447,False,0,True,True,True
+9643220,Kadıköy Mahallesi,6566.899026,9077.6208,False,0,True,True,True
+9643322,Alipaşa Mahallesi,235.233802,3228.874674,False,0,True,True,True
+9643323,Yeni Mahalle,0.0,2679.754184,False,4,True,True,True
+9643345,Mimar Sinan Mahallesi,0.0,362.025925,False,2,False,False,False
+9643346,Piri Mehmet Paşa Mahallesi,0.0,501.956225,False,1,False,False,False
+9643347,Alibey Mahallesi,0.0,276.595106,False,1,False,False,False
+9643348,Fatih Mahallesi,0.0,126.359628,False,1,False,False,False
+9643867,Fener Mahallesi,3332.84575,7752.153449,False,0,True,True,True
+9643888,Küçük Kılıçlı Mahallesi,3529.747144,5919.143538,False,0,True,True,True
+9643897,Akören Mahallesi,2094.420125,7498.851487,False,0,True,True,True
+9643904,Bekirli Mahallesi,3885.093299,5379.249452,False,0,True,True,True
+9644016,Yavuz Selim Mahallesi,1937.550331,4052.601107,False,0,True,True,True
+9644017,Çengeldere Mahallesi,1964.487169,4046.838065,False,0,True,True,True
+9644018,Çavuşbaşı Çiftlik Mahallesi,2528.430648,4053.822025,False,0,True,True,True
+9644306,Alemdağ Mahallesi,0.0,1895.297904,False,2,True,True,False
+9644504,Huzur Mahallesi,0.0,280.792203,False,1,False,False,False
+9644505,Maslak Mahallesi,0.0,990.757243,False,1,False,False,False
+9644506,Ayazağa Mahallesi,0.0,1674.438663,False,1,True,True,False
+9644555,Poligon Mahallesi,655.815221,1245.030345,False,0,True,False,False
+9644556,Pınar Mahallesi,1096.098148,1609.510784,False,0,True,True,False
+9644572,Darüşşafaka Mahallesi,0.0,720.236286,False,1,False,False,False
+9644584,Çamlıtepe Mahallesi,123.932785,803.789003,False,0,False,False,False
+9644592,Ferahevler Mahallesi,947.20063,1606.041962,False,0,True,True,False
+9644648,İstinye Mahallesi,0.0,460.073065,False,2,False,False,False
+9644656,PTT Evleri Mahallesi,163.115391,1126.936645,False,0,True,False,False
+9644665,Bahçeköy Kemer Mahallesi,10.128128,1939.480069,False,0,True,True,False
+9644695,Bahçeköy Merkez Mahallesi,0.0,2349.132121,False,1,True,True,True
+9644696,Bahçeköy Yeni Mahalle,350.288034,931.314461,False,0,False,False,False
+9644714,Cumhuriyet Mahallesi,409.12207,1254.627058,False,0,True,False,False
+9644728,Kazım Karabekir Paşa Mahallesi,0.0,1933.22035,False,1,True,True,False
+9644762,Tarabya Mahallesi,631.763951,2104.305896,False,0,True,True,True
+9644763,Kireçburnu Mahallesi,1190.408407,2047.894635,False,0,True,True,True
+9644764,Yeniköy Mahallesi,208.80724,1002.410157,False,0,True,False,False
+9644785,Kocataş Mahallesi,844.489725,1998.154945,False,0,True,True,False
+9644790,Çayırbaşı Mahallesi,101.813179,433.926043,False,0,False,False,False
+9644824,Büyükdere Mahallesi,456.722065,1342.652686,False,0,True,False,False
+9644953,Yeni Mahalle,285.838051,863.088907,False,0,False,False,False
+9644954,Merkez Mahallesi,0.0,489.367962,False,1,False,False,False
+9645050,Uskumruköy Mahallesi,0.0,1052.812162,False,1,True,False,False
+9645084,Zekeriyaköy Mahallesi,0.0,584.408658,False,4,False,False,False
+9645135,Kumköy (Kilyos) Mahallesi,0.0,573.743778,False,1,False,False,False
+9645141,Rumelikavağı Mahallesi,704.16837,1762.481316,False,0,True,True,False
+9645153,Demirciköy Mahallesi,441.572219,2185.168278,False,0,True,True,True
+9645159,Garipçe Mahallesi,906.95478,2241.100184,False,0,True,True,True
+9645160,Rumelifeneri Mahallesi,0.0,2602.811849,False,1,True,True,True
+9669360,Semizkumlar Mahallesi,0.0,1130.723355,False,2,True,False,False
+9670364,Danamandıra Mahallesi,882.242535,3464.454188,False,0,True,True,True
+9670918,Sayalar Mahallesi,5818.996385,9285.316443,False,0,True,True,True
+9675979,Mimar Sinan Mahallesi,128.814757,3485.265825,False,0,True,True,True
+9677347,Mithatpaşa Mahallesi,0.0,2105.854121,False,1,True,True,True
+9677558,Göktürk Merkez Mahallesi,0.0,1754.895837,False,3,True,True,False
+9677564,Pirinççi Mahallesi,325.724892,2929.666916,False,0,True,True,True
+9677566,Işıklar Mahallesi,3938.633076,6146.641476,False,0,True,True,True
+9677569,İhsaniye Mahallesi,3850.224194,5660.58247,False,0,True,True,True
+9677573,Odayeri Mahallesi,4915.209378,6280.254703,False,0,True,True,True
+9677586,Çiftalan Mahallesi,5587.02075,7974.587902,False,0,True,True,True
+9677587,Ağaçlı Mahallesi,6727.47221,9232.737201,False,0,True,True,True
+9677588,Akpınar Mahallesi,5057.095339,8348.327277,False,0,True,True,True
+9679437,Değirmenköy Fevzipaşa Mahallesi,4468.154051,7160.072552,False,0,True,True,True
+9679470,Çatalmeşe Mahallesi,0.0,995.029764,False,1,False,False,False
+9679498,Reşadiye Mahallesi,1567.861055,4000.263298,False,0,True,True,True
+9679518,Nişantepe Mahallesi,0.0,764.101723,False,1,False,False,False
+9679582,Hüseyinli Mahallesi,1189.19178,2280.213463,False,0,True,True,True
+9679639,Sırapınar Mahallesi,0.0,856.060958,False,1,False,False,False
+9679693,Koçullu Mahallesi,479.456133,2814.955153,False,0,True,True,True
+9679694,Ömerli Mahallesi,0.0,794.630672,False,1,False,False,False
+9680133,Balaban Mahallesi,12387.25486,17294.618111,False,0,True,True,True
+9680169,Terkos Mahallesi,10508.377565,13537.049533,False,0,True,True,True
+9680170,Karaburun Mahallesi,13176.958676,15318.838542,True,0,True,True,True
+9680204,Arnavutköy Merkez Mahallesi,0.0,854.866137,False,1,False,False,False
+9680382,Mustafa Kemal Paşa Mahallesi,1166.930844,2061.764895,False,0,True,True,True
+9680399,Nene hatun Mahallesi,1514.73718,2226.997039,False,0,True,True,True
+9680508,Boğazköy İstiklal Mahallesi,580.731785,3537.766456,False,0,True,True,True
+9680532,Durusu Mahallesi,10461.552926,10782.132002,False,0,True,True,True
+9680547,Hacımaşlı Mahallesi,958.438705,3902.62247,False,0,True,True,True
+9680567,Ömerli Mahallesi,1502.529418,3599.357574,False,0,True,True,True
+9680568,Deliklikaya Mahallesi,613.116225,1862.804773,False,0,True,True,False
+9680573,Taşoluk Mahallesi,1230.770336,1984.160901,False,0,True,True,False
+9680598,Hastane Mahallesi,429.496675,1911.032552,False,0,True,True,False
+9680605,Hadımköy Mahallesi,0.0,844.574743,False,2,False,False,False
+9680610,Sazlıbosna Mahallesi,0.0,940.411489,False,1,False,False,False
+9680620,Boyalık Mahallesi,5280.465211,10401.317853,False,0,True,True,True
+9680653,Karlıbayır Mahallesi,1884.565363,2538.641475,False,0,True,True,True
+9680656,İslambey Mahallesi,688.136485,1458.224809,False,0,True,False,False
+9680662,Yavuz Selim Mahallesi,510.521724,1169.366368,False,0,True,False,False
+9680709,Mareşal Fevzi Çakmak Mahallesi,769.895537,1297.041321,False,0,True,False,False
+9680710,Mehmet Akif Ersoy Mahallesi,0.0,621.503556,False,1,False,False,False
+9680712,Fatih Mahallesi,1132.043571,2057.238952,False,0,True,True,True
+9680713,Adnan Menderes Mahallesi,37.436975,559.811447,False,0,False,False,False
+9680733,İmrahor Mahallesi,0.0,4715.827768,False,1,True,True,True
+9680749,Baklalı Mahallesi,4437.228529,7608.891263,False,0,True,True,True
+9680766,Çilingir Mahallesi,1101.789696,3522.867947,False,0,True,True,True
+9680772,Haraççı Mahallesi,832.427146,2797.194359,False,0,True,True,True
+9680774,Dursunköy Mahallesi,177.852873,3386.051097,False,0,True,True,True
+9680778,Yeniköy Mahallesi,5308.893753,9976.267867,False,0,True,True,True
+9680779,Tayakadın Mahallesi,1833.65559,5859.414819,False,0,True,True,True
+9681982,Yolçatı Mahallesi,705.442317,2536.868811,False,0,True,True,True
+9681983,Çeltik Mahallesi,0.0,2345.428478,False,1,True,True,True
+9682004,Değirmenköy İsmetpaşa Mahallesi,3172.982709,7828.926698,False,0,True,True,True
+9682023,Çanta Balaban Mahallesi,0.0,4666.398203,False,1,True,True,True
+9682058,Çayırdere Mahallesi,2471.174905,5276.759968,False,0,True,True,True
+9682224,Büyük Çavuşlu Mahallesi,0.0,2154.435155,False,1,True,True,True
+9682262,Büyük Sinekli Mahallesi,5651.599475,8444.947295,False,0,True,True,True
+9682263,Küçük Sinekli Mahallesi,4132.996847,7568.641434,False,0,True,True,True
+9682312,Beyciler Mahallesi,0.0,705.771738,False,1,False,False,False
+9682646,Büyük Kılıçlı Mahallesi,3829.643797,7375.361151,False,0,True,True,True
+9682647,Seymen Mahallesi,1230.595368,5952.926319,False,0,True,True,True
+9682747,Çanta Sancaktepe Mahallesi,295.035695,2033.796423,False,0,True,True,True
+9682749,Kurfallı Mahallesi,5959.61418,9444.002368,False,0,True,True,True
+13276411,15 Temmuz Mahallesi,263.249813,609.021336,False,0,False,False,False
+13986753,5. Levent Mahallesi,95.540362,2107.367404,False,0,True,True,True
+14056989,Beylikdüzü Organize Sanayi Bölgesi,101.334098,756.578308,False,0,False,False,False
+14601477,Dudullu OSB Mahallesi,614.626535,1467.520896,False,0,True,False,False

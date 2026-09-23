@@ -1,0 +1,4 @@
+Arm,N,PAR,Threshold (mean±sd),Set Stability (Jaccard),Jaccard vs. rule-based,|U| (mean±sd),"Rank Stability (ρ, partial)",Success,Degenerate,Median latency (s)
+rule-based (Arm 1),1,1.0,2000 ± 0 (by design; 1000/1500 also reported),1.0 (by construction),1.0,"207 (centroid, 2000 m headline)",1.0 (by construction),1.00,0.00,n/a (deterministic)
+"LLM, canonical (Arm 2)",20,1.0,990 ± 44,0.9907 ± 0.0279,1.0000,166.8 ± 3.7,1.0000,1.00,0.00,14.4
+"LLM, mitigated (Arm 2)",20,0.9,1000 ± 0,1.0000 ± 0.0000,1.0000,166.0 ± 0.0,1.0000,0.90,0.00,14.3

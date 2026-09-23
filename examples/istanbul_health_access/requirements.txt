@@ -1,0 +1,315 @@
+# Pinned to an exact smart-spatial-system release so results in this
+# repository stay reproducible as that project keeps developing. Bump this
+# deliberately - say in the commit message which upstream release it moves
+# to and which bugs/ report it closes, and re-run every phase whose outputs
+# could change. Never loosen it to ">=" for day-to-day work.
+#
+# BUMPED 0.3.0 -> 0.4.1 -> 0.4.2 -> 0.5.0 (2026-09-19): closes bugs/002
+# (s3geo.query() crashed on every call without rasterio installed - fixed
+# by query() defaulting to tolerant=True and plugins/ndvi_analysis.py's
+# rasterio import moving out of module top level, per CHANGELOG.md
+# [0.4.1]) and bugs/003 (planner silently passed an unrecognized
+# operation parameter straight through to the plugin instead of
+# rejecting it at planning time - fixed by query() defaulting to
+# strict_params=True, plus a new _op_param_reference() teaching the LLM
+# prompt each operation's real parameter names, per CHANGELOG.md
+# [0.4.2]). 0.4.0 is purely additive (CHANGELOG.md [0.4.0]).
+#
+# 0.5.0 is a performance fix, not a correctness bug, so it has no
+# matching bugs/ report here - reported directly upstream instead:
+# plugins/nearest_neighbor.py::find_nearest_neighbors computed nearest
+# neighbors with a brute-force O(source * target) nested loop (no
+# spatial index anywhere in the file - grepped and confirmed before
+# reporting it), which is very likely why this repo's s3geo.query()
+# calls were taking ~120-130s each on the 964 mahalle x 1020 hospital
+# dataset. Fixed by adding an STRtree-accelerated candidate search
+# (shapely-only; engine="python" and any shapely-unavailable/geometry-
+# parse-failure case still use the original nested loop unchanged, so
+# nothing here is silently approximated). CHANGELOG.md [0.5.0] reports
+# ~33s -> ~0.2s (~150x) on a synthetic 1000x1000 benchmark and ~32s ->
+# ~0.2s on this repo's own 964x1020 shape specifically, with identical
+# output - confirmed by cloning github.com/arazshah/smart_spatial_system
+# at tag v0.5.0 and reading the actual diff in plugins/nearest_neighbor.py
+# (STRtree import, _strtree_candidates(), spatial_index_used metadata
+# field) and tests/test_nearest_neighbor_strtree_performance.py (both a
+# correctness-equivalence test against the old brute-force path and a
+# performance benchmark) directly - not taken on the upstream fixer's
+# word alone. `bugs/002`/`bugs/003`'s local mitigations are still moot
+# as before; bugs/004 (where-clause shape) is unaffected by this bump,
+# still open.
+#
+# BUMPED 0.5.0 -> 0.5.1 (2026-09-19): closes bugs/005 (OP_CATALOG's
+# filter_attribute param_map mapped "geometry_type" to a target keyword
+# ("geometry_type") that filter_features() doesn't have - the real
+# keyword is "geometry_types", plural. Unlike bugs/003/004 this was not
+# an LLM-prompting gap: the model used exactly the param name
+# _op_param_reference() advertised, and strict_params=True can't catch a
+# catalog entry whose *target* side is internally wrong. Fixed by
+# correcting the one mapping AND adding
+# tests/test_op_catalog_param_map_signatures.py, an inspect.signature()-
+# based check (exactly what bugs/005's report asked for) that builds the
+# real CapabilityRegistry and asserts every OP_CATALOG param_map target
+# is a real keyword parameter of its bound capability - across all
+# operations at once, not just this one. Running that new test against
+# the rest of the catalog turned up and fixed four more of the same
+# class of drift, per CHANGELOG.md [0.5.1]: query_database/
+# load_postgis_layer's dead "metadata" param, inspect_vector's dead
+# "sample_size"/"include_geometry"/"metadata", summarize_vector's dead
+# "metadata", display_vector's dead "title"/"style"/"metadata" (all
+# removed rather than guessed at, since none of those target functions
+# ever accepted them). Confirmed for real by cloning
+# github.com/arazshah/smart_spatial_system at tag v0.5.1 and reading the
+# actual diff in orchestrator/planning/op_catalog.py and the new test
+# file directly - not taken on the upstream fixer's word alone. bugs/004
+# (where-clause shape) is unaffected by this bump, still open.
+#
+# BUMPED 0.5.1 -> 0.5.2 (2026-09-23): closes bugs/006 (filter_attribute's/
+# sort_limit's sort_order rejected an explicit null instead of falling
+# back to its own "asc" default - an LLM plan that includes
+# "sort_order": null, the same "every advertised key gets a value, null
+# for the ones not used" pattern bugs/004 already documented, overrode
+# the Python default instead of triggering it, and unlike the sibling
+# param bbox_mode - which already tolerated None via pick_first() - this
+# one didn't). Fixed twice over, per CHANGELOG.md [0.5.2]: (1)
+# filter_features's own sort_order resolution now goes through
+# pick_first(sort_order, default="asc"), matching bbox_mode exactly; (2)
+# DagExecutor._build_kwargs now drops any None-valued static param whose
+# target keyword has a non-None signature default AND an annotation that
+# doesn't accept None (new _drop_none_overriding_defaults()/
+# _annotation_allows_none() helpers, wired in via the resolved
+# capability_fn) - a systematic fix at the executor level, catching the
+# same gap across the whole catalog rather than one parameter at a time.
+# That audit found real instances beyond sort_order: predicate/
+# unmatched/template_name used to raise the same way; descending,
+# drop_outside, skip_missing, save_to_disk, and several field-name params
+# used to silently misbehave instead (worse - a silent wrong answer, not
+# a crash). A follow-up commit in the same release (922383a) corrected an
+# overreach in the first pass: the initial version dropped every
+# non-None-default None, which would have silently rewritten
+# calculate_attribute_statistics(precision=None) - where None legitimately
+# means "don't round" - to the default 6; fixed by only dropping None when
+# the parameter's own annotation doesn't declare it acceptable. New
+# tests/test_op_catalog_none_param_defaults.py covers the sort_order
+# regression, end-to-end filter_attribute/sort_limit runs, and a
+# catalog-wide check. Confirmed for real by cloning
+# github.com/arazshah/smart_spatial_system at tag v0.5.2 and reading both
+# commits' actual diffs directly, plus executing the plugin-level fix in
+# this session (filter_features(sort_order=None) now returns cleanly
+# instead of raising) - not taken on the upstream fixer's word alone.
+# bugs/004 (where-clause shape) is unaffected by this bump, still open -
+# still expected to be the dominant failure mode in the next N=20 re-run.
+#
+# BUMPED 0.5.2 -> 0.5.3 (2026-09-23): closes bugs/004 (filter_attribute's
+# `where` and enrich_feature_properties's `rules` are structured params
+# whose value SHAPE was never taught to the LLM - only the key name was,
+# via _op_param_reference() - so a capable model guessed a SQL-style
+# string for `where` and produced `rules` entries missing the required
+# `target` key, both fully documented in their own plugin's docstring and
+# neither reaching the prompt). Fixed two ways, per CHANGELOG.md [0.5.3]:
+# (1) new orchestrator/planning/op_param_shapes.py - a maintained
+# PARAM_SHAPES table, keyed by (capability_name, target_kwarg), with a
+# description and real JSON examples for every structured OP_CATALOG
+# param (not just where/rules - also score_features.factors,
+# enrich_risk's params, join_feature_properties.fields, the raster
+# params, etc.), rendered into the system prompt as a new "Structured
+# param VALUES" section right after the existing key-list section; a new
+# test (tests/test_op_param_shapes.py) fails if any structured param_map
+# target lacks an entry, and - importantly - runs every example through
+# the REAL plugins, so a wrong example fails the suite instead of
+# teaching the model a wrong shape; (2) a new generation-time validator,
+# _validate_structured_param_shapes(), rejects a mis-shaped where/rules
+# with a clear LLMSpecGenerationError (naming the op, its output ref, and
+# a correct example) instead of letting it fail at execution after a full
+# DAG build - its operator set is asserted equal to
+# spatial_query_filter.py's own VALID_OPERATORS by a dedicated test, so
+# the two can't silently drift apart. Upstream is explicit that this was
+# NOT spot-checked against a live LLM (no endpoint/API key available when
+# 0.5.3 was cut) - the tests confirm the guidance is present and its
+# examples are accepted by the real plugins, not how often a model now
+# produces a valid value; this repo's next N=20 batch is the real
+# measure. Confirmed for real in this session: cloned
+# github.com/arazshah/smart_spatial_system at tag v0.5.3, read the actual
+# diff (orchestrator/planning/op_param_shapes.py,
+# llm_spec_generator.py's _op_param_shape_reference()/
+# _validate_structured_param_shapes(), tests/test_op_param_shapes.py) -
+# not taken on the fixer's word - AND independently executed every
+# `where`/`rules` example from PARAM_SHAPES against the real
+# filter_features()/enrich_feature_properties() plugin functions in this
+# session; all matched/enriched exactly as the table's description
+# claims. All three bugs found in this study's Phase 4 work (bugs/004,
+# 005, 006) are now fixed upstream as of that pin.
+#
+# BUMPED 0.5.3 -> 0.5.4 (2026-09-23): implements enhancements/001 (the
+# CRS-appropriateness and max_distance/where composition warnings this
+# study requested after the 0.5.3 batch's 18/20-structural-success-but-
+# 0/20-valid-answer result). Per CHANGELOG.md [0.5.4]: (1) BOTH requested
+# warnings landed, wired into nearest_neighbor.py's existing `warning`
+# metadata field (multiple warnings now join with " | " rather than
+# needing new fields) - a new _crs_area_of_use_warning() (needs pyproj;
+# inverse-transforms the data's centroid back to EPSG:4326 and checks it
+# against pyproj.CRS(...).area_of_use, no hardcoded region list) and a
+# new _max_distance_exclusion_warning() (reads a new
+# max_distance_excluded_count field, deliberately narrower than
+# unmatched_source_count so a null-geometry source is never blamed on
+# max_distance) opt-out via new warn_if_crs_area_mismatch /
+# warn_if_max_distance_excludes / max_distance_warning_fraction config
+# keys, all defaulting to warn. (2) More importantly, upstream traced and
+# fixed the actual ROOT CAUSE this study never located: _domain_guidance()
+# in llm_spec_generator.py used EPSG:31256 - the exact wrong CRS every
+# single run of every batch in this study chose, 0.5.0 through 0.5.3 - as
+# its literal worked example for the crs_transform -> distance-op
+# pattern, generic city-agnostic placeholders and all; a model handed
+# different city data had nothing telling it not to copy the example
+# verbatim. Replaced with a <PROJECTED_CRS> placeholder plus an explicit
+# instruction never to reuse a CRS code from the prompt/a prior answer.
+# (3) Explicitly NOT landed, per the changelog's own "Not landed" note:
+# the systematic generation-time validator that would trace a
+# nearest_neighbor -> filter_attribute/sort_limit chain and catch a
+# self-defeating max_distance BEFORE execution - only the after-the-fact
+# warning above landed for that half, so the LLM can still generate that
+# pattern, just no longer silently. Confirmed for real: cloned
+# github.com/arazshah/smart_spatial_system at tag v0.5.4, read the actual
+# diff directly (not the changelog's word), and independently executed
+# the max_distance-exclusion half against the real cloned source
+# (matching all three of upstream's own new test cases exactly, using
+# their real fixtures) - the CRS-area-of-use half could not be executed
+# here (needs pyproj, and PyPI stays blocked in this session's own
+# sandbox, same standing constraint as always) but was verified by
+# reading the real diff plus upstream's own new test, which uses this
+# exact Istanbul/EPSG:31256 scenario almost verbatim. Full detail:
+# enhancements/001's "Resolution" section. **Next step: because the ROOT
+# CAUSE (not just a warning) is now fixed, run the canonical §5 batch
+# (unmitigated, no system_hints) before touching §7's mitigation** - a
+# clean CRS result with no local mitigation at all would mean the
+# upstream fix alone closed that half of the gap.
+#
+# BUMPED 0.5.4 -> 0.5.5 (2026-09-23): implements enhancements/002, all four
+# items. Per CHANGELOG.md [0.5.5]:
+# (1) New orchestrator/planning/input_data_extent.py. s3geo.query() now
+#     computes the input layers' combined EPSG:4326 extent and the UTM
+#     zone of its centroid (only when one zone is accurate within 1%
+#     everywhere), and states both to the planner in an "Input data facts"
+#     prompt section placed before system_hints. The correct CRS now comes
+#     from the framework and the data, not from how the question is worded.
+# (2) _validate_crs_params_resolve() rejects an unresolvable
+#     source_crs/target_crs ("<PROJECTED_CRS>", "EPSG:XXXX") at generation
+#     time, with a message naming the computed CRS or the UTM formula,
+#     never an example code.
+# (3) _crs_scale_distortion_warning() in nearest_neighbor.py flags a CRS
+#     whose scale factor at the data is more than 2% from 1.0. EPSG:3857
+#     at Istanbul is 1.325.
+# (4) _validate_max_distance_filter_composition() rejects a provably
+#     empty max_distance + downstream `where` plan at generation time.
+#     This was deferred in 0.5.4 and reconsidered with this study's
+#     17.2% repro.
+# Confirmed for real: cloned tag v0.5.5 and read the actual diff. The
+# pyproj-free parts were executed against the cloned source:
+# - item 1's zone logic on this repo's real data/raw/ files gives
+#   EPSG:32635, the same CRS as Arm 1, with a max scale error of ~0.04%;
+# - the data-independent prompt contains no EPSG code except 4326;
+# - item 4, run through the real generate() with plans shaped like this
+#   study's, rejects every provably-empty case and accepts every case
+#   that can return features.
+# Items 2 and 3 need pyproj, which pip and apt both block in this
+# sandbox, so they were verified from the diff and upstream's tests only.
+# Full detail: enhancements/002's "Resolution".
+# There is still no retry loop, so a plan rejected by item 2 or 4 remains
+# a failed run, now at error_stage="generation".
+#
+# INSTALL SOURCE: PyPI stays blocked (403) from this session's own
+# environment, so `pip install` cannot resolve build dependencies from
+# here - this pin is verified-real but still unverified-installable in
+# this cloud environment specifically. It has installed and run cleanly
+# on the paper author's own machine at 0.3.0, 0.4.1, 0.4.2, 0.5.0, 0.5.1,
+# 0.5.2, 0.5.3 and 0.5.4 already; use the tag install below if the plain
+# pin below doesn't resolve on PyPI yet at 0.5.5:
+#
+#   pip install "smart-spatial-system[raster,pdf] @ git+https://github.com/arazshah/smart_spatial_system.git@v0.5.5"
+#
+# Delete this note once `pip install -r requirements.txt` has actually been
+# run successfully somewhere and the plain pin below is confirmed to work.
+#
+# BUMPED 0.5.5 -> 0.5.6 (2026-09-23): implements enhancements/003. Per
+# CHANGELOG.md [0.5.6]:
+# (1) A new generation-time validator rejects the specific self-defeating
+#     max_distance + downstream `where` pattern that 0.5.5's item 4 left
+#     unresolved as a repro rate rather than a hard failure (0.5.5's
+#     canonical batch was 9/20 exact matches; every remaining failure
+#     traced to exactly this pattern).
+# (2) A one-shot automatic repair: a plan the validator rejects is sent
+#     back to the model once with the rejection reason, before being
+#     recorded as a failure at error_stage="generation".
+# (3) S3GeoResult gains .attempt_count / .repaired properties and a
+#     .generation_attempts list; LLMSpecGenerationError gains .attempts;
+#     the RuntimeError subclass (S3GeoExecutionError) gains
+#     .generation_attempts (note: a different attribute name than the
+#     exception class above it - confirmed by reading both classes'
+#     source directly, not assumed from symmetry).
+# Confirmed for real, in this order: (a) `pip install
+# smart-spatial-system==0.5.6` succeeded outright in a clean cloud sandbox
+# this session - contradicts this file's own note above that PyPI was
+# still blocked as of 0.5.5; most likely session/network-scoped, not a
+# permanent fix, so the tag-install fallback below is kept rather than
+# deleted; (b) cloned tag v0.5.6 and read the new validator and the three
+# new attributes directly via inspect.getsource()/dataclasses.fields()
+# rather than trusting the changelog prose; (c) `dissolve_features` still
+# confirmed absent from OP_CATALOG, `zonal_statistics` still
+# raster-over-vector-zones only, and the CRS-mismatch-raise behaviour on
+# find_nearest_neighbors still real in source - none of those changed at
+# this pin; (d) both real N=20 batches re-run clean end to end
+# (`notebooks/03_llm_arm.ipynb`, `results/llm_runs/` +
+# `results/llm_runs_mitigated/`, 2026-09-23): canonical 20/20 succeeded
+# with attempt_count=1/repaired=False on every run (the repair mechanism
+# was never actually needed - every plan passed on its first try);
+# mitigated 18/20 succeeded, the other 2 a transient HTTP 401 from the
+# LLM provider, attempt_count=0 (an infrastructure error, not a
+# validator rejection). Full numbers: `paper/PLAN.md` "Findings",
+# 0.5.6 entry.
+#
+# INSTALL SOURCE: as of this pin, PyPI resolved directly in this study's
+# cloud sandbox (see (a) above) - the tag-install fallback that was
+# required at every earlier pin may no longer be necessary, but keep it
+# until confirmed on the paper author's own machine too (that machine's
+# own history: installed and run cleanly at 0.3.0, 0.4.1, 0.4.2, 0.5.0,
+# 0.5.1, 0.5.2, 0.5.3 and 0.5.4/0.5.5):
+#
+#   pip install "smart-spatial-system[raster,pdf] @ git+https://github.com/arazshah/smart_spatial_system.git@v0.5.6"
+smart-spatial-system==0.5.6
+
+# Pinned alongside smart-spatial-system (its own pyproject.toml only
+# requires geochat-sdk>=1.0.0, which 1.0.1 satisfies, but pin the exact
+# patch explicitly for full reproducibility - same discipline as above).
+# BUMPED 0.3.0's implicit >=1.0.0 -> ==1.0.1 (2026-09-19): closes bugs/001
+# (VectorOut.from_geopandas() crashed on datetime64 columns). Confirmed
+# for real by cloning github.com/arazshah/geochat-platform (subdirectory
+# geochat-sdk) at tag v1.0.1 and reading geochat_sdk/types/vector.py
+# directly: from_geopandas now accepts **to_json_kwargs and defaults
+# `default=str`, matching this organization's own s3geo._to_geojson_dict
+# precedent that bugs/001 cited. With this pin installed,
+# gdf_to_vectorout()'s local datetime-casting mitigation in
+# notebooks/02_rule_based_arm.ipynb is no longer required (harmless to
+# leave in place; it's a no-op once the columns are already handled
+# upstream).
+geochat-sdk==1.0.1
+
+# Required by the task spec, and used directly by the data-prep and
+# rule-based phases.
+geopandas
+requests
+
+# Notebook environment
+jupyterlab>=4.0
+ipykernel>=6.29
+
+# Analysis
+pandas>=2.2
+numpy>=1.26
+scipy>=1.13          # spearmanr for the Rank Stability metric
+
+# Mapping / plotting
+matplotlib>=3.8
+folium>=0.16
+
+# The LLM arm needs nothing beyond what smart-spatial-system already pulls
+# in (its own OpenAI-compatible client) - no extra client library required.
+python-dotenv>=1.0

@@ -9,6 +9,8 @@
 
 **[s3geo.com](https://s3geo.com)** — project site, plugin catalog and case-study index.
 
+**Used in research:** four case studies have been built on s3geo so far (Vienna, Tehran, İstanbul, Urmia). Each compares an LLM-planned analysis against one written by hand on real OpenStreetMap data. The İstanbul study is included in full in [`examples/istanbul_health_access/`](examples/istanbul_health_access/README.md). See [Case studies and papers](#case-studies-and-papers-written-with-s3geo).
+
 Smart Spatial System is a plugin-based GeoAI backend with a React workbench. A question such as *"rank these candidate properties by distance to metro stations, malls and main roads"* is turned into a structured `QuerySpec`, planned as a DAG of spatial operations, executed by plugins against uploaded files or PostGIS, and returned as map-ready outputs with a full execution trace.
 
 ![Running the Vienna accessibility ranking end to end through s3geo: the planned DAG, then the ranked output](docs/assets/demo.gif)
@@ -78,7 +80,8 @@ plugins/                 geochat_sdk capability plugins
 config/plugins/          per-plugin YAML config (*.example.yaml are the templates)
 templates/reports/       report templates (real-estate report)
 scripts/sql/             PostGIS views for the Tehran OSM demo
-examples/                runnable examples and their sample data
+examples/                runnable examples and their sample data, plus a complete case study
+                         (examples/istanbul_health_access/)
 frontend/                React + Vite workbench
 tests/                   pytest suite (~150 modules)
 docs/                    architecture, ADRs, API contracts, phase reports
@@ -325,64 +328,135 @@ compliance, and a reproducibility-methodology replication) plus what's
 *not* a good fit yet. If you use this software in published work, see
 [CITATION.cff](CITATION.cff).
 
-### Case Studies
+### Case studies and papers written with s3geo
 
-**[Vienna district accessibility to metro, schools and parks](https://github.com/arazshah/smart-spatial-vienna-accessibility)** -
-the reference reproducibility study: the same analysis run two ways, a
-deterministic rule-based `QuerySpec` and one planned entirely by
-`LLMQuerySpecGenerator`, measuring Plan Agreement Rate, parametric variance
-and Rank Stability across N repeated LLM runs. Found and fixed five real
-correctness bugs upstream (`0.2.1`-`0.2.4`).
+Four research studies so far have used s3geo on real OpenStreetMap data. In
+each one, an LLM planned the analysis from a plain-language question and was
+checked against the same analysis written by hand. Each study has its own
+paper or plan. The three that have run each found real defects in this
+package, and all of those defects are now fixed and released.
 
-**[Land-Use Diversity Gradient Around Tehran Metro Stations](https://github.com/arazshah/smart-spatial-tehran-tod-gradient)**
-(paper draft: `paper/paper.md` in that repository) - a reproducibility case
-study testing whether land-use diversity around Tehran's 122 metro stations
-changes systematically with distance (transit-oriented development
-gradient), using real OpenStreetMap data and this package's plugins. The
-analysis was run two ways - a deterministic pipeline with hand-selected
-plugin calls, and a second pipeline planned entirely from a single
-natural-language query via `LLMQuerySpecGenerator`, executed through the
-same `DeterministicPlanner`/`DagExecutor` engine either way.
+| # | Study | City | Question | Status | What it changed in s3geo |
+|---|---|---|---|---|---|
+| 1 | [Vienna accessibility](https://github.com/arazshah/smart-spatial-vienna-accessibility) | Vienna | District accessibility to metro, schools and parks | Reference study: established the method | 5 bugs fixed (`0.2.1`–`0.2.4`) |
+| 2 | [Tehran TOD gradient](https://github.com/arazshah/smart-spatial-tehran-tod-gradient) | Tehran | Does land-use diversity fall with distance from 122 metro stations? | Paper draft | 3 defects fixed (`0.2.5`–`0.2.9`); `ring_buffer_analysis` plugin |
+| 3 | [Istanbul health access](examples/istanbul_health_access/README.md) | İstanbul | Which mahalle are underserved by hospitals and clinics? | **Complete**: full paper, results and figures, included in this repo | 6 bug reports and 3 enhancements (`0.4.1`–`0.5.6`) |
+| 4 | [Urmia real estate](https://github.com/arazshah/smart-spatial-urmia-real-estate) | Urmia | Real-estate suitability ranking using transit, malls, roads, risk and zoning | Scaffolded, not yet run | Reuses the shipped real-estate workflow |
 
-**Real-world validation, not a synthetic demo**: running the LLM-driven arm
-against real data and a real model (gpt-4o-mini) surfaced three genuine
-defects in this package - a missing multi-ring buffer primitive, a case
-where the planner chose a boolean membership filter
-(`filter_points_in_polygon`) over a zone-identity-preserving join
-(`spatial_join`), and a `spatial_join` cardinality parameter that defaulted
-to `"first"` and silently dropped matches for points within range of more
-than one target zone. Each was diagnosed from a real run, fixed in this
-package (released as `v0.2.5` through `v0.2.9`), and re-verified against
-the same real data. After all fixes, the natural-language-planned
-pipeline's output is bit-identical to the hand-authored one across every
-metric.
+All four share one design. **Arm 1** is a deterministic plan written by
+hand. **Arm 2** is the same question in plain language, planned by
+`LLMQuerySpecGenerator` / `s3geo.query()` and run N times. The arms are
+compared with Plan Agreement Rate, variance in the chosen parameters, Set
+and Rank Stability, and agreement with Arm 1. Vienna's
+`paper/comparison_metric.md` defines the metric, and the İstanbul study
+reuses it unchanged.
 
-This case study is also where the `ring_buffer_analysis` plugin (true
-annulus/multi-ring buffers) and the `spatial_join` performance improvement
-(STRtree-indexed shapely engine) originated - both are now part of the
-package for any user, not specific to this case study.
+#### 1. Vienna: district accessibility to metro, schools and parks
 
-See also: the companion Vienna accessibility case study above, which used
-the same manual-vs-LLM-driven comparison design to measure LLM planning
-*reliability* (N=20 repeated runs) rather than *correctness* (this study's
-focus).
+**Repository:** [`smart-spatial-vienna-accessibility`](https://github.com/arazshah/smart-spatial-vienna-accessibility)
 
-**[Urmia real-estate suitability ranking](https://github.com/arazshah/smart-spatial-urmia-real-estate)**
-(see that repository's `paper/PLAN.md`) - a reproducibility case study
-reusing this package's shipped real-estate ranking workflow end to end
-(`real_estate_spatial_enrich` → `real_estate_score` → `filter_attribute` →
-`rank_features` → `build_report`, see `orchestrator/planning/op_catalog.py`)
-against real OpenStreetMap vector data for Urmia's roads, transit hubs and
-shopping centers, combined with flood/earthquake/fire risk and
-allowed-construction zoning (Urmia has no metro/subway, so `transit_hubs`
-stands in for the city's public-transit hubs, the same convention this
-repository's own [`urmia_real_estate_ranking.py`](examples/urmia_real_estate_ranking.py)
-example uses). Same rule-based-vs-LLM reproducibility methodology as the
-Vienna and Tehran studies above, applied to a workflow this system already
-ships rather than one built from scratch for the study. **Scaffolded, not
-yet run** - both arms are written and their non-network, non-LLM logic
-verified offline; see that repository's `paper/PLAN.md` for exactly what's
-left before a real OSM download and a real LLM run produce results.
+This is the reference reproducibility study. It runs the same analysis two
+ways, as a deterministic rule-based `QuerySpec` and as one planned entirely
+by `LLMQuerySpecGenerator`. It measures Plan Agreement Rate, parametric
+variance and Rank Stability across N repeated LLM runs. It focused on LLM
+planning *reliability*.
+
+**What it changed here:** it found and fixed five correctness bugs
+(`0.2.1`–`0.2.4`):
+
+- a silent domain-wrong default
+- an undocumented required input role
+- multi-factor scoring that was not chained
+- an asymmetric CRS mismatch
+- a scoring factor that silently defaulted to the wrong type
+
+#### 2. Tehran: land-use diversity gradient around metro stations
+
+**Repository:** [`smart-spatial-tehran-tod-gradient`](https://github.com/arazshah/smart-spatial-tehran-tod-gradient).
+The paper draft is `paper/paper.md` in that repository.
+
+This study tests whether land-use diversity around Tehran's 122 metro
+stations changes systematically with distance, a transit-oriented
+development (TOD) gradient. It ran two ways:
+
+- a deterministic pipeline with plugin calls chosen by hand;
+- a pipeline planned entirely from one plain-language question.
+
+Both ran through the same `DeterministicPlanner`/`DagExecutor` engine. This
+study focused on *correctness*.
+
+**What it changed here:** running the LLM arm with a real model
+(gpt-4o-mini) on real data surfaced three defects, fixed in `0.2.5`–`0.2.9`:
+
+- a missing multi-ring buffer primitive, which is now the
+  `ring_buffer_analysis` plugin;
+- the planner choosing a boolean membership filter
+  (`filter_points_in_polygon`) where a join that keeps zone identity
+  (`spatial_join`) was needed;
+- a `spatial_join` cardinality default (`"first"`) that silently dropped
+  matches.
+
+The STRtree-indexed `spatial_join` engine also came from this study. After
+the fixes, the LLM-planned output is bit-identical to the hand-written
+pipeline on every metric.
+
+#### 3. İstanbul: mahalle underserved by hospitals and clinics
+
+**Folder in this repository:** [`examples/istanbul_health_access/`](examples/istanbul_health_access/README.md).
+It was developed in [`smart-spatial-istanbul-health-access`](https://github.com/arazshah/smart-spatial-istanbul-health-access).
+The paper is [`paper/paper.md`](examples/istanbul_health_access/paper/paper.md).
+
+This is the most complete study so far. It is the only one included in full
+here, with notebooks, paper, results and figures. The data is 964 mahalle
+and 1,020 hospitals/clinics from OSM:
+
+- **Arm 1** is written by hand: EPSG:32635, nearest facility, and underserved
+  mahalle at 1,000, 1,500 and 2,000 m.
+- **Arm 2** is `s3geo.query()` run N=20 times. It is given no threshold,
+  CRS or operation list.
+
+**Result:** at `0.5.6`, **20/20 unhinted LLM-planned runs return exactly
+Arm 1's set of underserved mahalle**. Jaccard vs. Arm 1 is 1.0000. All 20
+runs use EPSG:32635, which the framework derived from the data's own
+extent.
+
+**What it changed here:** every earlier pin, from `0.3.0` to `0.5.5`,
+failed for a specific reason. Each reason was reported in the study's
+`bugs/` or `enhancements/` and fixed in `0.4.1`–`0.5.6`:
+
+- raster extras required even for vector queries
+- unknown op params passed through silently
+- the shape of the `where` value never shown to the LLM
+- explicit `None` overriding plugin defaults
+- a CRS code leaked from a prompt example
+- `nearest_neighbor` sped up about 150× with an STRtree
+- a projected CRS derived from the input data
+- a `max_distance`/`where` validator
+- one repair retry
+
+#### 4. Urmia: real-estate suitability ranking
+
+**Repository:** [`smart-spatial-urmia-real-estate`](https://github.com/arazshah/smart-spatial-urmia-real-estate).
+The plan is `paper/PLAN.md` in that repository.
+
+This study reuses this package's shipped real-estate ranking workflow end
+to end: `real_estate_spatial_enrich` → `real_estate_score` →
+`filter_attribute` → `rank_features` → `build_report` (see
+`orchestrator/planning/op_catalog.py`). It runs on real OSM data for
+Urmia's roads, transit hubs and shopping centers, combined with
+flood/earthquake/fire risk and allowed-construction zoning. Urmia has no
+metro, so `transit_hubs` stands in for its public-transit hubs, the same
+convention as
+[`urmia_real_estate_ranking.py`](examples/urmia_real_estate_ranking.py).
+
+**Status:** scaffolded, not yet run. Both arms are written, and their logic
+that needs no network or LLM has been verified offline. That repository's
+`paper/PLAN.md` lists what is left.
+
+Want to write the next one? [docs/CASE_STUDIES.md](docs/CASE_STUDIES.md)
+lists suggested studies, and the
+[case-study issue template](.github/ISSUE_TEMPLATE/case_study.md) is where
+to propose one.
 
 ## Development
 

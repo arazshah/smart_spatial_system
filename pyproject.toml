@@ -132,3 +132,8 @@ ignore = [
 # imports without first checking every test for `service_module.<Name>` /
 # `from orchestrator.service import <Name>` usage.
 "orchestrator/service.py" = ["F401", "I001"]
+# The Istanbul case study's notebooks are executed research records: their
+# stored outputs came from exactly this cell source. Keep them byte-for-byte
+# as run rather than re-sorting imports or dropping unused names after the
+# fact (examples/istanbul_health_access/README.md).
+"examples/istanbul_health_access/notebooks/*.ipynb" = ["F401", "F541", "F841", "I001"]

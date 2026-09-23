@@ -460,8 +460,9 @@ OP_CATALOG: dict[str, OpDescriptor] = {
             "units the input CRS uses, and do not reproject themselves - so "
             "WGS84 (EPSG:4326) input yields distances in DEGREES, not metres. "
             "Reproject to a projected CRS appropriate for the study area "
-            "first (e.g. EPSG:3857 for web-mercator work, or a local metric "
-            "CRS such as EPSG:31256 for Vienna / EPSG:32633 for UTM 33N)."
+            "first - e.g. the UTM zone of the data's centroid, which "
+            "s3geo.query() computes from the input layers. Web Mercator is "
+            "not one for distances: its scale factor is 1/cos(latitude)."
         ),
     ),
 

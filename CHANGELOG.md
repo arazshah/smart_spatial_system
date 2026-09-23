@@ -6,6 +6,174 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-09-23
+
+Response to enhancements/002, filed against the two 0.5.4 N=20 Istanbul
+batches. Without `system_hints`, 8/20 runs executed; 12/20 failed with
+`Invalid CRS transformation EPSG:4326 -> <PROJECTED_CRS>` (9 runs) or
+`-> EPSG:XXXX` (3 runs), and all 8 that executed used EPSG:3857. With
+`system_hints` naming the correct UTM zone, 20/20 executed. The planner
+chooses correctly when it is told the data's location. It had no way to
+work that out, because the data never reached the prompt. All four
+items landed.
+
+### Added
+
+- **Item 1: projected CRS derived from the input data itself.** New
+  `orchestrator/planning/input_data_extent.py`.
+  `derive_input_data_extent(layers)` computes the combined EPSG:4326
+  extent of the query's vector layers and picks a projected CRS from its
+  centroid using the standard UTM rule:
+  `zone = floor((lon + 180) / 6) + 1`, then `EPSG:32600 + zone` in the
+  northern hemisphere or `EPSG:32700 + zone` in the southern. Zone 61 at
+  lon = 180 is clamped to 60. `s3geo.query()` calls it on the original
+  `layers` *before* planning. It uses `layers` rather than
+  `initial_inputs` because a GeoDataFrame's `.crs` doesn't survive
+  `to_json()`. The result is passed to
+  `LLMQuerySpecGenerator.generate(..., input_data_extent=...)` (new
+  optional kwarg, also on `build_llm_messages`), which renders an
+  "Input data facts" section into the system prompt:
+  - each layer's stored CRS;
+  - the extent and centroid;
+  - "Suitable projected CRS for metric work on this data: EPSG:<computed>
+    (<pyproj name>). Use exactly this value..."
+
+  The section is placed *before* "Additional hints", so a caller's own
+  `system_hints` still come last and can override it. The placeholder
+  paragraph in `_domain_guidance()` now tells the model to use that
+  section when it is present. The value is computed per query from that
+  query's data, so the prompt contains no fixed code to copy. A new test
+  asserts that the data-independent prompt contains no EPSG code other
+  than EPSG:4326. `S3GeoResult` gains `input_data_extent` (defaults to
+  `None`, so existing construction is unaffected), which reports what
+  was computed and told to the planner. `InputDataExtent` is re-exported
+  as `s3geo.InputDataExtent`.
+
+  Edge cases:
+  - **Extent spans more than one UTM zone.** The candidate zone's pyproj
+    scale factors (worst Tissot axis) are checked over a 5x5 grid
+    covering the whole extent. If the error stays within 1%
+    (`MAX_SCALE_ERROR`), the centroid's zone is still suggested and a
+    note says the extent spans zones N-M and gives the actual maximum
+    error. A city straddling a zone line stays at ~0.04%. If the error
+    is above 1% (a country- or continent-wide extent), no CRS is
+    suggested. The facts say so and give the error the centroid zone
+    would have had. Stating nothing is better than stating a wrong CRS
+    confidently. I did not add a data-centred custom projection (e.g.
+    `+proj=aeqd`) as a fallback, because `crs_transform`'s
+    `_normalize_crs()` upper-cases input and strips spaces, which breaks
+    PROJ strings.
+  - **Extent wider than 180° of longitude** (for example, crossing the
+    antimeridian): no suggestion, because the bbox centroid isn't a
+    meaningful location for that data.
+  - **Latitude outside UTM's 80°S-84°N band:** decided on the extent's
+    latitude limits, not only its centroid. UTM is used only when the
+    whole extent is inside the band. Otherwise the matching UPS CRS
+    (EPSG:32661/32761) is used when the whole extent is inside UPS's area
+    of use (poleward of 60°). An extent that crosses the band edge but
+    reaches further from the pole than that gets no suggestion. Caught in
+    PR review: an 83.5°N-84.5°N extent was given a UTM zone because its
+    centroid was exactly 84°N.
+  - **Input not in EPSG:4326:** the extent is reprojected first
+    (`transform_bounds`, densified). This covers a GeoDataFrame's `.crs`
+    and a legacy GeoJSON `"crs"` member. GeoJSON with no crs member is
+    treated as EPSG:4326 (RFC 7946).
+  - **CRS unknown:** a GeoDataFrame with `crs=None`, an unresolvable
+    `"crs"` member, or "EPSG:4326" data whose coordinates are outside
+    lon/lat range. The whole suggestion is skipped (`None`, prompt
+    unchanged), even if the other layers are fine.
+  - **pyproj missing:** skipped silently (`None`). `crs_transform`
+    can't reproject to a UTM zone without pyproj anyway.
+  - Not handled: UTM's Norway/Svalbard zone exceptions. The standard
+    zone is still an accurate CRS there.
+
+  Scope: this is wired into `s3geo.query()` only.
+  `OrchestratorService`'s `/query` path doesn't call it yet. It would
+  need the same one-line `derive_input_data_extent(...)` call where
+  that path builds its inputs.
+
+- **Item 2: generation-time check that every CRS param resolves.** New
+  `_validate_crs_params_resolve()` in `llm_spec_generator.py`, called
+  from `generate()` next to the other structural validators. It resolves
+  every `source_crs`/`target_crs` on every operation (`crs_transform`,
+  the distance/nearest-neighbor ops, and any other op with those params)
+  using `pyproj.CRS.from_user_input()`. It checks the value after the same
+  normalization `crs_transform` applies before executing it: integers
+  and digit-only strings become `EPSG:<n>`, and strings are upper-cased
+  with spaces removed. Checking the raw value would pass a PROJ string
+  like `+proj=utm +zone=35 ...` that `crs_transform` then turns into an
+  unresolvable `+PROJ=UTM+ZONE=35...` (caught in PR review). That case
+  gets a specific message asking for an authority code instead. On failure it
+  raises `LLMSpecGenerationError` naming the op, the param, the value
+  and pyproj's reason. If `input_data_extent` has a suggested CRS, the
+  message names that computed CRS ("This query's input data (EPSG:4326
+  extent ...) calls for EPSG:<computed> - use that value."). Otherwise it
+  gives the UTM formula above. It never gives a literal example code, and
+  a test asserts that no-extent messages contain no `EPSG:<digits>` at
+  all. A CRS that resolves but differs from the suggestion is allowed;
+  item 3 is the safety net for that case. Skipped silently when pyproj
+  is missing.
+
+- **Item 3: distance-fidelity warning next to the area-of-use check.**
+  New `_crs_scale_distortion_warning()` in `plugins/nearest_neighbor.py`
+  appends to the same `warning` metadata field. It recovers the data's
+  centroid the same way as `_crs_area_of_use_warning()`, using the new
+  shared helper `_recover_wgs84_centroid()` (a refactor, with no change
+  to the area-of-use behaviour). It then evaluates
+  `pyproj.Proj(crs).get_factors(lon, lat)` and takes the worse of
+  `tissot_semimajor`/`tissot_semiminor`, which is also valid for
+  non-conformal projections. It warns when that value is more than
+  `crs_scale_warning_tolerance` (new config key, default **0.02**) away
+  from 1.0. I chose 2% rather than 5-10% because it still never flags a
+  sensible UTM zone: UTM is ≤0.1% inside its zone and stays under 2%
+  until ~11° from its central meridian. It flags Web Mercator at every
+  latitude beyond ~±11.5°, instead of only beyond ~±18°. For EPSG:3857
+  at Istanbul the warning reads "...scale factor at the recovered
+  centroid (...) is 1.325, so nearest-neighbor distances computed in it
+  are about 32.5% too long...". It ends by naming the standard UTM zone
+  computed for that location, when that differs from the CRS in use.
+  Opt-out: `warn_if_crs_scale_distortion: false`. Both keys were added to
+  `config/plugins/nearest_neighbor.yaml` and `.example.yaml`. The check
+  never raises, and is silent when pyproj is missing, the CRS can't be
+  resolved or is geographic, there is no usable geometry, or the factors
+  are non-finite.
+
+- **Item 4: generation-time validator for max_distance vs. a downstream
+  filter** (the item deferred in 0.5.4, reconsidered with your repro).
+  New `_validate_max_distance_filter_composition()`. Every feature that
+  leaves a `spatial_nearest`/`nearest_neighbor`/`filter_by_distance`
+  step with `max_distance` (or `max_distance_m`) = M has
+  `distance_field` ≤ M or no distance at all. So a downstream `where`
+  that requires `> T` with T ≥ M, `>= T` with T > M, `== T` with T > M,
+  or `between [a, …]` with a > M can never keep a feature. The validator
+  raises `LLMSpecGenerationError` naming both ops and saying to remove
+  `max_distance` and let the filter apply the threshold. Your 2/20 case
+  (`max_distance=1000.0`, then keep > 1000 m) is a test case. As you
+  said, a fraction threshold can't catch this. The validator can only
+  flag plans that are provably empty:
+  - It follows the step's output into `filter_attribute`/`sort_limit`
+    ops, directly or through a chain of them, and through a later
+    nearest-neighbor step that writes a *different* distance field. It
+    stops at one that writes the same field, because that overwrites
+    the value.
+  - It only uses conditions the `where` requires unconditionally: at the
+    top level or under `and`, in canonical `{"field","op","value"}` or
+    shortcut form. Conditions under `or`/`not` are ignored.
+  - It matches the exact distance field only, honouring a custom
+    `distance_field`, and only numeric thresholds.
+  - `>= M` exactly is allowed, because features at exactly M survive.
+
+  0.5.4's fraction-based execution-time warning is unchanged.
+
+### Changed
+
+- The `crs_transform` note in `OP_CATALOG` no longer lists literal
+  example codes (EPSG:3857 / EPSG:31256 / EPSG:32633). It now says to
+  use the UTM zone of the data's centroid and that Web Mercator is not
+  suitable for distances. This note is only carried in DAG node
+  metadata, not rendered into the LLM prompt, but it was the same kind
+  of copyable example.
+
 ## [0.5.4] - 2026-09-23
 
 ### Added

@@ -20,6 +20,10 @@ warn_if_geographic_crs: true       # warn when source_crs is a geographic (degre
 warn_if_crs_area_mismatch: true    # warn when the projected CRS's published area of
                                     # use does not appear to cover the data's location
                                     # (e.g. reprojecting Istanbul data to an Austrian grid)
+warn_if_crs_scale_distortion: true  # warn when the projected CRS's scale factor at the
+                                     # data's location is off from 1.0 by more than the
+                                     # tolerance below (e.g. Web Mercator at mid latitudes)
+crs_scale_warning_tolerance: 0.02    # 0.02 = warn when distances are >2% too long/short
 warn_if_max_distance_excludes: true  # warn when max_distance excludes a large share of
                                       # source features from ranking (see fraction below)
 max_distance_warning_fraction: 0.2   # fraction of source features excluded by

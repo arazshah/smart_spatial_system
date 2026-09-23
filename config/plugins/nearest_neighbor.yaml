@@ -10,6 +10,8 @@ source_crs: null
 target_crs: null
 warn_if_geographic_crs: true
 warn_if_crs_area_mismatch: true
+warn_if_crs_scale_distortion: true
+crs_scale_warning_tolerance: 0.02
 warn_if_max_distance_excludes: true
 max_distance_warning_fraction: 0.2
 

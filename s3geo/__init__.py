@@ -51,6 +51,10 @@ from orchestrator.planning.capability_resolver import (
     RegistryCapabilityResolver,
 )
 from orchestrator.planning.dag_executor import DagExecutionError, DagExecutor
+from orchestrator.planning.input_data_extent import (
+    InputDataExtent,
+    derive_input_data_extent,
+)
 from orchestrator.planning.llm_spec_generator import (
     LLMQuerySpecGenerator,
     LLMSpecGenerationError,
@@ -63,6 +67,7 @@ __all__ = [
     "query",
     "registry",
     "S3GeoResult",
+    "InputDataExtent",
     # Planning pipeline classes `query()` wires up internally - re-exported
     # so they are reachable as `s3geo.<Name>` without importing orchestrator.
     "CapabilityRegistry",
@@ -94,11 +99,18 @@ class S3GeoResult:
     output:
         The final DAG output - the same object the plan's last operation
         produced.
+    input_data_extent:
+        What query() measured from the input layers and told the planner:
+        combined WGS84 extent, the projected CRS it suggested for metric
+        work (suggested_crs), and any caveats (notes - e.g. the extent
+        spans several UTM zones). None when nothing could be derived
+        (pyproj missing, a layer with an unknown CRS, no geometry).
     """
 
     goal: str
     operations: list[str]
     output: Any
+    input_data_extent: InputDataExtent | None = None
 
 
 def registry(*, tolerant: bool = True) -> CapabilityRegistry:
@@ -173,9 +185,18 @@ def query(
             test suite constructs. Pass False to opt back into permissive
             pass-through of unrecognized params.
 
+    CRS: before planning, query() measures the combined WGS84 extent of
+    ``layers`` and derives a projected CRS suitable for metric work on
+    that data (the UTM zone of its centroid, when one zone is accurate
+    across the whole extent - see orchestrator.planning.input_data_extent).
+    Both are stated to the planner as facts about this query's data, so
+    the plan's crs_transform steps don't depend on how the question is
+    worded. system_hints are rendered after them and can override them.
+
     Returns:
         S3GeoResult with the identified goal, the operations the plan
-        executed (in order), and the final output.
+        executed (in order), the final output, and the extent/CRS facts
+        given to the planner (input_data_extent).
 
     Raises:
         LLMSpecGenerationError:
@@ -188,12 +209,16 @@ def query(
             executor's own error message is included, not a generic one.
     """
     initial_inputs = {name: _to_geojson_dict(layer) for name, layer in layers.items()}
+    # From the original layers, not initial_inputs: a GeoDataFrame's .crs
+    # doesn't survive to_json().
+    input_data_extent = derive_input_data_extent(layers)
 
     client = OpenAICompatibleLLMClient()
     query_spec = LLMQuerySpecGenerator(client).generate(
         raw_query,
         context=context or {},
         system_hints=system_hints or "",
+        input_data_extent=input_data_extent,
     )
 
     plan = DeterministicPlanner(PlannerConfig(strict_params=strict_params)).build(query_spec)
@@ -209,4 +234,5 @@ def query(
         goal=query_spec.goal,
         operations=[operation.op for operation in query_spec.operations],
         output=dag_result.outputs[query_spec.operations[-1].output],
+        input_data_extent=input_data_extent,
     )

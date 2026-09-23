@@ -15,6 +15,10 @@ import urllib.request
 from dataclasses import asdict
 from typing import Any, Protocol
 
+from orchestrator.planning.input_data_extent import (
+    InputDataExtent,
+    render_input_data_facts,
+)
 from orchestrator.planning.op_catalog import (
     get_op,
     is_supported,
@@ -1103,7 +1107,9 @@ Important mappings:
   Istanbul to an Austrian or French national grid produces internally
   consistent but physically meaningless distances, with no error at any
   step, because the projection math still runs - it is simply the wrong
-  part of the planet for that CRS's definition.
+  part of the planet for that CRS's definition. If an "Input data facts"
+  section appears later in these instructions, it states a projected CRS
+  computed from THIS query's own input data - use that value.
 
 - "nearer than X meters to POI":
   op="filter_by_distance"
@@ -1298,11 +1304,17 @@ def build_llm_messages(
     *,
     context: dict[str, Any] | None = None,
     system_hints: str | None = None,
+    input_data_extent: InputDataExtent | None = None,
 ) -> list[dict[str, str]]:
     system = _domain_guidance() + "\n" + _schema_hint()
 
     if isinstance(context, dict) and context.get("semantic_planning_context"):
         system += "\n" + _semantic_planning_context_guidance()
+
+    # Before system_hints, so a caller's own hints still come last and can
+    # override a computed fact they know better about.
+    if input_data_extent is not None:
+        system += "\n" + render_input_data_facts(input_data_extent) + "\n"
 
     if system_hints:
         system += "\nAdditional hints:\n" + system_hints
@@ -2373,6 +2385,280 @@ def _validate_distance_op_crs_symmetry(spec: QuerySpec) -> None:
         )
 
 
+_CRS_PARAM_NAMES = ("source_crs", "target_crs")
+
+
+def _crs_param_resolution_error(value: Any) -> str | None:
+    """
+    None if value resolves to a CRS with pyproj AFTER the same
+    normalization crs_transform applies before executing it
+    (plugins/crs_transformer.py::_normalize_crs: an integer or all-digit
+    value becomes "EPSG:<n>"; a string is stripped, upper-cased and has
+    every space removed) - else the reason. Validating the raw value
+    instead would pass a PROJ string like "+proj=utm +zone=35 ..." that
+    pyproj accepts but crs_transform turns into the unresolvable
+    "+PROJ=UTM+ZONE=35...", reopening the execution-time failure this
+    check exists to prevent.
+    """
+    from pyproj import CRS
+
+    if isinstance(value, bool):
+        return "a boolean is not a CRS"
+    if isinstance(value, int):
+        normalized = f"EPSG:{value}"
+    elif isinstance(value, str):
+        normalized = value.strip().upper().replace(" ", "")
+        if normalized.isdigit():
+            normalized = f"EPSG:{normalized}"
+    else:
+        return f"expected a CRS string or EPSG integer, got {type(value).__name__}"
+
+    try:
+        CRS.from_user_input(normalized)
+    except Exception as exc:
+        reason = str(exc).splitlines()[0] if str(exc) else type(exc).__name__
+        if normalized != value:
+            try:
+                CRS.from_user_input(value)
+            except Exception:
+                pass
+            else:
+                return (
+                    f"crs_transform normalizes it to {normalized!r} (upper-cased, "
+                    "spaces removed), which does not resolve - use an authority "
+                    "code such as EPSG:<number> instead of a PROJ/WKT string"
+                )
+        return reason
+    return None
+
+
+def _validate_crs_params_resolve(
+    spec: QuerySpec,
+    *,
+    input_data_extent: InputDataExtent | None = None,
+) -> None:
+    """
+    Reject a plan whose source_crs/target_crs (crs_transform, the distance/
+    nearest-neighbor ops, and any other op taking those params) isn't a
+    CRS pyproj can resolve - a copied placeholder like "<PROJECTED_CRS>"
+    or an invented "EPSG:XXXX" - at generation time, instead of one node
+    into DAG execution with a raw "Invalid CRS transformation" PROJ error.
+
+    The corrective message names the CRS computed from the query's own
+    data when input_data_extent has one; otherwise it gives the UTM rule,
+    never an example code (a literal example is exactly what 0.5.3's
+    prompt had and the model copied).
+
+    Skipped silently when pyproj is missing - crs_transform can't do a
+    projected reprojection without it anyway, and it will report that
+    itself.
+    """
+    try:
+        import pyproj  # noqa: F401
+    except ImportError:
+        return
+
+    for op in spec.operations:
+        params = op.params or {}
+        for param in _CRS_PARAM_NAMES:
+            value = params.get(param)
+            if value is None:
+                continue
+            reason = _crs_param_resolution_error(value)
+            if reason is None:
+                continue
+
+            if input_data_extent is not None and input_data_extent.suggested_crs:
+                fix = (
+                    f"This query's input data (EPSG:4326 extent "
+                    f"{', '.join(f'{v:.4f}' for v in input_data_extent.bbox)}) calls for "
+                    f"{input_data_extent.suggested_crs} - use that value."
+                )
+            else:
+                fix = (
+                    "Use a real CRS identifier chosen for where the data actually is - "
+                    "for example the UTM zone of the data's centroid: zone = "
+                    "floor((lon + 180) / 6) + 1, then EPSG:(32600 + zone) north of the "
+                    "equator or EPSG:(32700 + zone) south of it."
+                )
+            raise LLMSpecGenerationError(
+                f"Operation {op.op!r} (output {op.output!r}) has {param}={value!r}, "
+                f"which is not a resolvable CRS ({reason}). A placeholder or made-up "
+                f"code cannot be executed. {fix}"
+            )
+
+
+# Ops that write a nearest-neighbor distance field and honor max_distance
+# (all find_nearest_neighbors under the hood), and the property-preserving
+# ops a later filter on that field can be reached through.
+_MAX_DISTANCE_OPS = {"spatial_nearest", "nearest_neighbor", "filter_by_distance"}
+_MAX_DISTANCE_SOURCE_ROLE = {
+    "spatial_nearest": "source",
+    "nearest_neighbor": "source",
+    "filter_by_distance": "vector",
+}
+_FILTER_WHERE_OPS = {"filter_attribute", "sort_limit"}
+_WHERE_OPERATOR_ALIASES = {">": "gt", ">=": "gte", "=": "eq", "==": "eq"}
+
+
+def _as_threshold(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return None
+    return None
+
+
+def _required_where_conditions(where: Any) -> list[tuple[str, str, Any]]:
+    """
+    (field, operator, value) conditions every feature a where keeps must
+    satisfy - mirroring filter_features' own evaluation order (and, or,
+    not, canonical field condition, shortcut). Conditions under "or" or
+    "not" are never required on their own, so they're left out: this can
+    only under-report, never invent a condition the filter doesn't apply.
+    """
+    if not isinstance(where, dict):
+        return []
+    if "and" in where:
+        items = where["and"]
+        if not isinstance(items, list):
+            return []
+        conditions: list[tuple[str, str, Any]] = []
+        for item in items:
+            conditions.extend(_required_where_conditions(item))
+        return conditions
+    if "or" in where or "not" in where:
+        return []
+    if "field" in where:
+        field = where.get("field")
+        operator = where.get("op", "eq")
+        if isinstance(field, str) and isinstance(operator, str):
+            return [(field.strip(), operator.strip().lower(), where.get("value"))]
+        return []
+
+    conditions = []
+    for field, expected in where.items():
+        if field in {"and", "or", "not", "field", "op", "value"}:
+            continue
+        if isinstance(expected, dict):
+            for operator, value in expected.items():
+                conditions.append((str(field), str(operator).strip().lower(), value))
+        else:
+            conditions.append((str(field), "eq", expected))
+    return conditions
+
+
+def _contradicts_max_distance(operator: str, value: Any, max_distance: float) -> str | None:
+    """
+    A readable form of the condition if no distance <= max_distance can
+    satisfy it, else None.
+    """
+    operator = _WHERE_OPERATOR_ALIASES.get(operator, operator)
+    if operator == "between":
+        if isinstance(value, (list, tuple)) and len(value) == 2:
+            lower = _as_threshold(value[0])
+            if lower is not None and lower > max_distance:
+                return f"between {value[0]!r} and {value[1]!r}"
+        return None
+
+    threshold = _as_threshold(value)
+    if threshold is None:
+        return None
+    if operator == "gt" and threshold >= max_distance:
+        return f"> {value!r}"
+    if operator == "gte" and threshold > max_distance:
+        return f">= {value!r}"
+    if operator == "eq" and threshold > max_distance:
+        return f"== {value!r}"
+    return None
+
+
+def _validate_max_distance_filter_composition(spec: QuerySpec) -> None:
+    """
+    Reject a plan where a nearest-neighbor step's max_distance makes a
+    downstream filter on that step's own distance field unsatisfiable.
+
+    max_distance drops every candidate farther than it before ranking, so
+    every feature leaving the step either has distance <= max_distance or
+    no distance at all. A filter that then keeps only distance > T (or
+    >= T, == T, between T and ...) with T >= max_distance can never keep
+    anything: the features it is looking for are exactly the ones
+    max_distance removed, whether that's 1% or 90% of the data - which is
+    why 0.5.4's fraction-based execution-time warning can't catch it and
+    this has to look at the downstream op.
+
+    Deliberately narrow, so it can't reject a plan that could return
+    features: only follows the step's output into filter_attribute/
+    sort_limit ops (directly, or through a chain of them - they preserve
+    properties), stops at a later nearest-neighbor step that writes the
+    same distance field (it overwrites the value), only uses conditions
+    the where requires unconditionally (top level or under "and"), and
+    only numeric thresholds on the exact distance field.
+    """
+    consumers: dict[str, list[OperationSpec]] = {}
+    for op in spec.operations:
+        for ref in (op.inputs or {}).values():
+            if isinstance(ref, str):
+                consumers.setdefault(ref, []).append(op)
+
+    for op in spec.operations:
+        if op.op not in _MAX_DISTANCE_OPS or not op.output:
+            continue
+        params = op.params or {}
+        max_distance_key = "max_distance" if params.get("max_distance") is not None else "max_distance_m"
+        max_distance = _as_threshold(params.get(max_distance_key))
+        if max_distance is None:
+            continue
+        distance_field = str(params.get("distance_field") or "_nearest_distance").strip()
+
+        pending = [op.output]
+        seen: set[str] = set()
+        while pending:
+            ref = pending.pop()
+            if ref in seen:
+                continue
+            seen.add(ref)
+            for consumer in consumers.get(ref, []):
+                if consumer.op in _FILTER_WHERE_OPS and consumer.inputs.get("vector") == ref:
+                    for field, operator, value in _required_where_conditions(
+                        (consumer.params or {}).get("where")
+                    ):
+                        if field != distance_field:
+                            continue
+                        condition = _contradicts_max_distance(operator, value, max_distance)
+                        if condition is None:
+                            continue
+                        raise LLMSpecGenerationError(
+                            f"Operation {op.op!r} (output {op.output!r}) sets "
+                            f"{max_distance_key}={params.get(max_distance_key)!r}, so every "
+                            f"feature it outputs has {distance_field} <= "
+                            f"{params.get(max_distance_key)!r} or no distance at all - but "
+                            f"{consumer.op!r} (output {consumer.output!r}) keeps only "
+                            f"{distance_field} {condition}. The two can never both hold, so "
+                            "this plan always returns zero features: the features the "
+                            f"filter is looking for are exactly the ones {max_distance_key} "
+                            f"removed. Remove {max_distance_key} from {op.op!r} and let the "
+                            "filter apply the threshold."
+                        )
+                    if consumer.output:
+                        pending.append(consumer.output)
+                elif (
+                    consumer.op in _MAX_DISTANCE_OPS
+                    and consumer.output
+                    and consumer.inputs.get(_MAX_DISTANCE_SOURCE_ROLE[consumer.op]) == ref
+                    and str((consumer.params or {}).get("distance_field") or "_nearest_distance").strip()
+                    != distance_field
+                ):
+                    # A later nearest-neighbor step writing a DIFFERENT
+                    # distance field preserves this one on its source side.
+                    pending.append(consumer.output)
+
+
 class LLMQuerySpecGenerator:
     def __init__(
         self,
@@ -2393,7 +2679,15 @@ class LLMQuerySpecGenerator:
         *,
         context: dict[str, Any] | None = None,
         system_hints: str | None = None,
+        input_data_extent: InputDataExtent | None = None,
     ) -> QuerySpec:
+        """
+        input_data_extent:
+            Facts computed from the query's own input layers (see
+            orchestrator.planning.input_data_extent.derive_input_data_extent)
+            - rendered into the system prompt, and its suggested CRS named
+            in the error if the plan's CRS params don't resolve.
+        """
         if not isinstance(raw_query, str) or not raw_query.strip():
             raise LLMSpecGenerationError("raw_query must be non-empty.")
 
@@ -2401,6 +2695,7 @@ class LLMQuerySpecGenerator:
             raw_query,
             context=context,
             system_hints=system_hints,
+            input_data_extent=input_data_extent,
         )
 
         kwargs: dict[str, Any] = {
@@ -2423,9 +2718,11 @@ class LLMQuerySpecGenerator:
         _validate_operation_input_roles(spec)
         _validate_score_features_factor_types(spec)
         _validate_score_features_field_chaining(spec)
+        _validate_crs_params_resolve(spec, input_data_extent=input_data_extent)
         _validate_distance_op_crs_symmetry(spec)
         _validate_filter_points_in_polygon_usage(spec)
         _validate_structured_param_shapes(spec)
+        _validate_max_distance_filter_composition(spec)
         return spec
 
 

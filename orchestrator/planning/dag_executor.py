@@ -375,13 +375,53 @@ def _resolve_ref(ref: Any, *, initial_inputs: dict[str, Any], state: dict[str, A
     raise DagExecutionError(f"Unsupported reference syntax: {ref!r}")
 
 
+def _drop_none_overriding_defaults(
+    capability_fn: Callable[..., Any] | None,
+    static_params: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Drop ``None``-valued static params whose target keyword has a non-``None``
+    default in the capability's own signature.
+
+    LLM-generated plans often include every advertised param, using ``null``
+    for the ones they don't want to set. Passed through as-is, an explicit
+    ``None`` overrides the Python default instead of triggering it (e.g.
+    ``filter_features(sort_order=None)`` raised instead of using ``"asc"``,
+    ``rank_features(descending=None)`` silently sorted ascending). Treat
+    ``None`` as "not set" so the capability's real default applies.
+
+    Params whose default is ``None``, required params, params only reachable
+    via ``**kwargs``, and uninspectable callables are left untouched.
+    """
+    if capability_fn is None:
+        return dict(static_params)
+    try:
+        signature_params = inspect.signature(capability_fn).parameters
+    except (TypeError, ValueError):
+        return dict(static_params)
+
+    kwargs: dict[str, Any] = {}
+    for name, value in static_params.items():
+        if value is None:
+            param = signature_params.get(name)
+            if (
+                param is not None
+                and param.default is not inspect.Parameter.empty
+                and param.default is not None
+            ):
+                continue
+        kwargs[name] = value
+    return kwargs
+
+
 def _build_kwargs(
     node: DagNode,
     *,
     initial_inputs: dict[str, Any],
     state: dict[str, Any],
+    capability_fn: Callable[..., Any] | None = None,
 ) -> dict[str, Any]:
-    kwargs = dict(node.static_params)
+    kwargs = _drop_none_overriding_defaults(capability_fn, node.static_params)
 
     for param_name, ref in node.inputs.items():
         kwargs[param_name] = _resolve_ref(
@@ -447,6 +487,7 @@ class DagExecutor:
                     node,
                     initial_inputs=initial_inputs,
                     state=state,
+                    capability_fn=capability_fn,
                 )
                 node_trace.input_keys = sorted(kwargs.keys())
 

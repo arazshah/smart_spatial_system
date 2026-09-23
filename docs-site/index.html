@@ -399,8 +399,9 @@
       <ul>
         <li>Five correctness bugs found and fixed via the Vienna reproducibility case study, documented in the <a href="https://github.com/arazshah/smart_spatial_system/blob/main/CHANGELOG.md" target="_blank" rel="noopener">CHANGELOG</a> (<code>0.2.1</code>–<code>0.2.4</code>): a silent domain-wrong default, an undocumented required input role, un-chained multi-factor scoring, an asymmetric CRS mismatch, and a scoring factor silently defaulting to the wrong type.</li>
         <li>Three more found and fixed via the Tehran TOD-gradient case study (<code>0.2.5</code>–<code>0.2.9</code>), running a real LLM (gpt-4o-mini) against real OpenStreetMap data: a missing multi-ring buffer primitive, a boolean-filter-vs-zone-preserving-join planning choice, and a <code>spatial_join</code> cardinality default that silently dropped matches.</li>
+        <li>Nine more found and fixed through the İstanbul health-access case study (<code>0.4.1</code>–<code>0.5.6</code>): 6 bug reports and 3 enhancements. The fixes include the shape of the <code>where</code> value, explicit <code>None</code> overriding defaults, a CRS leaked from a prompt example, a projected CRS derived from the data, and a repair retry. At <code>0.5.6</code>, 20/20 unhinted LLM-planned runs match the answer written by hand exactly.</li>
         <li>Each was root-caused from source, fixed at both the plugin layer (protects every caller) and the LLM-prompt/validation layer (catches what the prompt can't guarantee), and shipped with regression tests reproducing the exact failure.</li>
-        <li>See <a href="https://github.com/arazshah/smart-spatial-vienna-accessibility" target="_blank" rel="noopener">smart-spatial-vienna-accessibility</a> and <a href="https://github.com/arazshah/smart-spatial-tehran-tod-gradient" target="_blank" rel="noopener">smart-spatial-tehran-tod-gradient</a> for the case studies that found them.</li>
+        <li>See <a href="https://github.com/arazshah/smart-spatial-vienna-accessibility" target="_blank" rel="noopener">smart-spatial-vienna-accessibility</a> and <a href="https://github.com/arazshah/smart-spatial-tehran-tod-gradient" target="_blank" rel="noopener">smart-spatial-tehran-tod-gradient</a> and <a href="https://github.com/arazshah/smart_spatial_system/tree/main/examples/istanbul_health_access" target="_blank" rel="noopener">examples/istanbul_health_access</a> for the case studies that found them.</li>
       </ul>
     </div>
   </div>
@@ -457,7 +458,7 @@
     <div class="section-head">
       <div class="kicker">Research</div>
       <h2>Built to be studied, not just used</h2>
-      <p>The full catalog — including what isn't a good fit yet — is in <a href="https://github.com/arazshah/smart_spatial_system/blob/main/docs/CASE_STUDIES.md" target="_blank" rel="noopener">docs/CASE_STUDIES.md</a>. Two studies already in progress, six more proposed below, plus the reference pattern they all build on.</p>
+      <p>The full catalog — including what isn't a good fit yet — is in <a href="https://github.com/arazshah/smart_spatial_system/blob/main/docs/CASE_STUDIES.md" target="_blank" rel="noopener">docs/CASE_STUDIES.md</a>. Four studies written with s3geo so far: Vienna, Tehran, İstanbul (complete, with a full paper) and Urmia. Six more are proposed below, plus the reference pattern they all build on.</p>
     </div>
 
     <div class="flagship">
@@ -479,10 +480,15 @@
     <div style="height:26px"></div>
 
     <div class="section-head" style="margin-bottom:20px;">
-      <div class="kicker">In progress</div>
-      <h3 style="font-size:20px; margin:0;">Two follow-on studies already building on this</h3>
+      <div class="kicker">Done and in progress</div>
+      <h3 style="font-size:20px; margin:0;">Three follow-on studies building on this</h3>
     </div>
     <div class="study-grid" style="margin-bottom:40px;">
+      <div class="study-card">
+        <div class="num">HEALTH</div>
+        <h4><a href="https://github.com/arazshah/smart_spatial_system/tree/main/examples/istanbul_health_access" target="_blank" rel="noopener">İstanbul health access</a></h4>
+        <p>Which of 964 İstanbul mahalle are underserved by 1,020 hospitals and clinics? This study is complete: paper, notebooks and figures are in the repo. At <code>0.5.6</code>, 20/20 LLM-planned runs match the rule-based answer exactly (Jaccard 1.0). The CRS in those runs was derived from the data. The study drove fixes in <code>0.4.1</code>–<code>0.5.6</code>.</p>
+      </div>
       <div class="study-card">
         <div class="num">TOD</div>
         <h4><a href="https://github.com/arazshah/smart-spatial-tehran-tod-gradient" target="_blank" rel="noopener">Tehran metro TOD gradient</a></h4>

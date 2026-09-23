@@ -676,3 +676,121 @@ def test_find_nearest_neighbors_skips_check_when_no_crs_hints_given() -> None:
     result = find_nearest_neighbors(source_features=[SOURCE_POINT], target_features=[TARGET_POINT_A], k=1)
     assert result.metadata["source_crs"] is None
     assert result.metadata["target_crs"] is None
+
+
+def _istanbul_points_in(crs: str) -> tuple[list[dict], list[dict]]:
+    from pyproj import Transformer
+
+    transformer = Transformer.from_crs("EPSG:4326", crs, always_xy=True)
+    sx, sy = transformer.transform(28.98, 41.01)
+    tx, ty = transformer.transform(28.99, 41.02)
+    source = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [sx, sy]}, "properties": {}}]
+    target = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [tx, ty]}, "properties": {}}]
+    return source, target
+
+
+def test_find_nearest_neighbors_warns_for_web_mercator_scale_distortion() -> None:
+    """
+    enhancements/002 item 3: every no-hints 0.5.4 run that executed used
+    EPSG:3857 for Istanbul. Its area of use is worldwide, so the area-of-
+    use check stays silent - but its scale factor at ~41N is
+    1/cos(41 deg) ~ 1.325, so every distance is ~32% too long.
+    """
+    pytest.importorskip("pyproj", reason="pyproj not installed")
+    source, target = _istanbul_points_in("EPSG:3857")
+
+    result = find_nearest_neighbors(
+        source_features=source,
+        target_features=target,
+        k=1,
+        engine="python",
+        source_crs="EPSG:3857",
+        target_crs="EPSG:3857",
+    )
+
+    warning = result.metadata["warning"]
+    assert warning is not None
+    assert "area of use" not in warning
+    assert "EPSG:3857 distorts distance" in warning
+    assert "1.325" in warning
+    assert "too long" in warning
+    # The suggestion is computed from the data's own location.
+    assert "EPSG:32635" in warning
+
+
+def test_find_nearest_neighbors_no_scale_warning_for_local_utm_zone() -> None:
+    pytest.importorskip("pyproj", reason="pyproj not installed")
+    source, target = _istanbul_points_in("EPSG:32635")
+
+    result = find_nearest_neighbors(
+        source_features=source,
+        target_features=target,
+        k=1,
+        engine="python",
+        source_crs="EPSG:32635",
+        target_crs="EPSG:32635",
+    )
+
+    assert result.metadata["warning"] is None
+
+
+def test_find_nearest_neighbors_scale_warning_respects_config(monkeypatch, tmp_path: Path) -> None:
+    pytest.importorskip("pyproj", reason="pyproj not installed")
+    config_dir = tmp_path / "config" / "plugins"
+    config_dir.mkdir(parents=True)
+    (config_dir / "nearest_neighbor.yaml").write_text(
+        "warn_if_crs_scale_distortion: false\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("GEOCHAT_PLUGIN_CONFIG_DIR", str(config_dir))
+    source, target = _istanbul_points_in("EPSG:3857")
+
+    result = find_nearest_neighbors(
+        source_features=source,
+        target_features=target,
+        k=1,
+        engine="python",
+        source_crs="EPSG:3857",
+        target_crs="EPSG:3857",
+    )
+
+    assert result.metadata["warning"] is None
+
+    (config_dir / "nearest_neighbor.yaml").write_text(
+        "crs_scale_warning_tolerance: 0.5\n", encoding="utf-8"
+    )
+    result = find_nearest_neighbors(
+        source_features=source,
+        target_features=target,
+        k=1,
+        engine="python",
+        source_crs="EPSG:3857",
+        target_crs="EPSG:3857",
+    )
+
+    assert result.metadata["warning"] is None
+
+
+def test_crs_scale_distortion_warning_is_silent_without_pyproj(monkeypatch) -> None:
+    import builtins
+
+    from plugins.nearest_neighbor import _crs_scale_distortion_warning
+
+    real_import = builtins.__import__
+
+    def _no_pyproj(name, *args, **kwargs):
+        if name == "pyproj" or name.startswith("pyproj."):
+            raise ImportError("no pyproj")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _no_pyproj)
+
+    assert (
+        _crs_scale_distortion_warning(
+            "EPSG:3857",
+            "EPSG:3857",
+            [{"geometry": {"type": "Point", "coordinates": [3226000.0, 5012000.0]}}],
+            [],
+            0.02,
+        )
+        is None
+    )

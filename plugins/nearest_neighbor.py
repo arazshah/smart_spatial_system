@@ -615,7 +615,7 @@ def _crs_area_of_use_warning(
         return None
 
     try:
-        from pyproj import CRS, Transformer
+        from pyproj import CRS
     except ImportError:
         return None
 
@@ -629,6 +629,45 @@ def _crs_area_of_use_warning(
 
     area = crs.area_of_use
     if area is None:
+        return None
+
+    recovered = _recover_wgs84_centroid(crs, source_items, target_items)
+    if recovered is None:
+        return None
+    lon, lat = recovered
+
+    west, south, east, north = area.west, area.south, area.east, area.north
+    lon_in_range = (west <= lon <= east) if west <= east else (lon >= west or lon <= east)
+
+    if lon_in_range and south <= lat <= north:
+        return None
+
+    area_label = area.name or f"{west:.2f},{south:.2f} to {east:.2f},{north:.2f}"
+
+    return (
+        f"{crs_value} was used to calculate nearest-neighbor distance, but its "
+        f"published area of use ({area_label}) does not appear to cover this "
+        f"data's location (recovered centroid ~ lon={lon:.4f}, lat={lat:.4f} in "
+        f"{_WGS84}). Both layers being consistently reprojected to the same CRS "
+        "does not make that CRS geographically appropriate for this data - "
+        "choose a projected CRS whose area of use actually contains it."
+    )
+
+
+def _recover_wgs84_centroid(
+    crs: Any,
+    source_items: list[dict[str, Any]],
+    target_items: list[dict[str, Any]],
+) -> tuple[float, float] | None:
+    """
+    Where the data actually is, as (lon, lat) in EPSG:4326: the centroid
+    of the input geometries' combined bbox, inverse-transformed from crs
+    (the CRS the data is claimed to already be in). None when there is no
+    usable geometry or the transform fails / produces non-finite output.
+    """
+    try:
+        from pyproj import Transformer
+    except ImportError:
         return None
 
     bboxes: list[list[float]] = []
@@ -659,21 +698,99 @@ def _crs_area_of_use_warning(
     if not (math.isfinite(lon) and math.isfinite(lat)):
         return None
 
-    west, south, east, north = area.west, area.south, area.east, area.north
-    lon_in_range = (west <= lon <= east) if west <= east else (lon >= west or lon <= east)
+    return lon, lat
 
-    if lon_in_range and south <= lat <= north:
+
+def _utm_epsg_for_lonlat(lon: float, lat: float) -> str | None:
+    """Standard-rule UTM zone EPSG code for a point, None outside 80S..84N."""
+    if not -80.0 <= lat <= 84.0:
+        return None
+    zone = min(max(int(math.floor((lon + 180.0) / 6.0)) + 1, 1), 60)
+    return f"EPSG:{(32600 if lat >= 0 else 32700) + zone}"
+
+
+def _crs_scale_distortion_warning(
+    final_source_crs: str | None,
+    final_target_crs: str | None,
+    source_items: list[dict[str, Any]],
+    target_items: list[dict[str, Any]],
+    tolerance: float,
+) -> str | None:
+    """
+    Warn when the projected CRS distances were measured in distorts
+    distance at this data's location by more than tolerance.
+
+    Complements _crs_area_of_use_warning: "the CRS covers this location"
+    and "the CRS measures distance accurately at this location" are
+    different properties. Web Mercator (EPSG:3857) has a published area of
+    use of essentially the whole world, so the area-of-use check stays
+    silent for it everywhere - but its scale factor is 1/cos(latitude),
+    so at ~41N every planar distance comes out ~32% too long.
+
+    Evaluates the CRS's scale factors at the recovered centroid (same
+    recovery and same trust assumption as the area-of-use check) with
+    pyproj.Proj.get_factors, taking the worse of the Tissot semi-major/
+    semi-minor axes so it is also meaningful for non-conformal
+    projections, and warns when that deviates from 1.0 by more than
+    tolerance. Silent (never raises) whenever pyproj is missing, the CRS
+    can't be resolved or is geographic, there's no usable geometry, or
+    the factors can't be computed - a missed warning, not a false one.
+    """
+    crs_value = final_source_crs or final_target_crs
+    if not crs_value:
         return None
 
-    area_label = area.name or f"{west:.2f},{south:.2f} to {east:.2f},{north:.2f}"
+    try:
+        from pyproj import CRS, Proj
+    except ImportError:
+        return None
+
+    try:
+        crs = CRS.from_user_input(crs_value)
+    except Exception:
+        return None
+
+    if crs.is_geographic:
+        return None
+
+    recovered = _recover_wgs84_centroid(crs, source_items, target_items)
+    if recovered is None:
+        return None
+    lon, lat = recovered
+
+    try:
+        factors = Proj(crs).get_factors(lon, lat)
+        scales = (float(factors.tissot_semimajor), float(factors.tissot_semiminor))
+    except Exception:
+        return None
+
+    if not all(math.isfinite(value) and value > 0 for value in scales):
+        return None
+
+    worst = max(scales, key=lambda value: abs(value - 1.0))
+    if abs(worst - 1.0) <= tolerance:
+        return None
+
+    if scales[0] == scales[1] or min(scales) > 1.0 or max(scales) < 1.0:
+        direction = "too long" if worst > 1.0 else "too short"
+        effect = f"about {abs(worst - 1.0):.1%} {direction}"
+    else:
+        effect = f"off by up to {abs(worst - 1.0):.1%} depending on direction"
+
+    utm = _utm_epsg_for_lonlat(lon, lat)
+    suggestion = (
+        f"; the standard UTM zone for this location is {utm}"
+        if utm and utm.upper() != str(crs_value).strip().upper()
+        else ""
+    )
 
     return (
-        f"{crs_value} was used to calculate nearest-neighbor distance, but its "
-        f"published area of use ({area_label}) does not appear to cover this "
-        f"data's location (recovered centroid ~ lon={lon:.4f}, lat={lat:.4f} in "
-        f"{_WGS84}). Both layers being consistently reprojected to the same CRS "
-        "does not make that CRS geographically appropriate for this data - "
-        "choose a projected CRS whose area of use actually contains it."
+        f"{crs_value} distorts distance at this data's location: its scale factor "
+        f"at the recovered centroid (lon={lon:.4f}, lat={lat:.4f} in {_WGS84}) is "
+        f"{worst:.3f}, so nearest-neighbor distances computed in it are {effect} "
+        "compared with real ground distance. Covering this location is not the same "
+        "as measuring distance accurately here - reproject to a CRS designed for "
+        f"metric work at this location{suggestion}."
     )
 
 
@@ -876,6 +993,8 @@ def find_nearest_neighbors(
     final_target_crs = pick_first(target_crs, config.get("target_crs"), default=None)
     warn_if_geographic_crs = bool(config.get("warn_if_geographic_crs", True))
     warn_if_crs_area_mismatch = bool(config.get("warn_if_crs_area_mismatch", True))
+    warn_if_crs_scale_distortion = bool(config.get("warn_if_crs_scale_distortion", True))
+    crs_scale_warning_tolerance = float(config.get("crs_scale_warning_tolerance", 0.02))
     warn_if_max_distance_excludes = bool(config.get("warn_if_max_distance_excludes", True))
     max_distance_warning_fraction = float(config.get("max_distance_warning_fraction", 0.2))
 
@@ -1078,6 +1197,17 @@ def find_nearest_neighbors(
         )
         if area_warning:
             warnings.append(area_warning)
+
+    if warn_if_crs_scale_distortion:
+        scale_warning = _crs_scale_distortion_warning(
+            final_source_crs,
+            final_target_crs,
+            source_items,
+            target_items,
+            crs_scale_warning_tolerance,
+        )
+        if scale_warning:
+            warnings.append(scale_warning)
 
     if warn_if_max_distance_excludes:
         max_distance_warning = _max_distance_exclusion_warning(

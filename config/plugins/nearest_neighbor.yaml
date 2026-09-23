@@ -9,6 +9,9 @@ include_target_geometry: false
 source_crs: null
 target_crs: null
 warn_if_geographic_crs: true
+warn_if_crs_area_mismatch: true
+warn_if_max_distance_excludes: true
+max_distance_warning_fraction: 0.2
 
 fields:
   distance_field: _nearest_distance

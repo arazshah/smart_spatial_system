@@ -480,3 +480,41 @@ def test_query_uses_the_geodataframe_crs_not_its_json(monkeypatch):
 
     assert result.input_data_extent.layer_crs == (("areas", "EPSG:32635"),)
     assert result.input_data_extent.suggested_crs == "EPSG:32635"
+
+
+# --------------------------------------------------------------------- #
+# PR #54 review follow-ups
+# --------------------------------------------------------------------- #
+
+
+def test_proj_string_that_crs_transform_would_mangle_fails_at_generation():
+    """
+    pyproj accepts "+proj=utm +zone=35 ..." as-is, but crs_transform
+    upper-cases it and strips spaces before executing it, which PROJ
+    rejects - so the validator must check the normalized value.
+    """
+    proj_string = "+proj=utm +zone=35 +datum=WGS84 +units=m"
+
+    with pytest.raises(LLMSpecGenerationError, match="upper-cased, spaces removed"):
+        _generate(_nearest_plan(proj_string))
+
+
+def test_lowercase_epsg_code_still_resolves_after_normalization():
+    _generate(_nearest_plan("epsg:32635"))
+
+
+def test_extent_crossing_utm_northern_limit_uses_ups_not_utm():
+    # Centroid 84.0N is inside UTM's band, but the extent reaches 84.5N.
+    extent = derive_input_data_extent({"x": _fc((10.0, 83.5), (12.0, 84.5))})
+    assert extent.suggested_crs == "EPSG:32661"
+
+
+def test_extent_crossing_utm_southern_limit_uses_ups_not_utm():
+    extent = derive_input_data_extent({"x": _fc((10.0, -80.5), (12.0, -79.5))})
+    assert extent.suggested_crs == "EPSG:32761"
+
+
+def test_extent_crossing_utm_limit_far_from_pole_suggests_nothing():
+    extent = derive_input_data_extent({"x": _fc((10.0, 50.0), (12.0, 85.0))})
+    assert extent.suggested_crs is None
+    assert any("latitude limit" in note for note in extent.notes)

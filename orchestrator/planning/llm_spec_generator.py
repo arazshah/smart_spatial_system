@@ -2390,27 +2390,45 @@ _CRS_PARAM_NAMES = ("source_crs", "target_crs")
 
 def _crs_param_resolution_error(value: Any) -> str | None:
     """
-    None if value resolves to a CRS with pyproj, else pyproj's reason.
-    Integer / all-digit values are treated as EPSG codes, the same way
-    crs_transform normalizes them.
+    None if value resolves to a CRS with pyproj AFTER the same
+    normalization crs_transform applies before executing it
+    (plugins/crs_transformer.py::_normalize_crs: an integer or all-digit
+    value becomes "EPSG:<n>"; a string is stripped, upper-cased and has
+    every space removed) - else the reason. Validating the raw value
+    instead would pass a PROJ string like "+proj=utm +zone=35 ..." that
+    pyproj accepts but crs_transform turns into the unresolvable
+    "+PROJ=UTM+ZONE=35...", reopening the execution-time failure this
+    check exists to prevent.
     """
     from pyproj import CRS
 
     if isinstance(value, bool):
         return "a boolean is not a CRS"
     if isinstance(value, int):
-        value = f"EPSG:{value}"
+        normalized = f"EPSG:{value}"
     elif isinstance(value, str):
-        value = value.strip()
-        if value.isdigit():
-            value = f"EPSG:{value}"
+        normalized = value.strip().upper().replace(" ", "")
+        if normalized.isdigit():
+            normalized = f"EPSG:{normalized}"
     else:
         return f"expected a CRS string or EPSG integer, got {type(value).__name__}"
 
     try:
-        CRS.from_user_input(value)
+        CRS.from_user_input(normalized)
     except Exception as exc:
-        return str(exc).splitlines()[0] if str(exc) else type(exc).__name__
+        reason = str(exc).splitlines()[0] if str(exc) else type(exc).__name__
+        if normalized != value:
+            try:
+                CRS.from_user_input(value)
+            except Exception:
+                pass
+            else:
+                return (
+                    f"crs_transform normalizes it to {normalized!r} (upper-cased, "
+                    "spaces removed), which does not resolve - use an authority "
+                    "code such as EPSG:<number> instead of a PROJ/WKT string"
+                )
+        return reason
     return None
 
 

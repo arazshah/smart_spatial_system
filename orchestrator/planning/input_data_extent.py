@@ -21,7 +21,8 @@ for a model to copy.
 The suggestion is the standard UTM rule applied to the extent's centroid
 (zone = floor((lon + 180) / 6) + 1; EPSG 32600 + zone north of the
 equator, 32700 + zone south), or the matching UPS pole CRS outside UTM's
-80S..84N latitude band. It is then checked against the whole extent with
+80S..84N latitude band (decided on the extent's latitude limits, not
+just its centroid). It is then checked against the whole extent with
 pyproj's own scale factors: if the data is too wide for that one CRS to
 measure distance within MAX_SCALE_ERROR everywhere, no CRS is suggested
 and the facts say why instead of stating a wrong one confidently. UTM's
@@ -103,14 +104,24 @@ def utm_epsg_for_lonlat(lon: float, lat: float) -> str:
     return f"EPSG:{(32600 if lat >= 0 else 32700) + zone}"
 
 
-def _candidate_crs(lon: float, lat: float) -> str:
-    # UTM is only defined from 80S to 84N; beyond that the standard
-    # companion is Universal Polar Stereographic.
-    if lat > 84.0:
+def _candidate_crs(
+    bbox: tuple[float, float, float, float], centroid: tuple[float, float]
+) -> str | None:
+    """
+    UTM zone of the centroid when the WHOLE extent is inside UTM's 80S..84N
+    band; else the matching UPS pole CRS when the whole extent is inside
+    its area of use (poleward of 60 degrees); else None. Decided on the
+    bbox's latitude limits, not the centroid's, so an extent straddling
+    84N or 80S never gets a CRS that isn't defined for part of it.
+    """
+    min_lat, max_lat = bbox[1], bbox[3]
+    if min_lat >= -80.0 and max_lat <= 84.0:
+        return utm_epsg_for_lonlat(*centroid)
+    if min_lat >= 60.0:
         return "EPSG:32661"
-    if lat < -80.0:
+    if max_lat <= -60.0:
         return "EPSG:32761"
-    return utm_epsg_for_lonlat(lon, lat)
+    return None
 
 
 def _iter_positions(coords: Any) -> Iterator[tuple[float, float]]:
@@ -355,7 +366,20 @@ def derive_input_data_extent(layers: Mapping[str, Any] | None) -> InputDataExten
             ),
         )
 
-    candidate = _candidate_crs(*centroid)
+    candidate = _candidate_crs(bbox, centroid)
+    if candidate is None:
+        return InputDataExtent(
+            bbox=bbox,
+            centroid=centroid,
+            layer_crs=tuple(layer_crs),
+            suggested_crs=None,
+            notes=(
+                "The input data crosses UTM's latitude limit (80S or 84N) and "
+                "extends too far from the pole for a polar stereographic (UPS) "
+                "CRS, so no single projected CRS was suggested.",
+            ),
+        )
+
     error = _max_scale_error(candidate, bbox)
     try:
         candidate_name = CRS.from_user_input(candidate).name

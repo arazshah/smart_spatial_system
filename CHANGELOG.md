@@ -66,8 +66,14 @@ items landed.
   - **Extent wider than 180° of longitude** (for example, crossing the
     antimeridian): no suggestion, because the bbox centroid isn't a
     meaningful location for that data.
-  - **Latitude outside UTM's 80°S-84°N band:** the matching UPS CRS
-    (EPSG:32661/32761) is chosen by the same rule.
+  - **Latitude outside UTM's 80°S-84°N band:** decided on the extent's
+    latitude limits, not only its centroid. UTM is used only when the
+    whole extent is inside the band. Otherwise the matching UPS CRS
+    (EPSG:32661/32761) is used when the whole extent is inside UPS's area
+    of use (poleward of 60°). An extent that crosses the band edge but
+    reaches further from the pole than that gets no suggestion. Caught in
+    PR review: an 83.5°N-84.5°N extent was given a UTM zone because its
+    centroid was exactly 84°N.
   - **Input not in EPSG:4326:** the extent is reprojected first
     (`transform_bounds`, densified). This covers a GeoDataFrame's `.crs`
     and a legacy GeoJSON `"crs"` member. GeoJSON with no crs member is
@@ -91,8 +97,13 @@ items landed.
   from `generate()` next to the other structural validators. It resolves
   every `source_crs`/`target_crs` on every operation (`crs_transform`,
   the distance/nearest-neighbor ops, and any other op with those params)
-  using `pyproj.CRS.from_user_input()`. Integers and digit-only strings
-  are treated as EPSG codes, as `crs_transform` does. On failure it
+  using `pyproj.CRS.from_user_input()`. It checks the value after the same
+  normalization `crs_transform` applies before executing it: integers
+  and digit-only strings become `EPSG:<n>`, and strings are upper-cased
+  with spaces removed. Checking the raw value would pass a PROJ string
+  like `+proj=utm +zone=35 ...` that `crs_transform` then turns into an
+  unresolvable `+PROJ=UTM+ZONE=35...` (caught in PR review). That case
+  gets a specific message asking for an authority code instead. On failure it
   raises `LLMSpecGenerationError` naming the op, the param, the value
   and pyproj's reason. If `input_data_extent` has a suggested CRS, the
   message names that computed CRS ("This query's input data (EPSG:4326

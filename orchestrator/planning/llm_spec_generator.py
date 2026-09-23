@@ -21,6 +21,7 @@ from orchestrator.planning.op_catalog import (
     list_pending_ops,
     list_supported_ops,
 )
+from orchestrator.planning.op_param_shapes import op_param_shape_reference
 from orchestrator.planning.spec import EntitySpec, OperationSpec, OutputSpec, QuerySpec
 
 
@@ -1017,11 +1018,25 @@ def _op_param_reference() -> str:
     return "\n".join(lines)
 
 
+def _op_param_shape_reference() -> str:
+    """
+    A worked value-shape example for every structured op param (the
+    filter_attribute.where / enrich_feature_properties.rules gap: the model
+    was taught the key names above but never what a valid value for a
+    non-scalar key looks like). Lives in op_param_shapes.py as a maintained
+    table keyed by (capability, kwarg); tests/test_op_param_shapes.py fails
+    if a structured param_map target has no entry, and runs the examples
+    through the real plugins.
+    """
+    return op_param_shape_reference()
+
+
 def _domain_guidance() -> str:
     supported = ", ".join(list_supported_ops())
     pending = ", ".join(list_pending_ops())
     input_roles = _op_input_roles_reference()
     op_params = _op_param_reference()
+    op_param_shapes = _op_param_shape_reference()
 
     return f"""
 You are a planning assistant for a smart spatial analysis system.
@@ -1046,6 +1061,15 @@ Every operation only ACCEPTS these "params" keys - a params key not listed
 for that operation is rejected and fails to plan. This list is also
 generated from the operation catalog itself:
 {op_params}
+
+Structured param VALUES - a params key whose value is an object or list
+(not a plain string/number/boolean) must use exactly one of these shapes.
+A value with the wrong shape (e.g. a SQL-style string for
+filter_attribute.where) fails the plan. Params not listed here take a plain
+string, number or boolean:
+{op_param_shapes}
+Note: sort_limit has no "where" param. To filter AND sort in one step, use
+filter_attribute with "where" plus "sort_by"/"sort_order"/"limit".
 
 Pending operations, not executable yet:
 {pending}
@@ -2094,6 +2118,132 @@ def _validate_filter_points_in_polygon_usage(spec: QuerySpec) -> None:
         )
 
 
+# Mirrors plugins/spatial_query_filter.py::VALID_OPERATORS (not imported:
+# planning doesn't import plugin modules). tests/test_op_param_shapes.py
+# asserts the two sets stay equal.
+_FILTER_WHERE_OPERATORS = frozenset({
+    "eq", "ne", "gt", "gte", "lt", "lte", "in", "not_in", "contains",
+    "startswith", "endswith", "regex", "exists", "is_null", "between",
+})
+
+# Mirrors plugins/feature_enrichment.py::_apply_transform's accepted names.
+_ENRICH_RULE_TRANSFORMS = frozenset({
+    "float", "number", "int", "integer", "str", "string",
+    "bool", "boolean", "lower", "lowercase", "upper", "uppercase",
+})
+
+_FILTER_WHERE_SHAPE_HINT = (
+    'Expected a JSON object such as {"field": "amenity", "op": "eq", "value": "hospital"}, '
+    'the shortcut {"amenity": "hospital"} / {"beds": {"gte": 100}}, or '
+    '{"and": [...]} / {"or": [...]} / {"not": {...}}.'
+)
+
+_ENRICH_RULES_SHAPE_HINT = (
+    'Expected a non-empty list like [{"target": "distance_to_metro", "source": "distance", '
+    '"transform": "float"}, {"target": "flood_risk", "value": "low"}].'
+)
+
+
+def _where_shape_error(where: Any, path: str) -> str | None:
+    """
+    Structural check of a filter_features ``where`` value, following the
+    same dispatch order as plugins/spatial_query_filter.py::_eval_where
+    (and/or/not, then canonical field form, then shortcut form). Unlike
+    _eval_where, which short-circuits on the data, this walks every branch.
+    Returns a message for the first problem found, or None.
+    """
+    if where is None:
+        return None
+    if not isinstance(where, dict):
+        return f"{path} must be a JSON object or null, got {type(where).__name__} {where!r}."
+    if "and" in where or "or" in where:
+        key = "and" if "and" in where else "or"
+        items = where[key]
+        if not isinstance(items, list):
+            return f"{path}.{key} must be a list of conditions."
+        for idx, item in enumerate(items):
+            error = _where_shape_error(item, f"{path}.{key}[{idx}]")
+            if error:
+                return error
+        return None
+    if "not" in where:
+        return _where_shape_error(where["not"], f"{path}.not")
+    if "field" in where:
+        field_name = where.get("field")
+        if not isinstance(field_name, str) or not field_name.strip():
+            return f"{path}.field must be a non-empty property name."
+        operator = where.get("op", "eq")
+        if not isinstance(operator, str) or operator.strip().lower() not in _FILTER_WHERE_OPERATORS:
+            return (
+                f"{path}.op {operator!r} is not a supported operator "
+                f"({', '.join(sorted(_FILTER_WHERE_OPERATORS))})."
+            )
+        return None
+    if not where:
+        return None
+    for field_name, expected in where.items():
+        if field_name in {"op", "value"}:
+            continue
+        if isinstance(expected, dict):
+            for operator in expected:
+                if str(operator).strip().lower() not in _FILTER_WHERE_OPERATORS:
+                    return (
+                        f"{path}.{field_name} uses unsupported operator {operator!r} "
+                        f"({', '.join(sorted(_FILTER_WHERE_OPERATORS))})."
+                    )
+    return None
+
+
+def _enrich_rules_shape_error(rules: Any) -> str | None:
+    if not isinstance(rules, list) or not rules:
+        return f"rules must be a non-empty list of rule objects, got {rules!r}."
+    for idx, rule in enumerate(rules):
+        if not isinstance(rule, dict):
+            return f"rules[{idx}] must be an object, got {rule!r}."
+        target = rule.get("target")
+        if not isinstance(target, str) or not target.strip():
+            return f'rules[{idx}] needs a non-empty "target" (the property to write), got {rule!r}.'
+        transform = rule.get("transform")
+        if transform and str(transform).strip().lower() not in _ENRICH_RULE_TRANSFORMS:
+            return (
+                f"rules[{idx}].transform {transform!r} is not supported "
+                f"({', '.join(sorted(_ENRICH_RULE_TRANSFORMS))})."
+            )
+    return None
+
+
+def _validate_structured_param_shapes(spec: QuerySpec) -> None:
+    """
+    Reject a plan whose filter_attribute/sort_limit ``where`` or
+    enrich_feature_properties ``rules`` has the wrong shape, at generation
+    time with a clear LLMSpecGenerationError, instead of letting it fail
+    at execution (``where must be a dict/object or None.`` /
+    ``rules[0].target is required.``) after the whole DAG was built.
+
+    Complements the value-shape examples _op_param_shape_reference() puts
+    in the prompt: those raise the chance the model gets the shape right;
+    this makes a plan that still gets it wrong fail fast and name the
+    stage. Only checks shape, never field names (those depend on data the
+    plan hasn't loaded yet).
+    """
+    for op in spec.operations:
+        params = op.params or {}
+        if op.op in {"filter_attribute", "sort_limit"} and "where" in params:
+            error = _where_shape_error(params["where"], "where")
+            if error:
+                raise LLMSpecGenerationError(
+                    f"Operation {op.op!r} (output {op.output!r}) has an invalid where: "
+                    f"{error} {_FILTER_WHERE_SHAPE_HINT}"
+                )
+        if op.op == "enrich_feature_properties" and "rules" in params:
+            error = _enrich_rules_shape_error(params["rules"])
+            if error:
+                raise LLMSpecGenerationError(
+                    f"Operation 'enrich_feature_properties' (output {op.output!r}) has invalid "
+                    f"rules: {error} {_ENRICH_RULES_SHAPE_HINT}"
+                )
+
+
 # The two vector-bearing input roles for each distance/nearest-neighbor
 # operation, in (this-layer, other-layer) order - used to check that both
 # were reprojected to the same CRS, not just one of them.
@@ -2264,6 +2414,7 @@ class LLMQuerySpecGenerator:
         _validate_score_features_field_chaining(spec)
         _validate_distance_op_crs_symmetry(spec)
         _validate_filter_points_in_polygon_usage(spec)
+        _validate_structured_param_shapes(spec)
         return spec
 
 

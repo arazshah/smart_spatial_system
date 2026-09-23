@@ -6,6 +6,70 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-09-23
+
+### Added
+
+- Response to enhancements/001 (CRS-appropriateness and max_distance/where
+  composition warnings), filed against the 0.5.3 N=20 Istanbul health-access
+  batch: 18/20 structurally-successful runs, 0/20 fully valid answers, for
+  two reasons unrelated to bugs 004/005/006.
+  - **CRS-appropriateness warning.** `find_nearest_neighbors`
+    (`plugins/nearest_neighbor.py`) already warned when a layer was left in
+    a geographic CRS (`warn_if_geographic_crs`), but had no way to notice a
+    plan that reprojects both layers to the same *projected* CRS whose
+    `area_of_use` doesn't actually cover the data - exactly what every
+    reported run did, reprojecting real Istanbul data to EPSG:31256
+    (Austria). New `_crs_area_of_use_warning()` inverse-transforms the
+    input geometries' centroid from the claimed `source_crs`/`target_crs`
+    back to EPSG:4326 via `pyproj` and checks it against
+    `pyproj.CRS(...).area_of_use`, populating the same `warning` metadata
+    field (no new field/param) when it falls outside. Opt-out via new
+    `warn_if_crs_area_mismatch: false` in `config/plugins/
+    nearest_neighbor.yaml`. Silent (never raises) whenever pyproj is
+    missing, the CRS can't be resolved, or the geometry/transform doesn't
+    yield a finite point - a missed warning, not a false one.
+  - **Root cause of the CRS choice, fixed at the source.** The actual
+    reason every run picked EPSG:31256 for Istanbul data: `_domain_guidance()`
+    in `orchestrator/planning/llm_spec_generator.py` used EPSG:31256 as the
+    literal worked example for the `crs_transform` → distance-op pattern,
+    with generic unlabeled "sites"/"metro" placeholders - nothing tied it
+    to Vienna, so a model given a different city copied the code verbatim.
+    The example now uses a `<PROJECTED_CRS>` placeholder plus an explicit
+    instruction not to reuse any CRS code from the prompt or a prior answer,
+    and to pick one whose area of use actually covers the query's location.
+  - **max_distance / downstream filter composition warning.** A
+    `nearest_neighbor` step with `max_distance` set can silently starve a
+    later `filter_attribute`/`sort_limit` step of every candidate before it
+    ever runs, with nothing flagging why the final count came back empty -
+    `max_distance` and `where` each behave exactly as documented in
+    isolation. Immediate fix landed: new `_max_distance_exclusion_warning()`
+    reads a new `max_distance_excluded_count` metadata field against
+    `source_feature_count` and populates `warning` when `max_distance` is
+    set and the excluded share is at least `max_distance_warning_fraction`
+    (new config key, default `0.2`) - e.g. `"max_distance=5000.0 excluded
+    912 of 964 source feature(s) from ranking (95%)."` Opt-out via
+    `warn_if_max_distance_excludes: false`. `max_distance_excluded_count`
+    is deliberately narrower than the pre-existing `unmatched_source_count`:
+    it only counts a source that had a real, computable distance to some
+    target and still ended up unmatched (with `k >= 1`, that can only
+    happen because `max_distance` filtered it out) - not a source that was
+    never going to match anything anyway (null/invalid geometry, every
+    target distance calculation failing). An earlier version of this warning
+    read `unmatched_source_count` directly, which would have blamed
+    `max_distance` for exclusions it had nothing to do with; caught in
+    review before merge.
+  - **Not landed:** the systematic generation-time validator for the
+    max_distance/filter composition case (tracing a `nearest_neighbor` ->
+    `filter_attribute`/`sort_limit` chain and warning when `max_distance`
+    could make the downstream threshold unsatisfiable) and the broader
+    audit of every op that accepts/produces a `target_crs` for the same
+    area-of-use blind spot (`crs_transform` itself included). Both were
+    flagged as more speculative than the two fixes above; the cheap
+    metadata-level warning already makes the pattern visible in tool
+    output, which seemed like enough for now. Worth reopening if the
+    metadata-level warning alone proves insufficient in practice.
+
 ## [0.5.3] - 2026-09-23
 
 ### Fixed

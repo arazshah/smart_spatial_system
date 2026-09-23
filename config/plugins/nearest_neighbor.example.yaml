@@ -16,7 +16,14 @@ include_target_geometry: false
 
 source_crs: null
 target_crs: null
-warn_if_geographic_crs: true
+warn_if_geographic_crs: true       # warn when source_crs is a geographic (degrees) CRS
+warn_if_crs_area_mismatch: true    # warn when the projected CRS's published area of
+                                    # use does not appear to cover the data's location
+                                    # (e.g. reprojecting Istanbul data to an Austrian grid)
+warn_if_max_distance_excludes: true  # warn when max_distance excludes a large share of
+                                      # source features from ranking (see fraction below)
+max_distance_warning_fraction: 0.2   # fraction of source features excluded by
+                                      # max_distance that triggers the warning above
 
 fields:
   distance_field: _nearest_distance

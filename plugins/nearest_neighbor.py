@@ -59,6 +59,8 @@ from plugins.distance_calculator import (
     _validate_engine,
 )
 
+_WGS84 = "EPSG:4326"
+
 PLUGIN_ID = "nearest_neighbor"
 
 
@@ -576,6 +578,154 @@ def _brute_force_candidates(
     return candidate_rows, pair_count_delta, failed_pair_count_delta, last_engine_used, last_error
 
 
+def _crs_area_of_use_warning(
+    final_source_crs: str | None,
+    final_target_crs: str | None,
+    source_items: list[dict[str, Any]],
+    target_items: list[dict[str, Any]],
+) -> str | None:
+    """
+    Warn when the projected CRS this data is claimed to already be in
+    (source_crs/target_crs - see find_nearest_neighbors' docstring; this
+    function never reprojects anything itself) has a published
+    area_of_use that does not actually cover where the data is.
+
+    This catches a different failure than warn_if_geographic_crs above:
+    a plan that dutifully reprojects both layers to the SAME projected
+    CRS still produces geometrically self-consistent but physically
+    meaningless distances if that CRS was never meant to cover this part
+    of the planet (e.g. reprojecting Istanbul data to EPSG:31256, an
+    Austrian grid) - warn_if_geographic_crs only catches "still in
+    degrees", never "projected to the wrong part of the planet".
+
+    Recovers where the data actually is by inverse-transforming the
+    centroid of its (already-reprojected) coordinates from the claimed
+    CRS back to EPSG:4326 - correct exactly when the source_crs/
+    target_crs hint is accurate, the same trust assumption every other
+    CRS check in this module already makes.
+
+    Deliberately conservative: gives no warning (never raises) whenever
+    pyproj is missing, the CRS string can't be resolved, the CRS is
+    geographic, it has no published area_of_use, there is no finite
+    input geometry to check, or the inverse transform fails/produces
+    non-finite output. A missed warning here, not a false one.
+    """
+    crs_value = final_source_crs or final_target_crs
+    if not crs_value:
+        return None
+
+    try:
+        from pyproj import CRS, Transformer
+    except ImportError:
+        return None
+
+    try:
+        crs = CRS.from_user_input(crs_value)
+    except Exception:
+        return None
+
+    if crs.is_geographic:
+        return None
+
+    area = crs.area_of_use
+    if area is None:
+        return None
+
+    bboxes: list[list[float]] = []
+    for item in (*source_items, *target_items):
+        geometry = item.get("geometry")
+        if not isinstance(geometry, dict):
+            continue
+        try:
+            bbox = _geometry_bbox(geometry)
+        except Exception:
+            continue
+        if bbox:
+            bboxes.append(bbox)
+
+    merged = _merge_bbox_arrays(bboxes)
+    if merged is None:
+        return None
+
+    centroid_x = (merged["minx"] + merged["maxx"]) / 2
+    centroid_y = (merged["miny"] + merged["maxy"]) / 2
+
+    try:
+        transformer = Transformer.from_crs(crs, _WGS84, always_xy=True)
+        lon, lat = transformer.transform(centroid_x, centroid_y)
+    except Exception:
+        return None
+
+    if not (math.isfinite(lon) and math.isfinite(lat)):
+        return None
+
+    west, south, east, north = area.west, area.south, area.east, area.north
+    lon_in_range = (west <= lon <= east) if west <= east else (lon >= west or lon <= east)
+
+    if lon_in_range and south <= lat <= north:
+        return None
+
+    area_label = area.name or f"{west:.2f},{south:.2f} to {east:.2f},{north:.2f}"
+
+    return (
+        f"{crs_value} was used to calculate nearest-neighbor distance, but its "
+        f"published area of use ({area_label}) does not appear to cover this "
+        f"data's location (recovered centroid ~ lon={lon:.4f}, lat={lat:.4f} in "
+        f"{_WGS84}). Both layers being consistently reprojected to the same CRS "
+        "does not make that CRS geographically appropriate for this data - "
+        "choose a projected CRS whose area of use actually contains it."
+    )
+
+
+def _max_distance_exclusion_warning(
+    final_max_distance: float | None,
+    max_distance_excluded_count: int,
+    source_feature_count: int,
+    warning_fraction: float,
+) -> str | None:
+    """
+    Warn when max_distance silently discarded a large share of source
+    features before ranking even started.
+
+    max_distance behaves exactly as documented (drop out-of-range
+    candidates before ranking) and a downstream filter/sort step behaves
+    exactly as documented too - but nothing links the two, so a plan that
+    sets max_distance low enough to exclude most sources and then filters
+    on this op's own distance output can silently produce an
+    (incorrectly) empty result with no signal anywhere that max_distance
+    is why.
+
+    max_distance_excluded_count must already be narrowed to sources that
+    had a real, computable distance to some target and still ended up
+    unmatched (see source_had_computable_distance in the main loop) - NOT
+    the broader unmatched_source_count, which also counts sources that
+    were never going to match anything regardless of max_distance (null/
+    invalid geometry, every target distance calculation failing). Using
+    the broader count here would blame max_distance for exclusions it had
+    nothing to do with, and could tell a caller to raise or remove a
+    max_distance that was never the actual problem.
+
+    Fires only when max_distance is actually set and the excluded share
+    is at least warning_fraction of all source features - a source or
+    two genuinely out of range is normal and not worth flagging.
+    """
+    if final_max_distance is None or max_distance_excluded_count <= 0 or source_feature_count <= 0:
+        return None
+
+    fraction = max_distance_excluded_count / source_feature_count
+    if fraction < warning_fraction:
+        return None
+
+    return (
+        f"max_distance={final_max_distance} excluded {max_distance_excluded_count} of "
+        f"{source_feature_count} source feature(s) from ranking "
+        f"({fraction:.0%}). If a downstream step filters or sorts on this "
+        "operation's distance output expecting results for these features, "
+        "that step may unexpectedly return nothing - consider raising or "
+        "removing max_distance."
+    )
+
+
 @capability(
     name="find_nearest_neighbors",
     keywords=[
@@ -725,6 +875,9 @@ def find_nearest_neighbors(
     final_source_crs = pick_first(source_crs, config.get("source_crs"), default=None)
     final_target_crs = pick_first(target_crs, config.get("target_crs"), default=None)
     warn_if_geographic_crs = bool(config.get("warn_if_geographic_crs", True))
+    warn_if_crs_area_mismatch = bool(config.get("warn_if_crs_area_mismatch", True))
+    warn_if_max_distance_excludes = bool(config.get("warn_if_max_distance_excludes", True))
+    max_distance_warning_fraction = float(config.get("max_distance_warning_fraction", 0.2))
 
     _raise_if_crs_mismatch(
         source_crs=final_source_crs,
@@ -756,6 +909,7 @@ def find_nearest_neighbors(
     match_count = 0
     failed_pair_count = 0
     dropped_unmatched_count = 0
+    max_distance_excluded_count = 0
 
     shape_fn, tree, tree_geoms, tree_indices = _prepare_target_index(target_items, final_engine)
     indexed_available = shape_fn is not None
@@ -775,6 +929,14 @@ def find_nearest_neighbors(
         last_engine_used = final_engine
         last_error: str | None = None
         used_index_for_source = False
+        # Whether at least one target for this source had a real,
+        # non-failed distance computed (whether or not it made the
+        # max_distance cut) - lets max_distance_excluded_count below tell
+        # "max_distance rejected every candidate" apart from "no distance
+        # to any target could be computed at all" (null/invalid geometry,
+        # a distance calc exception), so the max_distance warning isn't
+        # raised for unmatched sources max_distance had nothing to do with.
+        source_had_computable_distance = False
 
         if indexed_available:
             source_geometry = source_feature.get("geometry")
@@ -803,6 +965,13 @@ def find_nearest_neighbors(
                     pair_count += missing_target_count
                     failed_pair_count += missing_target_count
                     pair_count += len(tree_geoms)
+                    # Every target in tree_geoms has a valid, non-empty
+                    # geometry (see _prepare_target_index), and shapely's
+                    # distance() between two valid geometries never fails -
+                    # so a non-empty tree_geoms means a real distance CAN be
+                    # computed to at least one target, independent of
+                    # whether max_distance later filters it out.
+                    source_had_computable_distance = len(tree_geoms) > 0
 
                     fast_candidates = _strtree_candidates(
                         source_geom,
@@ -832,12 +1001,21 @@ def find_nearest_neighbors(
             )
             pair_count += pair_delta
             failed_pair_count += failed_delta
+            source_had_computable_distance = pair_delta > failed_delta
 
         candidate_rows.sort(key=lambda item: (item[0], item[1]))
         selected = candidate_rows[:final_k]
 
         if not selected:
             unmatched_source_count += 1
+
+            # Only a source that DID have a computable distance to some
+            # target, and still ended up with no selected candidate, can
+            # have been rejected by max_distance - with k >= 1, any
+            # computable distance becomes a match unless max_distance
+            # filtered it out first.
+            if final_max_distance is not None and source_had_computable_distance:
+                max_distance_excluded_count += 1
 
             if final_drop_unmatched:
                 dropped_unmatched_count += 1
@@ -886,12 +1064,32 @@ def find_nearest_neighbors(
 
     stats = _build_vector_metadata(output_features)
 
-    geographic_warning = None
+    warnings: list[str] = []
+
     if warn_if_geographic_crs and _is_geographic_crs(final_source_crs):
-        geographic_warning = (
+        warnings.append(
             "Nearest-neighbor distance is being calculated on a geographic CRS. "
             "Reproject to a projected CRS for reliable physical distance values."
         )
+
+    if warn_if_crs_area_mismatch:
+        area_warning = _crs_area_of_use_warning(
+            final_source_crs, final_target_crs, source_items, target_items
+        )
+        if area_warning:
+            warnings.append(area_warning)
+
+    if warn_if_max_distance_excludes:
+        max_distance_warning = _max_distance_exclusion_warning(
+            final_max_distance,
+            max_distance_excluded_count,
+            len(source_items),
+            max_distance_warning_fraction,
+        )
+        if max_distance_warning:
+            warnings.append(max_distance_warning)
+
+    combined_warning = " | ".join(warnings) if warnings else None
 
     user_metadata = metadata or {}
     if not isinstance(user_metadata, dict):
@@ -912,13 +1110,14 @@ def find_nearest_neighbors(
         "target_crs": final_target_crs,
         "planar_only": True,
         "spatial_index_used": indexed_available,
-        "warning": geographic_warning,
+        "warning": combined_warning,
         "source_feature_count": len(source_items),
         "target_feature_count": len(target_items),
         "pair_count": pair_count,
         "match_count": match_count,
         "matched_source_count": matched_source_count,
         "unmatched_source_count": unmatched_source_count,
+        "max_distance_excluded_count": max_distance_excluded_count,
         "failed_pair_count": failed_pair_count,
         "dropped_unmatched_count": dropped_unmatched_count,
         "output_feature_count": len(output_features),

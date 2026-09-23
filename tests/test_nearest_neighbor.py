@@ -300,6 +300,129 @@ def test_find_nearest_neighbors_warns_for_geographic_crs() -> None:
     assert "geographic CRS" in result.metadata["warning"]
 
 
+def test_find_nearest_neighbors_warns_for_crs_area_of_use_mismatch() -> None:
+    pytest.importorskip("pyproj", reason="pyproj not installed")
+    from pyproj import Transformer
+
+    # Real Istanbul coordinates reprojected to EPSG:31256, a projected CRS
+    # whose area of use is Austria, not Turkey - both layers land in the
+    # same (self-consistent) CRS, but that CRS is nowhere near this data.
+    transformer = Transformer.from_crs("EPSG:4326", "EPSG:31256", always_xy=True)
+    sx, sy = transformer.transform(28.98, 41.01)
+    tx, ty = transformer.transform(28.99, 41.02)
+
+    source = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [sx, sy]}, "properties": {}}]
+    target = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [tx, ty]}, "properties": {}}]
+
+    result = find_nearest_neighbors(
+        source_features=source,
+        target_features=target,
+        k=1,
+        engine="python",
+        source_crs="EPSG:31256",
+        target_crs="EPSG:31256",
+    )
+
+    assert result.metadata["warning"] is not None
+    assert "EPSG:31256" in result.metadata["warning"]
+    assert "area of use" in result.metadata["warning"]
+
+
+def test_find_nearest_neighbors_no_area_of_use_warning_for_appropriate_crs() -> None:
+    pytest.importorskip("pyproj", reason="pyproj not installed")
+    from pyproj import Transformer
+
+    # UTM zone 35N correctly covers Istanbul - no warning expected.
+    transformer = Transformer.from_crs("EPSG:4326", "EPSG:32635", always_xy=True)
+    sx, sy = transformer.transform(28.98, 41.01)
+    tx, ty = transformer.transform(28.99, 41.02)
+
+    source = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [sx, sy]}, "properties": {}}]
+    target = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [tx, ty]}, "properties": {}}]
+
+    result = find_nearest_neighbors(
+        source_features=source,
+        target_features=target,
+        k=1,
+        engine="python",
+        source_crs="EPSG:32635",
+        target_crs="EPSG:32635",
+    )
+
+    assert result.metadata["warning"] is None
+
+
+def test_find_nearest_neighbors_warns_when_max_distance_excludes_many_sources() -> None:
+    sources = [
+        {
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [float(i), 0.0]},
+            "properties": {"id": f"s{i}"},
+        }
+        for i in range(10)
+    ]
+
+    result = find_nearest_neighbors(
+        source_features=sources,
+        target_features=[TARGET_POINT_B],
+        k=1,
+        engine="python",
+        max_distance=2.0,
+    )
+
+    assert result.metadata["unmatched_source_count"] == 6
+    assert result.metadata["max_distance_excluded_count"] == 6
+    assert result.metadata["warning"] is not None
+    assert "max_distance=2.0 excluded 6 of 10" in result.metadata["warning"]
+
+
+def test_find_nearest_neighbors_no_max_distance_warning_for_null_geometry_sources() -> None:
+    # Regression test: sources unmatched because they have no geometry at
+    # all (nothing to do with max_distance) must not be blamed for a
+    # max_distance exclusion just because max_distance also happens to be
+    # set - see max_distance_excluded_count's docstring.
+    null_sources = [
+        {"type": "Feature", "geometry": None, "properties": {"id": f"n{i}"}} for i in range(4)
+    ]
+    sources = [*null_sources, SOURCE_POINT]
+
+    result = find_nearest_neighbors(
+        source_features=sources,
+        target_features=[TARGET_POINT_B],
+        k=1,
+        engine="python",
+        max_distance=5.0,
+    )
+
+    assert result.metadata["unmatched_source_count"] == 4
+    assert result.metadata["failed_pair_count"] == 4
+    assert result.metadata["max_distance_excluded_count"] == 0
+    assert result.metadata["warning"] is None
+
+
+def test_find_nearest_neighbors_no_max_distance_warning_below_threshold() -> None:
+    sources = [
+        {
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [float(i), 0.0]},
+            "properties": {"id": f"s{i}"},
+        }
+        for i in range(10)
+    ]
+
+    result = find_nearest_neighbors(
+        source_features=sources,
+        target_features=[TARGET_POINT_B],
+        k=1,
+        engine="python",
+        max_distance=7.5,
+    )
+
+    assert result.metadata["unmatched_source_count"] == 1
+    assert result.metadata["max_distance_excluded_count"] == 1
+    assert result.metadata["warning"] is None
+
+
 def test_find_nearest_neighbors_uses_config_defaults(monkeypatch, tmp_path: Path) -> None:
     config_dir = tmp_path / "config" / "plugins"
     config_dir.mkdir(parents=True)

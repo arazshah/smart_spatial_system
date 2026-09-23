@@ -1087,12 +1087,23 @@ Important mappings:
   source_crs and target_crs on the distance operation itself - this lets
   the operation catch a mismatch and raise instead of returning a bogus
   value:
-    crs_transform(sites) -> sites_metric                 (target_crs="EPSG:31256")
-    crs_transform(metro) -> metro_metric                 (target_crs="EPSG:31256")
+    crs_transform(sites) -> sites_metric        (target_crs="<PROJECTED_CRS>")
+    crs_transform(metro) -> metro_metric        (target_crs="<PROJECTED_CRS>")
     spatial_nearest(source=sites_metric, target=metro_metric,
-      params={{"source_crs": "EPSG:31256", "target_crs": "EPSG:31256"}})
+      params={{"source_crs": "<PROJECTED_CRS>", "target_crs": "<PROJECTED_CRS>"}})
   WRONG: spatial_nearest(source=sites_metric, target=metro) - "metro" was
   never reprojected, so its coordinates are still in the original CRS.
+  CRITICAL - <PROJECTED_CRS> above is a placeholder, not a real code to
+  copy: pick a projected CRS whose own area of use actually covers where
+  the input data is located (e.g. the correct local UTM zone, or a
+  national/regional grid for that country) - never reuse a CRS code from
+  this prompt, an earlier answer, or a different query's data just
+  because it is a familiar or "safe-looking" example. Both layers ending
+  up in the SAME CRS is not enough on its own: reprojecting data in
+  Istanbul to an Austrian or French national grid produces internally
+  consistent but physically meaningless distances, with no error at any
+  step, because the projection math still runs - it is simply the wrong
+  part of the planet for that CRS's definition.
 
 - "nearer than X meters to POI":
   op="filter_by_distance"

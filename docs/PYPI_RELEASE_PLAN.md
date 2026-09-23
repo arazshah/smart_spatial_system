@@ -168,6 +168,13 @@ on purpose and are unaffected by PyPI.
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
+Later releases can instead run the **Tag Release** workflow
+(`.github/workflows/tag-release.yml`, Actions → "Tag Release" → version
+without the `v`). It checks the version against `pyproject.toml`, pushes
+the tag, and then dispatches `publish.yml` on that tag itself. The tag
+push alone would not start publishing, because GitHub doesn't let a tag
+pushed with `GITHUB_TOKEN` trigger other workflows.
+
 ### Step 5 — Verify the published package
 
 In a clean virtualenv, from a directory that is *not* a checkout of this

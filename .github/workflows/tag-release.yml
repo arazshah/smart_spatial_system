@@ -1,7 +1,7 @@
 name: Tag Release
 
-# Creates and pushes a version tag (e.g. v0.2.4), which in turn triggers
-# publish.yml (tags: v*). This exists because pushing a tag directly is
+# Creates and pushes a version tag (e.g. v0.2.4), then starts publish.yml
+# on that tag. This exists because pushing a tag directly is
 # blocked from Claude Code sessions working on this repo - not a repo
 # permission issue, a platform-level restriction on that specific git
 # operation, same class as branch deletion. Running this workflow instead
@@ -14,6 +14,16 @@ name: Tag Release
 # API/MCP tools with the same input. The job refuses to run unless
 # pyproject.toml's version already matches the requested tag, so this
 # can't tag a version nobody actually built merged to main.
+#
+# Why the explicit publish dispatch: a tag pushed with GITHUB_TOKEN does NOT
+# trigger publish.yml's `push: tags` event - GitHub suppresses events caused
+# by GITHUB_TOKEN to prevent recursive runs, so v0.5.0/v0.5.2/v0.5.3 were
+# tagged here and then had to be published by running publish.yml by hand.
+# workflow_dispatch is the documented exception to that rule, so the last
+# step dispatches publish.yml on the new tag. It is dispatched rather than
+# called as a reusable workflow on purpose: PyPI Trusted Publishing is
+# registered for the top-level workflow publish.yml, and a workflow_call
+# run would present tag-release.yml's identity in its OIDC token instead.
 
 on:
   workflow_dispatch:
@@ -23,7 +33,8 @@ on:
         required: true
 
 permissions:
-  contents: write
+  contents: write   # push the tag
+  actions: write    # dispatch publish.yml
 
 jobs:
   tag:
@@ -61,4 +72,14 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $TAG"
           git push origin "$TAG"
-          echo "Pushed $TAG - this triggers publish.yml automatically."
+          echo "Pushed $TAG."
+
+      - name: Start Publish to PyPI on the new tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG="v${{ github.event.inputs.version }}"
+          gh workflow run publish.yml --ref "$TAG"
+          echo "Dispatched publish.yml on $TAG - see the \"Publish to PyPI\" runs in the Actions tab."

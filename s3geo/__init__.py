@@ -42,7 +42,7 @@ and unchanged; this is only a second, shorter spelling for reaching them.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from orchestrator.capability_registry import CapabilityRegistry
@@ -59,7 +59,9 @@ from orchestrator.planning.llm_spec_generator import (
     LLMQuerySpecGenerator,
     LLMSpecGenerationError,
     OpenAICompatibleLLMClient,
+    SpecGenerationAttempt,
     StaticLLMClient,
+    query_spec_to_dict,
 )
 from orchestrator.planning.planner import DeterministicPlanner, PlannerConfig, PlanningError
 
@@ -67,7 +69,9 @@ __all__ = [
     "query",
     "registry",
     "S3GeoResult",
+    "S3GeoExecutionError",
     "InputDataExtent",
+    "SpecGenerationAttempt",
     # Planning pipeline classes `query()` wires up internally - re-exported
     # so they are reachable as `s3geo.<Name>` without importing orchestrator.
     "CapabilityRegistry",
@@ -105,12 +109,64 @@ class S3GeoResult:
         work (suggested_crs), and any caveats (notes - e.g. the extent
         spans several UTM zones). None when nothing could be derived
         (pyproj missing, a layer with an unknown CRS, no geometry).
+    query_spec:
+        The validated, normalized QuerySpec that was planned and executed,
+        as a plain dict - every operation's params (thresholds, where
+        clauses, CRS values) included.
+    plan:
+        The accepted plan exactly as the LLM returned it (parsed JSON,
+        before normalization).
+    generation_attempts:
+        Every LLM plan generated for this result, oldest first
+        (SpecGenerationAttempt: number, plan, raw_response, error). Rejected
+        attempts carry the validator's message in .error; the last one is
+        the accepted plan (error=None). attempt_count / repaired summarize
+        it, so first-attempt and after-repair success can be reported
+        separately.
     """
 
     goal: str
     operations: list[str]
     output: Any
     input_data_extent: InputDataExtent | None = None
+    query_spec: dict[str, Any] | None = None
+    plan: dict[str, Any] | None = None
+    generation_attempts: tuple[SpecGenerationAttempt, ...] = field(default_factory=tuple)
+
+    @property
+    def attempt_count(self) -> int:
+        """LLM plans generated for this result: 1 = accepted first time."""
+        return len(self.generation_attempts)
+
+    @property
+    def repaired(self) -> bool:
+        """True if the accepted plan came from a repair attempt."""
+        return len(self.generation_attempts) > 1
+
+
+class S3GeoExecutionError(RuntimeError):
+    """
+    Raised by query() when the plan was generated and built but failed
+    during DAG execution. A RuntimeError subclass, so existing
+    ``except RuntimeError`` handlers still catch it; it also carries the
+    plan that failed:
+
+    query_spec / plan / generation_attempts:
+        Same meaning as on S3GeoResult.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        query_spec: dict[str, Any] | None = None,
+        plan: dict[str, Any] | None = None,
+        generation_attempts: tuple[SpecGenerationAttempt, ...] = (),
+    ) -> None:
+        super().__init__(message)
+        self.query_spec = query_spec
+        self.plan = plan
+        self.generation_attempts = tuple(generation_attempts)
 
 
 def registry(*, tolerant: bool = True) -> CapabilityRegistry:
@@ -147,6 +203,7 @@ def query(
     system_hints: str | None = None,
     tolerant: bool = True,
     strict_params: bool = True,
+    max_repair_attempts: int = 1,
 ) -> S3GeoResult:
     """
     Run a single natural-language spatial query end-to-end.
@@ -193,6 +250,14 @@ def query(
     the plan's crs_transform steps don't depend on how the question is
     worded. system_hints are rendered after them and can override them.
 
+        max_repair_attempts:
+            How many times the LLM may be re-prompted after its plan fails
+            generation-time validation, with the rejected plan and the
+            validator's message (default 1; 0 disables repair). Every
+            attempt is recorded in S3GeoResult.generation_attempts - repair
+            is never silent. HTTP/auth errors and responses with no
+            parseable JSON are not repaired.
+
     Returns:
         S3GeoResult with the identified goal, the operations the plan
         executed (in order), the final output, and the extent/CRS facts
@@ -200,13 +265,17 @@ def query(
 
     Raises:
         LLMSpecGenerationError:
-            If the LLM's plan fails generation-time validation.
+            If the LLM's plan still fails generation-time validation after
+            max_repair_attempts repairs. .plan is the last rejected plan's
+            JSON and .attempts every attempt, oldest first.
         PlanningError:
             If the generated QuerySpec cannot be turned into an
             executable DAG plan.
-        RuntimeError:
-            If the DAG plan builds but fails during execution - the
-            executor's own error message is included, not a generic one.
+        S3GeoExecutionError:
+            (a RuntimeError) If the DAG plan builds but fails during
+            execution - the executor's own error message is included, not a
+            generic one, and .query_spec/.plan/.generation_attempts carry
+            the plan that failed.
     """
     initial_inputs = {name: _to_geojson_dict(layer) for name, layer in layers.items()}
     # From the original layers, not initial_inputs: a GeoDataFrame's .crs
@@ -214,7 +283,8 @@ def query(
     input_data_extent = derive_input_data_extent(layers)
 
     client = OpenAICompatibleLLMClient()
-    query_spec = LLMQuerySpecGenerator(client).generate(
+    generator = LLMQuerySpecGenerator(client, max_repair_attempts=max_repair_attempts)
+    query_spec = generator.generate(
         raw_query,
         context=context or {},
         system_hints=system_hints or "",
@@ -227,12 +297,22 @@ def query(
     executor = DagExecutor(RegistryCapabilityResolver(reg))
     dag_result = executor.execute(plan, initial_inputs=initial_inputs)
 
+    spec_dict = query_spec_to_dict(query_spec)
+
     if not dag_result.success:
-        raise RuntimeError(dag_result.error)
+        raise S3GeoExecutionError(
+            str(dag_result.error),
+            query_spec=spec_dict,
+            plan=generator.last_plan,
+            generation_attempts=generator.last_attempts,
+        )
 
     return S3GeoResult(
         goal=query_spec.goal,
         operations=[operation.op for operation in query_spec.operations],
         output=dag_result.outputs[query_spec.operations[-1].output],
         input_data_extent=input_data_extent,
+        query_spec=spec_dict,
+        plan=generator.last_plan,
+        generation_attempts=generator.last_attempts,
     )

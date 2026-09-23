@@ -12,7 +12,8 @@ import os
 import re
 import urllib.error
 import urllib.request
-from dataclasses import asdict
+from copy import deepcopy
+from dataclasses import asdict, dataclass
 from typing import Any, Protocol
 
 from orchestrator.planning.input_data_extent import (
@@ -29,8 +30,57 @@ from orchestrator.planning.op_param_shapes import op_param_shape_reference
 from orchestrator.planning.spec import EntitySpec, OperationSpec, OutputSpec, QuerySpec
 
 
+@dataclass(frozen=True)
+class SpecGenerationAttempt:
+    """
+    One LLM round-trip inside LLMQuerySpecGenerator.generate().
+
+    number:
+        1 for the first attempt, 2 for the first repair, ...
+    plan:
+        The QuerySpec JSON the LLM returned, as parsed and before any
+        normalization - None if the response contained no parseable JSON.
+    raw_response:
+        The LLM's response text, verbatim.
+    error:
+        Why this attempt's plan was rejected, or None if it was accepted.
+    """
+
+    number: int
+    plan: dict[str, Any] | None
+    raw_response: str
+    error: str | None = None
+
+
 class LLMSpecGenerationError(ValueError):
-    pass
+    """
+    Raised when an LLM plan can't be turned into a valid QuerySpec.
+
+    When raised from generate() after the LLM responded, it also carries
+    the evidence needed to audit the failure without re-running it:
+
+    plan:
+        The rejected QuerySpec JSON of the LAST attempt (as returned by the
+        LLM, before normalization), or None if no JSON could be parsed.
+    raw_response:
+        The last attempt's LLM response text.
+    attempts:
+        Every attempt, oldest first (SpecGenerationAttempt) - more than one
+        when repair attempts were made.
+    """
+
+    def __init__(
+        self,
+        message: str = "",
+        *,
+        plan: dict[str, Any] | None = None,
+        raw_response: str | None = None,
+        attempts: tuple[SpecGenerationAttempt, ...] = (),
+    ) -> None:
+        super().__init__(message)
+        self.plan = plan
+        self.raw_response = raw_response
+        self.attempts = tuple(attempts)
 
 
 class LLMClient(Protocol):
@@ -1111,10 +1161,23 @@ Important mappings:
   section appears later in these instructions, it states a projected CRS
   computed from THIS query's own input data - use that value.
 
-- "nearer than X meters to POI":
+- "nearer than X meters to POI" (keep only features WITHIN X):
   op="filter_by_distance"
   inputs={{"vector": "<source>", "reference": "<poi>"}}
   params={{"max_distance_m": X, "k": 1, "drop_unmatched": true}}
+
+- "farther than X meters from the nearest POI" / "no POI within X" /
+  "underserved because the nearest POI is too far" - the OPPOSITE case:
+  find the nearest POI for EVERY feature with NO max_distance/
+  max_distance_m, then filter on the distance field:
+    spatial_nearest(source=<source>, target=<poi>, params={{"k": 1, ...}})
+    filter_attribute(vector=<nearest output>,
+      params={{"where": {{"field": "_nearest_distance", "op": "gt", "value": X}}}})
+  CRITICAL - never set max_distance/max_distance_m on spatial_nearest/
+  nearest_neighbor to find "the nearest": features beyond the cap lose
+  their distance, so a "farther than X" filter after it silently misses
+  the farthest features (or returns nothing at all if the cap <= X).
+  max_distance is only for "within X" questions.
 
 - "multiple rings/distance bands around a point/line/polygon" (e.g.
   "200m, 500m and 800m rings around each station", concentric zones, a
@@ -2578,10 +2641,71 @@ def _contradicts_max_distance(operator: str, value: Any, max_distance: float) ->
     return None
 
 
+def _distance_bounds(
+    conditions: list[tuple[str, str, Any]], distance_field: str
+) -> tuple[list[float], list[float]]:
+    """(lower bounds, upper bounds) the conditions put on distance_field."""
+    lower: list[float] = []
+    upper: list[float] = []
+    for field, operator, value in conditions:
+        if field != distance_field:
+            continue
+        operator = _WHERE_OPERATOR_ALIASES.get(operator, operator)
+        if operator in {"gt", "gte"}:
+            threshold = _as_threshold(value)
+            if threshold is not None:
+                lower.append(threshold)
+        elif operator in {"lt", "lte"}:
+            threshold = _as_threshold(value)
+            if threshold is not None:
+                upper.append(threshold)
+        elif operator == "eq":
+            threshold = _as_threshold(value)
+            if threshold is not None:
+                lower.append(threshold)
+                upper.append(threshold)
+        elif operator == "between" and isinstance(value, (list, tuple)) and len(value) == 2:
+            low, high = _as_threshold(value[0]), _as_threshold(value[1])
+            if low is not None:
+                lower.append(low)
+            if high is not None:
+                upper.append(high)
+    return lower, upper
+
+
+def _truncation_description(
+    consumer: OperationSpec, distance_field: str, max_distance: float
+) -> str | None:
+    """
+    How consumer asks for the FAR end of distance_field without bounding
+    it at or below max_distance - "keeps ... > T with no upper limit", or
+    "sorts ... descending (farthest first)" - else None.
+    """
+    params = consumer.params or {}
+    conditions = _required_where_conditions(params.get("where"))
+    lower, upper = _distance_bounds(conditions, distance_field)
+    if upper and min(upper) <= max_distance:
+        # An explicit band inside the cap: clearly intended.
+        return None
+
+    limit_text = (
+        f"an upper limit of {min(upper)!r}, above the cap" if upper else "no upper limit"
+    )
+    if lower and max(lower) < max_distance:
+        return f"keeps {distance_field} > {max(lower)!r} with {limit_text}"
+
+    sort_by = params.get("sort_by")
+    sort_order = str(params.get("sort_order") or "asc").strip().lower()
+    if isinstance(sort_by, str) and sort_by.strip() == distance_field and sort_order == "desc":
+        return f"sorts by {distance_field} descending (farthest first) with {limit_text}"
+    return None
+
+
 def _validate_max_distance_filter_composition(spec: QuerySpec) -> None:
     """
     Reject a plan where a nearest-neighbor step's max_distance makes a
-    downstream filter on that step's own distance field unsatisfiable.
+    downstream filter on that step's own distance field unsatisfiable, or
+    silently truncates it.
 
     max_distance drops every candidate farther than it before ranking, so
     every feature leaving the step either has distance <= max_distance or
@@ -2591,6 +2715,17 @@ def _validate_max_distance_filter_composition(spec: QuerySpec) -> None:
     max_distance removed, whether that's 1% or 90% of the data - which is
     why 0.5.4's fraction-based execution-time warning can't catch it and
     this has to look at the downstream op.
+
+    The truncation case (enhancements/003 item 2): a cap ABOVE the
+    threshold isn't empty but is still wrong for an open-ended "farther
+    than T" filter (or a farthest-first sort) - the output is
+    T < d <= max_distance instead of d > T, silently missing every feature
+    beyond the cap, which for "underserved because the nearest facility is
+    too far" are the most important ones. Allowed when the filter states
+    an explicit upper bound <= max_distance (a band that is clearly
+    intended), and never checked for filter_by_distance, whose whole
+    purpose is the cap ("nearer than X") - only for spatial_nearest/
+    nearest_neighbor, where a cap is never needed to find the nearest.
 
     Deliberately narrow, so it can't reject a plan that could return
     features: only follows the step's output into filter_attribute/
@@ -2645,6 +2780,27 @@ def _validate_max_distance_filter_composition(spec: QuerySpec) -> None:
                             f"removed. Remove {max_distance_key} from {op.op!r} and let the "
                             "filter apply the threshold."
                         )
+                    truncation = (
+                        _truncation_description(consumer, distance_field, max_distance)
+                        if op.op != "filter_by_distance"
+                        else None
+                    )
+                    if truncation is not None:
+                        raise LLMSpecGenerationError(
+                            f"Operation {op.op!r} (output {op.output!r}) sets "
+                            f"{max_distance_key}={params.get(max_distance_key)!r}, so every "
+                            f"feature whose nearest target is farther than that gets no "
+                            f"{distance_field} - but {consumer.op!r} (output "
+                            f"{consumer.output!r}) {truncation}. The result would silently "
+                            "cover only distances up to the cap and miss every feature "
+                            "beyond it - the farthest ones, usually the ones the question is "
+                            f"about. Remove {max_distance_key} from {op.op!r}: the filter "
+                            "already applies the threshold, and finding the nearest target "
+                            "never needs a cap. Only if a distance band is really intended, "
+                            f"keep {max_distance_key} and add an explicit upper-bound "
+                            f"condition (lt/lte) on {distance_field} to the filter, no "
+                            f"greater than {max_distance_key}."
+                        )
                     if consumer.output:
                         pending.append(consumer.output)
                 elif (
@@ -2667,11 +2823,31 @@ class LLMQuerySpecGenerator:
         model: str | None = None,
         temperature: float = 0.1,
         max_tokens: int | None = None,
+        max_repair_attempts: int = 0,
     ) -> None:
+        """
+        max_repair_attempts:
+            How many times generate() may re-prompt the LLM after its plan
+            is rejected by validation (the rejected plan and the validator's
+            message are sent back, asking for a corrected plan). 0 (the
+            default here, preserving the original single-call behavior)
+            disables repair; s3geo.query() defaults to 1. Only a plan that
+            was returned as parseable JSON and then failed validation is
+            repaired - an LLM HTTP/auth error or a response with no
+            parseable JSON is raised immediately.
+        """
         self.llm_client = llm_client
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
+        if isinstance(max_repair_attempts, bool) or not isinstance(max_repair_attempts, int):
+            raise ValueError("max_repair_attempts must be a non-negative integer.")
+        if max_repair_attempts < 0:
+            raise ValueError("max_repair_attempts must be a non-negative integer.")
+        self.max_repair_attempts = max_repair_attempts
+        # Audit record of the most recent generate() call - see generate().
+        self.last_attempts: tuple[SpecGenerationAttempt, ...] = ()
+        self.last_plan: dict[str, Any] | None = None
 
     def generate(
         self,
@@ -2687,6 +2863,17 @@ class LLMQuerySpecGenerator:
             orchestrator.planning.input_data_extent.derive_input_data_extent)
             - rendered into the system prompt, and its suggested CRS named
             in the error if the plan's CRS params don't resolve.
+
+        Repair: if the plan fails validation and max_repair_attempts allows
+        it, the LLM is re-prompted with its rejected plan and the
+        validator's message, and the new plan is validated the same way.
+        If the last allowed attempt still fails, its error is raised.
+
+        Audit: after every call (successful or not), self.last_attempts
+        holds every attempt (SpecGenerationAttempt, oldest first) and
+        self.last_plan the accepted plan's JSON (None on failure). A raised
+        LLMSpecGenerationError carries the same via .attempts, .plan and
+        .raw_response.
         """
         if not isinstance(raw_query, str) or not raw_query.strip():
             raise LLMSpecGenerationError("raw_query must be non-empty.")
@@ -2709,21 +2896,87 @@ class LLMQuerySpecGenerator:
         if self.max_tokens is not None:
             kwargs["max_tokens"] = self.max_tokens
 
-        text = self.llm_client.complete(messages, **kwargs)
-        data = extract_json_object(text)
-        data = _pre_normalize_query_spec_json(data, context=context)
+        self.last_attempts = ()
+        self.last_plan = None
+        attempts: list[SpecGenerationAttempt] = []
+        total_attempts = 1 + self.max_repair_attempts
 
-        spec = query_spec_from_dict(data, raw_query_fallback=raw_query)
-        spec = normalize_llm_query_spec_for_planning(spec)
-        _validate_operation_input_roles(spec)
-        _validate_score_features_factor_types(spec)
-        _validate_score_features_field_chaining(spec)
-        _validate_crs_params_resolve(spec, input_data_extent=input_data_extent)
-        _validate_distance_op_crs_symmetry(spec)
-        _validate_filter_points_in_polygon_usage(spec)
-        _validate_structured_param_shapes(spec)
-        _validate_max_distance_filter_composition(spec)
-        return spec
+        for number in range(1, total_attempts + 1):
+            text = self.llm_client.complete(messages, **kwargs)
+
+            try:
+                data = extract_json_object(text)
+            except LLMSpecGenerationError as exc:
+                # No plan to repair - not something re-prompting with the
+                # validator's message can fix.
+                attempts.append(SpecGenerationAttempt(number, None, text, str(exc)))
+                self.last_attempts = tuple(attempts)
+                exc.raw_response = text
+                exc.attempts = self.last_attempts
+                raise
+
+            plan = deepcopy(data)
+            try:
+                spec = _validated_query_spec(
+                    data,
+                    raw_query=raw_query,
+                    context=context,
+                    input_data_extent=input_data_extent,
+                )
+            except LLMSpecGenerationError as exc:
+                attempts.append(SpecGenerationAttempt(number, plan, text, str(exc)))
+                self.last_attempts = tuple(attempts)
+                if number == total_attempts:
+                    exc.plan = plan
+                    exc.raw_response = text
+                    exc.attempts = self.last_attempts
+                    raise
+                messages = [
+                    *messages,
+                    {"role": "assistant", "content": text},
+                    {"role": "user", "content": _repair_prompt(str(exc))},
+                ]
+                continue
+
+            attempts.append(SpecGenerationAttempt(number, plan, text, None))
+            self.last_attempts = tuple(attempts)
+            self.last_plan = plan
+            return spec
+
+        raise AssertionError("unreachable")  # pragma: no cover
+
+
+def _repair_prompt(error_message: str) -> str:
+    return (
+        "Your previous plan was rejected by validation, before anything ran:\n"
+        f"{error_message}\n"
+        "Return a corrected QuerySpec JSON object for the same query that fixes "
+        "exactly this problem and keeps everything else that was correct. "
+        "Return only the JSON object."
+    )
+
+
+def _validated_query_spec(
+    data: dict[str, Any],
+    *,
+    raw_query: str,
+    context: dict[str, Any] | None,
+    input_data_extent: InputDataExtent | None,
+) -> QuerySpec:
+    """Parsed LLM JSON -> normalized QuerySpec, or LLMSpecGenerationError."""
+    data = _pre_normalize_query_spec_json(data, context=context)
+
+    spec = query_spec_from_dict(data, raw_query_fallback=raw_query)
+    spec = normalize_llm_query_spec_for_planning(spec)
+    _validate_operation_input_roles(spec)
+    _validate_score_features_factor_types(spec)
+    _validate_score_features_field_chaining(spec)
+    _validate_crs_params_resolve(spec, input_data_extent=input_data_extent)
+    _validate_distance_op_crs_symmetry(spec)
+    _validate_filter_points_in_polygon_usage(spec)
+    _validate_structured_param_shapes(spec)
+    _validate_max_distance_filter_composition(spec)
+    return spec
 
 
 # ------------------------------------------------------------------ #

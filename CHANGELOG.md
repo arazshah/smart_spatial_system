@@ -30,12 +30,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     `"sideways"` still raises.
   - `orchestrator/planning/dag_executor.py::_build_kwargs` now drops a
     `None`-valued **static param** (a literal from the plan) when the target
-    keyword's own `inspect.signature()` default is not `None`, so the
-    capability's real default applies (new helper
-    `_drop_none_overriding_defaults()`; `DagExecutor.execute` passes the
-    resolved `capability_fn` in). Nothing is dropped for a param whose
-    default is `None`, a required param, a name only accepted through
-    `**kwargs`, or a callable whose signature can't be inspected. Values
+    keyword's own `inspect.signature()` default is not `None` **and** its
+    type annotation does not accept `None` (e.g. `sort_order: str = "asc"`),
+    so the capability's real default applies (new helpers
+    `_drop_none_overriding_defaults()` / `_annotation_allows_none()`;
+    `DagExecutor.execute` passes the resolved `capability_fn` in). Nothing
+    is dropped for a param whose default is `None`, a param annotated to
+    accept `None` (e.g. `calculate_attribute_statistics`'s
+    `precision: int | None = 6`, where an explicit `None` means "don't
+    round" and is still passed through), a required param, a name only
+    accepted through `**kwargs`, or a callable whose signature can't be
+    inspected. An unannotated param with a non-`None` default is treated as
+    not accepting `None`. Values
     resolved from `inputs` references (`$inputs.*`, `$node.*`) are never
     dropped. `planner.py::_map_params` is unchanged: the plan still records
     the `null` as given, and it is filtered only at the capability call.
@@ -56,9 +62,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     (`null` prefix produced `"None<field>"` names),
     `enrich_risk.id_field`, `build_report`
     `score_field`/`rank_field`/`name_field`.
-  - **already tolerated `None`** (unchanged result):
-    `query_database`/`load_postgis_layer`
-    `source_type`/`mode`/`geom_alias`,
+  - **already tolerated `None`** (unchanged; these are annotated
+    `str | None`, so the executor passes `None` through and the plugin
+    resolves it): `query_database`/`load_postgis_layer`
+    `source_type`/`mode`/`geom_alias`. Also unchanged:
     `join_feature_properties.overwrite`, `enrich_risk.overwrite`
     (`False` either way).
 
@@ -75,7 +82,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Catalog-wide: for every `OP_CATALOG` `param_map` target with a
     non-`None` signature default on a registered capability, an explicit
     `None` never reaches the capability call.
-  - `None` is still passed for params whose default is `None` and for
+  - `None` is still passed for params whose default is `None`, for params
+    annotated to accept `None` (including the real
+    `calculate_attribute_statistics(precision=None)`), and for
     `**kwargs`-only names.
   - `rank_features` with `descending=None` keeps the default descending
     order.

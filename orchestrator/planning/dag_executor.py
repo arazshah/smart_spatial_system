@@ -18,7 +18,10 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import re
 import threading
+import types
+import typing
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -375,23 +378,50 @@ def _resolve_ref(ref: Any, *, initial_inputs: dict[str, Any], state: dict[str, A
     raise DagExecutionError(f"Unsupported reference syntax: {ref!r}")
 
 
+_NONE_IN_ANNOTATION_RE = re.compile(r"\bNone\b|\bOptional\b|\bAny\b")
+
+
+def _annotation_allows_none(annotation: Any) -> bool:
+    """
+    Whether a parameter annotation declares ``None`` as a legitimate value.
+
+    Plugins use ``from __future__ import annotations``, so annotations may be
+    strings; those are checked textually when ``get_type_hints`` can't
+    resolve them. An unannotated parameter is treated as not declaring
+    ``None``.
+    """
+    if annotation is inspect.Parameter.empty:
+        return False
+    if isinstance(annotation, str):
+        return bool(_NONE_IN_ANNOTATION_RE.search(annotation))
+    if annotation is Any or annotation is None or annotation is type(None):
+        return True
+    origin = typing.get_origin(annotation)
+    if origin is typing.Union or origin is types.UnionType:
+        return any(_annotation_allows_none(arg) for arg in typing.get_args(annotation))
+    return False
+
+
 def _drop_none_overriding_defaults(
     capability_fn: Callable[..., Any] | None,
     static_params: dict[str, Any],
 ) -> dict[str, Any]:
     """
     Drop ``None``-valued static params whose target keyword has a non-``None``
-    default in the capability's own signature.
+    default and whose annotation does not accept ``None``.
 
     LLM-generated plans often include every advertised param, using ``null``
     for the ones they don't want to set. Passed through as-is, an explicit
     ``None`` overrides the Python default instead of triggering it (e.g.
     ``filter_features(sort_order=None)`` raised instead of using ``"asc"``,
-    ``rank_features(descending=None)`` silently sorted ascending). Treat
-    ``None`` as "not set" so the capability's real default applies.
+    ``rank_features(descending=None)`` silently sorted ascending). For a
+    param like ``sort_order: str = "asc"``, ``None`` is not a valid value, so
+    treat it as "not set" and let the capability's real default apply.
 
-    Params whose default is ``None``, required params, params only reachable
-    via ``**kwargs``, and uninspectable callables are left untouched.
+    Left untouched: params whose default is ``None``, params annotated to
+    accept ``None`` (e.g. ``precision: int | None = 6``, where ``None`` means
+    "don't round"), required params, params only reachable via ``**kwargs``,
+    and uninspectable callables.
     """
     if capability_fn is None:
         return dict(static_params)
@@ -399,6 +429,10 @@ def _drop_none_overriding_defaults(
         signature_params = inspect.signature(capability_fn).parameters
     except (TypeError, ValueError):
         return dict(static_params)
+    try:
+        type_hints = typing.get_type_hints(capability_fn)
+    except Exception:
+        type_hints = {}
 
     kwargs: dict[str, Any] = {}
     for name, value in static_params.items():
@@ -408,6 +442,7 @@ def _drop_none_overriding_defaults(
                 param is not None
                 and param.default is not inspect.Parameter.empty
                 and param.default is not None
+                and not _annotation_allows_none(type_hints.get(name, param.annotation))
             ):
                 continue
         kwargs[name] = value

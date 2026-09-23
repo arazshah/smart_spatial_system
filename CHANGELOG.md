@@ -6,6 +6,95 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-09-23
+
+### Fixed
+
+- **`filter_attribute` plans failed at execution with `Node <id> failed:
+  where must be a dict/object or None.`**, and `enrich_feature_properties`
+  plans with `Node <id> failed: rules[0].target is required.`
+  `_op_param_reference()` (0.4.2) told the model every op's param *keys*
+  but never what a *value* looks like when the value is structured. For
+  `where`, the model guessed a SQL-style string (`"amenity = hospital"`);
+  the only other `where` in the prompt was `query_database`'s SQL-style
+  string, which made that guess more likely. `filter_features()` only
+  accepts an object.
+  - New `orchestrator/planning/op_param_shapes.py`: `PARAM_SHAPES` is a
+    maintained table with a short description and real JSON example
+    values for **every** structured `OP_CATALOG` param. It is keyed by
+    `(capability_name, target_kwarg)`, so ops that share a capability
+    (`filter_attribute`/`sort_limit`, `ndvi`/`calculate_ndvi`) share one
+    entry. A `("*", "metadata")` wildcard covers the free-form `metadata`
+    param every op has. The audit compared each `param_map` target
+    against its capability's real signature and flagged every annotation
+    that isn't a plain `str`/`int`/`float`/`bool` (optionally `| None`).
+    Entries were added for `filter_features` `where`/`bbox`/
+    `geometry_types`; `enrich_feature_properties.rules`;
+    `score_features` `factors`/`scoring_spec`; `enrich_risk`
+    `rules`/`default_risks`/`overrides`/`risk_spec`;
+    `join_feature_properties.fields`; `generate_ring_buffers.distances`;
+    `query_database_postgis.columns`; `build_report`
+    `report_spec`/`node_outputs`; and the raster params (`reclassify_raster.rules`,
+    `calculate_spectral_index` `band_map`/`params`, `stats`, `bands`,
+    `bbox`, `mask_geometry`, `transform`, `include_values`/`exclude_values`,
+    and the `Any`-typed number params `nodata`, `output_nodata`,
+    `division_by_zero_value`, `true_value`/`false_value`,
+    `unmatched_value`, `flat_aspect_value`).
+  - `llm_spec_generator.py::_domain_guidance()` gains a "Structured param
+    VALUES" section, rendered by `_op_param_shape_reference()` right after
+    the param-key list. It has one line per distinct shape, listing
+    every op/param that uses it. The `filter_attribute.where` line
+    documents the canonical `{"field", "op", "value"}` form, all 15
+    operators, the `{<property>: <value>}` /
+    `{<property>: {<operator>: <value>}}` shortcuts and `and`/`or`/`not`.
+    It also says explicitly that `where` is an object, never a string
+    (unlike `query_database`'s `where`). The prompt also notes that
+    `sort_limit` has no `where` param: with the default
+    `strict_params=True` a `sort_limit` `where` is rejected at planning.
+    Use `filter_attribute` with `where` + `sort_by` to filter and sort.
+  - New `tests/test_op_param_shapes.py` keeps the table from drifting:
+    it fails if a structured `param_map` target has no entry, if an entry
+    matches no live target, or if a supported op's structured param is
+    missing from the rendered prompt. It also **runs the examples through
+    the real plugins**: every `where` example goes through
+    `filter_features()` and must match a test feature. The `rules`
+    examples go through `enrich_feature_properties()` (output values are
+    checked), `enrich_risk()` and `reclassify_raster()`. The scoring
+    examples go through `score_features()`, the `fields` examples through
+    `join_feature_properties()`, the `bbox`/`geometry_types` examples
+    through `filter_features()`, and the report example through
+    `report_spec_from_dict()`. So an example a plugin would reject fails
+    the suite instead of teaching the model a wrong shape.
+- New generation-time validator `_validate_structured_param_shapes()` in
+  `llm_spec_generator.py`. `LLMQuerySpecGenerator.generate()` runs it after
+  the existing `_validate_*` checks. It rejects a plan with a clear
+  `LLMSpecGenerationError` (the message names the op, its output ref, the
+  exact problem and a correct example) instead of a runtime `ValueError`
+  after the DAG build:
+  - `filter_attribute`/`sort_limit` `where`: must be an object or `null`.
+    `and`/`or` must be lists, and every branch is walked, including under
+    `not`. The canonical form needs a non-empty `field` and a supported
+    `op`, and shortcut operator keys must be supported. The operator set
+    mirrors `plugins/spatial_query_filter.py::VALID_OPERATORS`; a test
+    asserts the two sets are equal. Property names are not checked,
+    because the data isn't loaded at generation time.
+  - `enrich_feature_properties.rules`: every rule must be an object with
+    a non-empty `target`, and any `transform` must be one
+    `_apply_transform()` accepts. A `rules` value that isn't a non-empty
+    list never reaches this check: as before, the Phase 8.2 normalizer
+    drops that node and rewires its consumers.
+
+### Notes
+
+- The system prompt grows by about 8 KB, from about 17.4k to 25.4k
+  characters.
+- **Not spot-checked against a live LLM.** No LLM endpoint or API key was
+  available when this release was prepared. The tests verify that the
+  guidance is in the prompt, that its examples are accepted by the real
+  plugins, and that a mis-shaped `where`/`rules` is rejected at
+  generation. They do not measure how often a model now produces a valid
+  value. The downstream N=20 batch is the real measure.
+
 ## [0.5.2] - 2026-09-23
 
 ### Fixed

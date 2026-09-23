@@ -6,6 +6,118 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-09-23
+
+Response to enhancements/003, filed against the 0.5.5 Istanbul batches.
+With no `system_hints`, 9/20 runs matched the rule-based ground truth
+exactly, and every executed plan used the computed EPSG:32635. Every
+remaining failure traced to nearest-neighbor `max_distance`: 10/20 plans
+were correctly rejected as provably empty but never repaired, and capped
+plans that did run were silently truncated. All three items landed, plus
+a prompt fix for the `max_distance_m` question.
+
+### Added
+
+- **Item 1: one repair attempt after validation rejects a plan.**
+  - `LLMQuerySpecGenerator` gains `max_repair_attempts` (non-negative
+    int). When a plan parses as JSON but fails any generation-time
+    check, `generate()` re-prompts. It resends the conversation plus the
+    rejected response, then asks: "Your previous plan was rejected by
+    validation, before anything ran: <message>. Return a corrected
+    QuerySpec JSON object...". The new plan goes through exactly the
+    same checks. If the last allowed attempt still fails, its own error
+    is raised.
+  - What counts as repairable: anything raised after the JSON parses.
+    That covers the structural validators and `query_spec_from_dict`'s
+    shape checks (missing goal/op, ...), since both describe a fixable
+    plan. LLM HTTP/auth errors and responses with no parseable JSON are
+    raised immediately, as you asked.
+  - Defaults: `s3geo.query()` has a new `max_repair_attempts=1` argument
+    (0 disables repair). The generator class itself defaults to **0**,
+    so `OrchestratorService`'s `/query` path and other direct callers
+    keep the original single-call behavior unless they opt in.
+  - Repair is never silent. Every attempt is recorded as a new
+    `SpecGenerationAttempt(number, plan, raw_response, error)`, also
+    exported as `s3geo.SpecGenerationAttempt`. `plan` is the parsed LLM
+    JSON before normalization. `error` is the validator's message, or
+    `None` for the accepted attempt. The record is available on:
+    - `S3GeoResult.generation_attempts`, with `attempt_count` and
+      `repaired` properties so first-attempt and after-repair rates can
+      be reported separately;
+    - the generator, as `last_attempts` / `last_plan` after every call;
+    - the raised error, as `.attempts`.
+
+- **Item 2: truncation check in
+  `_validate_max_distance_filter_composition()`.** I chose to **reject**
+  rather than warn. With item 1, a rejection normally gets repaired
+  instead of failing the run, and a warning would leave the wrong answer
+  in place.
+  - The problem: a `spatial_nearest`/`nearest_neighbor` step with
+    `max_distance`/`max_distance_m` = M feeds a downstream
+    `filter_attribute`/`sort_limit` that asks for the far end of the
+    same distance field. The result covers only distances up to M, so
+    every feature beyond the cap is missing.
+  - What is rejected:
+    - a required lower bound (`gt`/`gte` T, or `between` [T, …]) with
+      T < M and no upper bound;
+    - the same, with an upper bound above M;
+    - a `sort_by` on the distance field with `sort_order: "desc"`
+      (farthest first), which a cap truncates the same way.
+  - Still allowed: an explicit band inside the cap, i.e. `between`
+    [T, U] or `gt T` plus `lt`/`lte` U, with U ≤ M. The rejection
+    message says to remove the cap. Only if a band is really intended,
+    it says to add an explicit upper bound no greater than the cap.
+  - `filter_by_distance` is exempt from this check (not from the
+    empty-result check). Its cap is its purpose ("nearer than X"), so a
+    band after it is intended.
+  - Your reported cases (cap 5000 / keep > 3000, cap 10000 / keep >
+    5000) are test cases.
+
+- **Item 3: the plan in the result and in every error.**
+  - `S3GeoResult` gains `query_spec`: the validated, normalized
+    QuerySpec that was planned and executed, as a plain dict, with every
+    operation's params (thresholds, `where` clauses, CRS values).
+  - It also gains `plan` (the accepted plan exactly as the LLM returned
+    it) and `generation_attempts` (above).
+  - `LLMSpecGenerationError` gains `.plan` (the last rejected plan's
+    JSON, or `None` if none parsed), `.raw_response` and `.attempts`.
+    Its constructor still takes just a message, so existing
+    `raise LLMSpecGenerationError("...")` calls are unchanged.
+  - A DAG execution failure in `s3geo.query()` now raises
+    `S3GeoExecutionError` with the same `query_spec`/`plan`/
+    `generation_attempts`. It subclasses `RuntimeError`, so existing
+    `except RuntimeError` handlers still catch it.
+
+### Changed
+
+- **The `max_distance_m` question: yes, that example was the likeliest
+  source.** Apart from the params-key list, the only place
+  `max_distance_m` appeared in the prompt was the "nearer than X meters
+  to POI" worked example (`filter_by_distance` with
+  `{"max_distance_m": X, "k": 1, "drop_unmatched": true}`). There was no
+  example for the opposite, "farther than X", question. I can't prove
+  causation without your plans either (item 3 fixes that for next
+  time), but it matches the EPSG:31256 pattern. The fix adds the
+  missing case rather than removing the correct one:
+  - The first example is now labelled "(keep only features WITHIN X)".
+  - A new worked example covers "farther than X meters from the nearest
+    POI" / "no POI within X" / "underserved because the nearest POI is
+    too far": `spatial_nearest` with no cap, then `filter_attribute`
+    with `_nearest_distance` `gt` X.
+  - A CRITICAL note says never to set `max_distance`/`max_distance_m`
+    on `spatial_nearest`/`nearest_neighbor` to find "the nearest", and
+    explains why.
+
+  `max_distance_m` stays an accepted alias in `OP_CATALOG`, so existing
+  plans keep working.
+
+### Not landed
+
+- Wiring repair and the plan record into `OrchestratorService`'s `/query`
+  path. It builds its own generator and response, and changing its
+  retry behavior and response contract is a separate decision (see the
+  0.5.5 note about the same path and input-data facts).
+
 ## [0.5.5] - 2026-09-23
 
 Response to enhancements/002, filed against the two 0.5.4 N=20 Istanbul

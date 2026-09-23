@@ -358,8 +358,9 @@ def test_max_distance_that_empties_a_downstream_filter_fails_at_generation(where
 @pytest.mark.parametrize(
     "where",
     [
-        # max_distance above the threshold: features between them survive.
-        {"field": "_nearest_distance", "op": "gt", "value": 800},
+        # An explicit band inside the cap is clearly intended (0.5.6).
+        {"and": [{"_nearest_distance": {"gt": 800}}, {"_nearest_distance": {"lte": 1000}}]},
+        {"field": "_nearest_distance", "op": "between", "value": [800, 900]},
         # gte exactly at max_distance can still keep features at exactly it.
         {"field": "_nearest_distance", "op": "gte", "value": 1000},
         # Upper bounds are compatible with max_distance.
@@ -518,3 +519,87 @@ def test_extent_crossing_utm_limit_far_from_pole_suggests_nothing():
     extent = derive_input_data_extent({"x": _fc((10.0, 50.0), (12.0, 85.0))})
     assert extent.suggested_crs is None
     assert any("latitude limit" in note for note in extent.notes)
+
+
+# --------------------------------------------------------------------- #
+# enhancements/003 item 2: a cap ABOVE the threshold truncates the result
+# --------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    ("nn_params", "where", "expected"),
+    [
+        # The reported cases: cap 5000 / keep > ~3000, cap 10000 / keep > ~5000.
+        ({"max_distance": 5000}, {"field": "_nearest_distance", "op": "gt", "value": 3000}, "> 3000"),
+        ({"max_distance_m": 10000}, {"_nearest_distance": {"gte": 5000}}, "> 5000"),
+        # An upper bound ABOVE the cap still loses (cap, upper].
+        (
+            {"max_distance": 5000},
+            {"and": [{"_nearest_distance": {"gt": 3000}}, {"_nearest_distance": {"lt": 8000}}]},
+            "upper limit of 8000",
+        ),
+        ({"max_distance": 5000}, {"field": "_nearest_distance", "op": "between", "value": [3000, 9000]}, "upper limit of 9000"),
+    ],
+)
+def test_cap_above_open_ended_threshold_is_rejected_as_truncation(nn_params, where, expected):
+    with pytest.raises(LLMSpecGenerationError) as excinfo:
+        _generate(_nearest_plan("EPSG:32635", where=where, nn_params=nn_params))
+
+    message = str(excinfo.value)
+    assert expected in message
+    assert "miss every feature beyond it" in message
+    assert "'underserved'" in message
+
+
+def test_farthest_first_sort_under_a_cap_is_rejected_as_truncation():
+    llm_json = _nearest_plan("EPSG:32635", nn_params={"max_distance": 5000})
+    llm_json["operations"].append(
+        {
+            "op": "sort_limit",
+            "inputs": {"vector": "nearest"},
+            "params": {"sort_by": "_nearest_distance", "sort_order": "desc", "limit": 10},
+            "output": "farthest",
+        }
+    )
+    llm_json["outputs"] = [{"kind": "vector_layer", "source": "farthest"}]
+
+    with pytest.raises(LLMSpecGenerationError, match="descending"):
+        _generate(llm_json)
+
+
+def test_nearest_first_sort_under_a_cap_passes():
+    llm_json = _nearest_plan("EPSG:32635", nn_params={"max_distance": 5000})
+    llm_json["operations"].append(
+        {
+            "op": "sort_limit",
+            "inputs": {"vector": "nearest"},
+            "params": {"sort_by": "_nearest_distance", "sort_order": "asc", "limit": 10},
+            "output": "closest",
+        }
+    )
+    llm_json["outputs"] = [{"kind": "vector_layer", "source": "closest"}]
+    _generate(llm_json)
+
+
+def test_filter_by_distance_band_is_not_truncation():
+    """filter_by_distance's cap IS its purpose ("nearer than X")."""
+    llm_json = _nearest_plan(
+        "EPSG:32635",
+        where={"field": "_nearest_distance", "op": "gt", "value": 3000},
+        nn_params={"max_distance_m": 5000, "drop_unmatched": True},
+    )
+    nearest = llm_json["operations"][2]
+    nearest["op"] = "filter_by_distance"
+    nearest["inputs"] = {"vector": "areas_m", "reference": "clinics_m"}
+    _generate(llm_json)
+
+
+def test_prompt_contrasts_within_x_and_farther_than_x():
+    """
+    enhancements/003 question: the only max_distance_m worked example was
+    "nearer than X"; the prompt now shows the opposite case without a cap.
+    """
+    guidance = _domain_guidance()
+    assert '"nearer than X meters to POI" (keep only features WITHIN X)' in guidance
+    assert '"farther than X meters from the nearest POI"' in guidance
+    assert "never set max_distance/max_distance_m on spatial_nearest" in guidance

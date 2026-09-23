@@ -1,0 +1,651 @@
+{
+  "meta": {
+    "title": "Property Ranking and Investment Analysis Report",
+    "language": "en",
+    "format": "pdf",
+    "generated_at": "2026-09-19T14:45:24.954742+00:00",
+    "feature_count": 207,
+    "score_field": "dist_centroid_m",
+    "rank_field": "rank",
+    "plugin": "report_builder",
+    "study": "istanbul-health-access",
+    "threshold_m": 2000
+  },
+  "summary": {
+    "total_count": 207,
+    "language": "en",
+    "top_score": 17294.62,
+    "min_score": 2033.8,
+    "max_score": 17294.62,
+    "avg_score": 6041.03,
+    "median_score": 5381.11,
+    "top_name": "Balaban Mahallesi",
+    "top_rank": 1,
+    "top_score_value": 17294.618111
+  },
+  "table": {
+    "title": "Property ranking table",
+    "columns": [
+      {
+        "field": "rank",
+        "label": "Rank",
+        "format": "",
+        "align": "center",
+        "width": 60
+      },
+      {
+        "field": "name",
+        "label": "Property name",
+        "format": "",
+        "align": "left",
+        "width": 0
+      },
+      {
+        "field": "investment_score",
+        "label": "Score",
+        "format": ".1f",
+        "align": "center",
+        "width": 80
+      },
+      {
+        "field": "distance_to_poi",
+        "label": "Distance to POI (m)",
+        "format": ".0f",
+        "align": "center",
+        "width": 0
+      },
+      {
+        "field": "distance_to_road",
+        "label": "Distance to road (m)",
+        "format": ".0f",
+        "align": "center",
+        "width": 0
+      },
+      {
+        "field": "inside_buildable_zone",
+        "label": "In permitted zone",
+        "format": "",
+        "align": "center",
+        "width": 100
+      },
+      {
+        "field": "flood_risk",
+        "label": "Flood risk",
+        "format": "",
+        "align": "center",
+        "width": 0
+      },
+      {
+        "field": "earthquake_risk",
+        "label": "Earthquake risk",
+        "format": "",
+        "align": "center",
+        "width": 0
+      },
+      {
+        "field": "fire_risk",
+        "label": "Fire risk",
+        "format": "",
+        "align": "center",
+        "width": 0
+      }
+    ],
+    "rows": [
+      {
+        "rank": 1,
+        "name": "Balaban Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 2,
+        "name": "Ormanlı Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 3,
+        "name": "Celepköy Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 4,
+        "name": "Hisarbeyli Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 5,
+        "name": "Karaburun Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 6,
+        "name": "Terkos Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 7,
+        "name": "Oruçoğlu Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 8,
+        "name": "Karacaköy Merkez Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 9,
+        "name": "Başak Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 10,
+        "name": "Örencik Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 11,
+        "name": "Bıçkıdere Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 12,
+        "name": "Çiftlikköy",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 13,
+        "name": "Göçbeyli Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 14,
+        "name": "Yazlık Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 15,
+        "name": "Durusu Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 16,
+        "name": "Çataklı Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 17,
+        "name": "Kervansaray Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 18,
+        "name": "Doğancılı Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 19,
+        "name": "Hallaçlı Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 20,
+        "name": "Boyalık Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 21,
+        "name": "Değirmen Çayırı Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 22,
+        "name": "Alibahadır Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 23,
+        "name": "Yeniköy Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 24,
+        "name": "Üvezli Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 25,
+        "name": "Alacalı Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 26,
+        "name": "Riva Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 27,
+        "name": "İmrenli Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 28,
+        "name": "Belgrat Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 29,
+        "name": "Kurfallı Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 30,
+        "name": "Ulupelit Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 31,
+        "name": "Sayalar Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 32,
+        "name": "Sahilköy Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 33,
+        "name": "Ağaçlı Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 34,
+        "name": "Yalıköy Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 35,
+        "name": "Kadıköy Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 36,
+        "name": "Hacıllı Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 37,
+        "name": "Göksu Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 38,
+        "name": "Akçakese Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 39,
+        "name": "Yeşilvadi Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 40,
+        "name": "Mahmutşevketpaşa Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 41,
+        "name": "Kalem Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 42,
+        "name": "Büyük Sinekli Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 43,
+        "name": "Akpınar Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 44,
+        "name": "Anadolufeneri Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 45,
+        "name": "Soğullu Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 46,
+        "name": "Yaka Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 47,
+        "name": "Kızılcaali Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 48,
+        "name": "Çiftalan Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 49,
+        "name": "Ballıca Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      },
+      {
+        "rank": 50,
+        "name": "Karacaköy Mahallesi",
+        "investment_score": "",
+        "distance_to_poi": "",
+        "distance_to_road": "",
+        "inside_buildable_zone": "",
+        "flood_risk": "",
+        "earthquake_risk": "",
+        "fire_risk": ""
+      }
+    ],
+    "total_rows": 50,
+    "sort_by": "rank",
+    "sort_order": "asc"
+  },
+  "success": true,
+  "errors": []
+}

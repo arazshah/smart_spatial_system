@@ -78,7 +78,8 @@ plugins/                 geochat_sdk capability plugins
 config/plugins/          per-plugin YAML config (*.example.yaml are the templates)
 templates/reports/       report templates (real-estate report)
 scripts/sql/             PostGIS views for the Tehran OSM demo
-examples/                runnable examples and their sample data
+examples/                runnable examples and their sample data, plus a complete case study
+                         (examples/istanbul_health_access/)
 frontend/                React + Vite workbench
 tests/                   pytest suite (~150 modules)
 docs/                    architecture, ADRs, API contracts, phase reports
@@ -326,6 +327,20 @@ compliance, and a reproducibility-methodology replication) plus what's
 [CITATION.cff](CITATION.cff).
 
 ### Case Studies
+
+**[Istanbul mahalle underserved by hospitals and clinics](examples/istanbul_health_access/README.md)**
+(included in this repository under `examples/istanbul_health_access/`,
+developed in [`smart-spatial-istanbul-health-access`](https://github.com/arazshah/smart-spatial-istanbul-health-access)).
+This is the most complete study so far. It uses real OSM data for 964
+mahalle and 1,020 hospitals/clinics, a rule-based arm, and an
+LLM-planned arm run N=20 through `s3geo.query()` with no threshold, CRS or
+operation list given. At 0.5.6, **20/20 LLM-planned runs match the
+rule-based answer exactly**, and all of them use EPSG:32635, which the
+framework derived from the data itself. Earlier pins failed for specific
+reasons, and each was reported and fixed here, from 0.4.1 to 0.5.6: the
+`where` value shape, `None`-overrides-default, the CRS leaked from a prompt
+example, data-derived CRS, and the repair retry. The notebooks, paper,
+results, figures and those reports are all in the folder.
 
 **[Vienna district accessibility to metro, schools and parks](https://github.com/arazshah/smart-spatial-vienna-accessibility)** -
 the reference reproducibility study: the same analysis run two ways, a

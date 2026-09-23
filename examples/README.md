@@ -2,8 +2,18 @@
 
 Runnable end to end. The code they demonstrate works from an installed
 package (`pip install smart-spatial-system`), but the example files and
-their sample data live in this repository - clone it, or download the two
-scripts and the `accessibility/` folder, to run them.
+their sample data live in this repository - clone it, or download the
+script plus the data folder it uses, to run them.
+
+| I want to... | Start with |
+|---|---|
+| see the pipeline run offline, no LLM key | `accessibility_analysis.py`, `s3geo_accessibility_demo.py` |
+| ask a plain-language question in one call | `s3geo_quickstart.py` |
+| call the running API over HTTP | `query_via_http.py` |
+| see a real-data demo on downloaded OSM layers | `urmia_real_estate_ranking.py` |
+| see a complete study: data, both arms, metric, paper | [`istanbul_health_access/`](istanbul_health_access/README.md) |
+
+## Scripts
 
 | File | What it shows |
 |---|---|
@@ -28,7 +38,21 @@ smart-spatial-api serve --port 8000
 python examples/query_via_http.py
 ```
 
-## Data
+## Case study: Istanbul health access
+
+[`istanbul_health_access/`](istanbul_health_access/README.md) is a finished
+research study, not a script. It asks which İstanbul neighbourhoods are
+underserved by hospitals and clinics, using real OSM data (964 mahalle,
+1,020 facilities). It answers twice, once with a hand-written plan and once
+with `s3geo.query()` from plain language (N=20), and compares the two. At
+0.5.6, 20/20 LLM-planned runs match the rule-based answer exactly.
+
+It holds five numbered notebooks, the paper, the committed results and
+figures, and the upstream bug and enhancement reports that drove releases
+0.4.1 to 0.5.6. It has its own `requirements.txt` and is run from its own
+folder. See its README.
+
+## Sample data
 
 `accessibility/` holds four small synthetic GeoJSON layers around Vienna -
 five candidate sites plus metro stations, schools and parks. The
@@ -53,3 +77,6 @@ Urmia has no metro/subway, so `transit_hubs` stands in for the city's real
 public-transit hubs (the interurban bus terminal and bus stops) - the
 ranking formula's "metro" role is just the nearest major transit hub.
 `output/` (git-ignored) is where the script saves each question's result.
+
+`istanbul_health_access/data/processed/` is real OSM data (ODbL), unlike
+the synthetic layers above; see that folder's `data/README.md`.

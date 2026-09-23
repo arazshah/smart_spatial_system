@@ -6,6 +6,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `examples/istanbul_health_access/`: the completed Istanbul
+  hospital/clinic accessibility case study, imported from
+  `arazshah/smart-spatial-istanbul-health-access`. It contains the notebooks
+  (phases 2 to 6), the paper, the committed results and figures, and the
+  `bugs/` and `enhancements/` reports behind 0.4.1 to 0.5.6. Per-run LLM
+  records are slimmed: geometry is dropped and the fields the notebooks read
+  are kept. `examples/README.md` is reorganized into scripts, case study and
+  sample data.
+
 ## [0.5.6] - 2026-09-23
 
 Response to enhancements/003, filed against the 0.5.5 Istanbul batches.

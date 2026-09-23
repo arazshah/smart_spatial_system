@@ -919,7 +919,9 @@ def filter_features(
         str(pick_first(bbox_mode, config.get("default_bbox_mode"), default="intersects"))
     )
 
-    final_sort_order = _validate_sort_order(sort_order)
+    # An explicit None (e.g. an LLM plan's "sort_order": null) means "not set",
+    # same as bbox_mode above - resolve it to the real default instead of raising.
+    final_sort_order = _validate_sort_order(pick_first(sort_order, default="asc"))
 
     max_limit_config = config.get("max_limit", 10000)
     max_limit = None if max_limit_config is None else int(max_limit_config)

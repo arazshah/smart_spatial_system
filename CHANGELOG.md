@@ -6,6 +6,80 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-09-23
+
+### Fixed
+
+- **`filter_attribute` / `sort_limit` plans that carried an explicit
+  `"sort_order": null` failed at execution with `Node <id> failed:
+  sort_order must be a non-empty string.`** - even when no sort was
+  requested (`sort_by` also `null`). LLM plans often include every param
+  `_op_param_reference()` advertises, using `null` for the ones they don't
+  set. Neither `planner.py::_map_params` nor `dag_executor.py::_build_kwargs`
+  filters those out, and in Python an explicit `None` overrides a keyword
+  default instead of triggering it. `filter_features()`'s `sort_order`
+  (default `"asc"`) was then validated raw by `_validate_sort_order()`. The
+  sibling param `bbox_mode` already tolerated `None` via `pick_first()`.
+  Two fixes:
+  - `plugins/spatial_query_filter.py::filter_features` now resolves
+    `sort_order` as `_validate_sort_order(pick_first(sort_order, default="asc"))`,
+    the same `pick_first()` pattern `bbox_mode` uses. No config-level
+    `default_sort_order` key was added: `sort_order`'s signature default is
+    `"asc"`, not `None`, so a config default would only ever apply to an
+    explicit `None`, never to an omitted param. An invalid value such as
+    `"sideways"` still raises.
+  - `orchestrator/planning/dag_executor.py::_build_kwargs` now drops a
+    `None`-valued **static param** (a literal from the plan) when the target
+    keyword's own `inspect.signature()` default is not `None`, so the
+    capability's real default applies (new helper
+    `_drop_none_overriding_defaults()`; `DagExecutor.execute` passes the
+    resolved `capability_fn` in). Nothing is dropped for a param whose
+    default is `None`, a required param, a name only accepted through
+    `**kwargs`, or a callable whose signature can't be inspected. Values
+    resolved from `inputs` references (`$inputs.*`, `$node.*`) are never
+    dropped. `planner.py::_map_params` is unchanged: the plan still records
+    the `null` as given, and it is filtered only at the capability call.
+- Auditing every `OP_CATALOG` `param_map` target with a non-`None`
+  signature default showed the same explicit-`None` gap in other operations.
+  The `_build_kwargs` change above fixes all of them. Before 0.5.2, an
+  explicit `null` for these params:
+  - **raised**: `filter_points_in_polygon.predicate` (`"within"`),
+    `join_feature_properties.unmatched` (`"keep"`),
+    `render_pdf.template_name`.
+  - **silently changed behavior**: `rank_features`/`top_n.descending`
+    (`True`; `null` sorted ascending),
+    `filter_points_in_polygon.drop_outside` (`True`; `null` kept outside
+    points), `enrich_feature_properties.skip_missing` (`True`),
+    `render_pdf.save_to_disk` (`True`; `null` wrote no file),
+    `rank_features`/`top_n` `score_field`/`rank_field`,
+    `join_feature_properties` `left_key`/`right_key`/`prefix`
+    (`null` prefix produced `"None<field>"` names),
+    `enrich_risk.id_field`, `build_report`
+    `score_field`/`rank_field`/`name_field`.
+  - **already tolerated `None`** (unchanged result):
+    `query_database`/`load_postgis_layer`
+    `source_type`/`mode`/`geom_alias`,
+    `join_feature_properties.overwrite`, `enrich_risk.overwrite`
+    (`False` either way).
+
+### Added
+
+- `tests/test_op_catalog_none_param_defaults.py`, in the style of
+  `test_op_catalog_param_map_signatures.py`:
+  - `filter_features(sort_order=None)` resolves to `"asc"` (and
+    `bbox_mode=None` to `"intersects"`). An invalid `sort_order` still
+    raises.
+  - `filter_attribute` and `sort_limit` run end to end through `DagExecutor`
+    and the real `CapabilityRegistry` with
+    `sort_by`/`sort_order`/`limit` all `None`.
+  - Catalog-wide: for every `OP_CATALOG` `param_map` target with a
+    non-`None` signature default on a registered capability, an explicit
+    `None` never reaches the capability call.
+  - `None` is still passed for params whose default is `None` and for
+    `**kwargs`-only names.
+  - `rank_features` with `descending=None` keeps the default descending
+    order.
+
 ## [0.5.1] - 2026-09-19
 
 ### Fixed

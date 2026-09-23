@@ -371,8 +371,33 @@ def test_find_nearest_neighbors_warns_when_max_distance_excludes_many_sources() 
     )
 
     assert result.metadata["unmatched_source_count"] == 6
+    assert result.metadata["max_distance_excluded_count"] == 6
     assert result.metadata["warning"] is not None
     assert "max_distance=2.0 excluded 6 of 10" in result.metadata["warning"]
+
+
+def test_find_nearest_neighbors_no_max_distance_warning_for_null_geometry_sources() -> None:
+    # Regression test: sources unmatched because they have no geometry at
+    # all (nothing to do with max_distance) must not be blamed for a
+    # max_distance exclusion just because max_distance also happens to be
+    # set - see max_distance_excluded_count's docstring.
+    null_sources = [
+        {"type": "Feature", "geometry": None, "properties": {"id": f"n{i}"}} for i in range(4)
+    ]
+    sources = [*null_sources, SOURCE_POINT]
+
+    result = find_nearest_neighbors(
+        source_features=sources,
+        target_features=[TARGET_POINT_B],
+        k=1,
+        engine="python",
+        max_distance=5.0,
+    )
+
+    assert result.metadata["unmatched_source_count"] == 4
+    assert result.metadata["failed_pair_count"] == 4
+    assert result.metadata["max_distance_excluded_count"] == 0
+    assert result.metadata["warning"] is None
 
 
 def test_find_nearest_neighbors_no_max_distance_warning_below_threshold() -> None:
@@ -394,6 +419,7 @@ def test_find_nearest_neighbors_no_max_distance_warning_below_threshold() -> Non
     )
 
     assert result.metadata["unmatched_source_count"] == 1
+    assert result.metadata["max_distance_excluded_count"] == 1
     assert result.metadata["warning"] is None
 
 

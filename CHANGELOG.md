@@ -42,12 +42,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     ever runs, with nothing flagging why the final count came back empty -
     `max_distance` and `where` each behave exactly as documented in
     isolation. Immediate fix landed: new `_max_distance_exclusion_warning()`
-    reads `unmatched_source_count` (already computed) against
+    reads a new `max_distance_excluded_count` metadata field against
     `source_feature_count` and populates `warning` when `max_distance` is
     set and the excluded share is at least `max_distance_warning_fraction`
     (new config key, default `0.2`) - e.g. `"max_distance=5000.0 excluded
     912 of 964 source feature(s) from ranking (95%)."` Opt-out via
-    `warn_if_max_distance_excludes: false`.
+    `warn_if_max_distance_excludes: false`. `max_distance_excluded_count`
+    is deliberately narrower than the pre-existing `unmatched_source_count`:
+    it only counts a source that had a real, computable distance to some
+    target and still ended up unmatched (with `k >= 1`, that can only
+    happen because `max_distance` filtered it out) - not a source that was
+    never going to match anything anyway (null/invalid geometry, every
+    target distance calculation failing). An earlier version of this warning
+    read `unmatched_source_count` directly, which would have blamed
+    `max_distance` for exclusions it had nothing to do with; caught in
+    review before merge.
   - **Not landed:** the systematic generation-time validator for the
     max_distance/filter composition case (tracing a `nearest_neighbor` ->
     `filter_attribute`/`sort_limit` chain and warning when `max_distance`

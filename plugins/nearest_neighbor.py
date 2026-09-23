@@ -679,7 +679,7 @@ def _crs_area_of_use_warning(
 
 def _max_distance_exclusion_warning(
     final_max_distance: float | None,
-    unmatched_source_count: int,
+    max_distance_excluded_count: int,
     source_feature_count: int,
     warning_fraction: float,
 ) -> str | None:
@@ -693,23 +693,31 @@ def _max_distance_exclusion_warning(
     sets max_distance low enough to exclude most sources and then filters
     on this op's own distance output can silently produce an
     (incorrectly) empty result with no signal anywhere that max_distance
-    is why. unmatched_source_count is already computed regardless of
-    drop_unmatched, so this is a read of existing state, not new work.
+    is why.
+
+    max_distance_excluded_count must already be narrowed to sources that
+    had a real, computable distance to some target and still ended up
+    unmatched (see source_had_computable_distance in the main loop) - NOT
+    the broader unmatched_source_count, which also counts sources that
+    were never going to match anything regardless of max_distance (null/
+    invalid geometry, every target distance calculation failing). Using
+    the broader count here would blame max_distance for exclusions it had
+    nothing to do with, and could tell a caller to raise or remove a
+    max_distance that was never the actual problem.
 
     Fires only when max_distance is actually set and the excluded share
     is at least warning_fraction of all source features - a source or
-    two failing to find any target within range is normal and not worth
-    flagging.
+    two genuinely out of range is normal and not worth flagging.
     """
-    if final_max_distance is None or unmatched_source_count <= 0 or source_feature_count <= 0:
+    if final_max_distance is None or max_distance_excluded_count <= 0 or source_feature_count <= 0:
         return None
 
-    fraction = unmatched_source_count / source_feature_count
+    fraction = max_distance_excluded_count / source_feature_count
     if fraction < warning_fraction:
         return None
 
     return (
-        f"max_distance={final_max_distance} excluded {unmatched_source_count} of "
+        f"max_distance={final_max_distance} excluded {max_distance_excluded_count} of "
         f"{source_feature_count} source feature(s) from ranking "
         f"({fraction:.0%}). If a downstream step filters or sorts on this "
         "operation's distance output expecting results for these features, "
@@ -901,6 +909,7 @@ def find_nearest_neighbors(
     match_count = 0
     failed_pair_count = 0
     dropped_unmatched_count = 0
+    max_distance_excluded_count = 0
 
     shape_fn, tree, tree_geoms, tree_indices = _prepare_target_index(target_items, final_engine)
     indexed_available = shape_fn is not None
@@ -920,6 +929,14 @@ def find_nearest_neighbors(
         last_engine_used = final_engine
         last_error: str | None = None
         used_index_for_source = False
+        # Whether at least one target for this source had a real,
+        # non-failed distance computed (whether or not it made the
+        # max_distance cut) - lets max_distance_excluded_count below tell
+        # "max_distance rejected every candidate" apart from "no distance
+        # to any target could be computed at all" (null/invalid geometry,
+        # a distance calc exception), so the max_distance warning isn't
+        # raised for unmatched sources max_distance had nothing to do with.
+        source_had_computable_distance = False
 
         if indexed_available:
             source_geometry = source_feature.get("geometry")
@@ -948,6 +965,13 @@ def find_nearest_neighbors(
                     pair_count += missing_target_count
                     failed_pair_count += missing_target_count
                     pair_count += len(tree_geoms)
+                    # Every target in tree_geoms has a valid, non-empty
+                    # geometry (see _prepare_target_index), and shapely's
+                    # distance() between two valid geometries never fails -
+                    # so a non-empty tree_geoms means a real distance CAN be
+                    # computed to at least one target, independent of
+                    # whether max_distance later filters it out.
+                    source_had_computable_distance = len(tree_geoms) > 0
 
                     fast_candidates = _strtree_candidates(
                         source_geom,
@@ -977,12 +1001,21 @@ def find_nearest_neighbors(
             )
             pair_count += pair_delta
             failed_pair_count += failed_delta
+            source_had_computable_distance = pair_delta > failed_delta
 
         candidate_rows.sort(key=lambda item: (item[0], item[1]))
         selected = candidate_rows[:final_k]
 
         if not selected:
             unmatched_source_count += 1
+
+            # Only a source that DID have a computable distance to some
+            # target, and still ended up with no selected candidate, can
+            # have been rejected by max_distance - with k >= 1, any
+            # computable distance becomes a match unless max_distance
+            # filtered it out first.
+            if final_max_distance is not None and source_had_computable_distance:
+                max_distance_excluded_count += 1
 
             if final_drop_unmatched:
                 dropped_unmatched_count += 1
@@ -1049,7 +1082,7 @@ def find_nearest_neighbors(
     if warn_if_max_distance_excludes:
         max_distance_warning = _max_distance_exclusion_warning(
             final_max_distance,
-            unmatched_source_count,
+            max_distance_excluded_count,
             len(source_items),
             max_distance_warning_fraction,
         )
@@ -1084,6 +1117,7 @@ def find_nearest_neighbors(
         "match_count": match_count,
         "matched_source_count": matched_source_count,
         "unmatched_source_count": unmatched_source_count,
+        "max_distance_excluded_count": max_distance_excluded_count,
         "failed_pair_count": failed_pair_count,
         "dropped_unmatched_count": dropped_unmatched_count,
         "output_feature_count": len(output_features),

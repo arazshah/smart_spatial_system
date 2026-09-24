@@ -60,10 +60,13 @@ from plugins.raster_clip_mask import (
     _is_geographic_crs,
     _pixel_bbox,
     _pixel_center,
+    _point_in_ring,
     _point_matches_geometry,
 )
 
 PLUGIN_ID = "zonal_statistics"
+
+EPSILON_GEOM = 1e-9
 
 VALID_ENGINES = {"python", "auto"}
 
@@ -408,6 +411,175 @@ def _point_matches_zone(x: float, y: float, geometry: dict[str, Any] | None) -> 
     return bool(_point_matches_geometry(x, y, geometry))
 
 
+def _segments_intersect(
+    p1: tuple[float, float],
+    p2: tuple[float, float],
+    p3: tuple[float, float],
+    p4: tuple[float, float],
+) -> bool:
+    """
+    True if closed segments p1-p2 and p3-p4 intersect or touch.
+    """
+
+    def _cross(o: tuple[float, float], a: tuple[float, float], b: tuple[float, float]) -> float:
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    def _on_segment(p: tuple[float, float], q: tuple[float, float], r: tuple[float, float]) -> bool:
+        return (
+            min(p[0], r[0]) - EPSILON_GEOM <= q[0] <= max(p[0], r[0]) + EPSILON_GEOM
+            and min(p[1], r[1]) - EPSILON_GEOM <= q[1] <= max(p[1], r[1]) + EPSILON_GEOM
+        )
+
+    d1 = _cross(p3, p4, p1)
+    d2 = _cross(p3, p4, p2)
+    d3 = _cross(p1, p2, p3)
+    d4 = _cross(p1, p2, p4)
+
+    if ((d1 > 0) != (d2 > 0)) and ((d3 > 0) != (d4 > 0)):
+        return True
+
+    if abs(d1) <= EPSILON_GEOM and _on_segment(p3, p1, p4):
+        return True
+    if abs(d2) <= EPSILON_GEOM and _on_segment(p3, p2, p4):
+        return True
+    if abs(d3) <= EPSILON_GEOM and _on_segment(p1, p3, p2):
+        return True
+    if abs(d4) <= EPSILON_GEOM and _on_segment(p1, p4, p2):
+        return True
+
+    return False
+
+
+def _ring_intersects_square(
+    ring: list[Any],
+    minx: float,
+    miny: float,
+    maxx: float,
+    maxy: float,
+) -> bool:
+    """
+    True if a closed ring (list of [x, y]-like positions) touches or
+    overlaps the axis-aligned square [minx, maxx] x [miny, maxy].
+    """
+    if not ring:
+        return False
+
+    points = [(float(p[0]), float(p[1])) for p in ring]
+
+    for x, y in points:
+        if minx - EPSILON_GEOM <= x <= maxx + EPSILON_GEOM and miny - EPSILON_GEOM <= y <= maxy + EPSILON_GEOM:
+            return True
+
+    corners = [(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy)]
+    for corner in corners:
+        if _point_in_ring(corner[0], corner[1], points):
+            return True
+
+    square_edges = [(corners[i], corners[(i + 1) % 4]) for i in range(4)]
+    n = len(points)
+    for i in range(n):
+        a = points[i]
+        b = points[(i + 1) % n]
+        for sa, sb in square_edges:
+            if _segments_intersect(a, b, sa, sb):
+                return True
+
+    return False
+
+
+def _polygon_intersects_square(
+    polygon_coords: list[Any],
+    minx: float,
+    miny: float,
+    maxx: float,
+    maxy: float,
+) -> bool:
+    """
+    True if a GeoJSON Polygon coordinate ring set (outer ring + holes)
+    actually overlaps the pixel square, respecting holes.
+    """
+    if not polygon_coords:
+        return False
+
+    outer = polygon_coords[0]
+    if not _ring_intersects_square(outer, minx, miny, maxx, maxy):
+        return False
+
+    center_x = (minx + maxx) / 2.0
+    center_y = (miny + maxy) / 2.0
+
+    for hole in polygon_coords[1:]:
+        if _ring_intersects_square(hole, minx, miny, maxx, maxy):
+            # The square straddles the hole boundary, so part of it is
+            # still inside the polygon (outside the hole).
+            continue
+        if _point_in_ring(center_x, center_y, hole):
+            # The square lies entirely inside this hole.
+            return False
+
+    return True
+
+
+def _pixel_square_matches_geometry(
+    minx: float,
+    miny: float,
+    maxx: float,
+    maxy: float,
+    geometry: dict[str, Any] | None,
+) -> bool:
+    """
+    True if a pixel's square footprint actually intersects a GeoJSON
+    geometry (Polygon/MultiPolygon handled precisely with holes; other
+    geometry types fall back to a bbox intersection test).
+    """
+    if geometry is None:
+        return False
+
+    if not isinstance(geometry, dict):
+        return False
+
+    gtype = geometry.get("type")
+
+    if gtype == "Feature":
+        return _pixel_square_matches_geometry(minx, miny, maxx, maxy, geometry.get("geometry"))
+
+    if gtype == "FeatureCollection":
+        return any(
+            _pixel_square_matches_geometry(minx, miny, maxx, maxy, feature)
+            for feature in geometry.get("features", [])
+            if isinstance(feature, dict)
+        )
+
+    if gtype == "GeometryCollection":
+        return any(
+            _pixel_square_matches_geometry(minx, miny, maxx, maxy, sub)
+            for sub in geometry.get("geometries", [])
+            if isinstance(sub, dict)
+        )
+
+    if gtype == "Point":
+        coords = geometry.get("coordinates") or []
+        if len(coords) < 2:
+            return False
+        x, y = float(coords[0]), float(coords[1])
+        return minx - EPSILON_GEOM <= x <= maxx + EPSILON_GEOM and miny - EPSILON_GEOM <= y <= maxy + EPSILON_GEOM
+
+    if gtype == "Polygon":
+        return _polygon_intersects_square(geometry.get("coordinates") or [], minx, miny, maxx, maxy)
+
+    if gtype == "MultiPolygon":
+        return any(
+            _polygon_intersects_square(polygon, minx, miny, maxx, maxy)
+            for polygon in geometry.get("coordinates") or []
+        )
+
+    bbox = _geometry_bbox(geometry)
+    if bbox is None:
+        return False
+
+    return _bboxes_intersect([minx, miny, maxx, maxy], bbox)
+
+
 def _pixel_matches_zone(
     *,
     row: int,
@@ -419,6 +591,11 @@ def _pixel_matches_zone(
 ) -> bool:
     """
     Decide whether a pixel belongs to a zone.
+
+    For all_touched=True, a pixel matches when its actual square footprint
+    intersects the zone geometry (holes respected for polygons), not
+    merely when it intersects the zone's bounding box. The bbox test is
+    kept as a cheap pre-filter before the more expensive geometry test.
     """
     if geometry is None:
         return False
@@ -426,7 +603,13 @@ def _pixel_matches_zone(
     if all_touched:
         if geometry_bbox is None:
             return False
-        return _bboxes_intersect(_pixel_bbox(row, col, transform), geometry_bbox)
+
+        pixel_bbox = _pixel_bbox(row, col, transform)
+        if not _bboxes_intersect(pixel_bbox, geometry_bbox):
+            return False
+
+        minx, miny, maxx, maxy = pixel_bbox
+        return _pixel_square_matches_geometry(minx, miny, maxx, maxy, geometry)
 
     x, y = _pixel_center(row, col, transform)
     return _point_matches_zone(x, y, geometry)

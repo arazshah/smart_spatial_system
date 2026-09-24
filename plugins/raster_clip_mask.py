@@ -260,17 +260,45 @@ def _geometry_bbox(geometry: dict[str, Any] | None) -> list[float] | None:
 def _normalize_transform(transform: Any) -> list[float]:
     """
     Normalize affine transform [a, b, c, d, e, f].
+
+    Each component is resolved by explicitly checking whether its primary
+    key ("a".."f") is present before falling back to an alias/derived
+    default. This matters because a `.get(key, <expensive_default_expr>)`
+    call always evaluates <expensive_default_expr> eagerly in Python, even
+    when `key` is present in the dict -- so a complete {a..f} dict without
+    the alias keys (pixel_width/pixel_height/origin_x/origin_y) used to
+    raise a spurious "Invalid transform dict" error.
     """
     if isinstance(transform, dict):
+        a = transform["a"] if "a" in transform else transform.get("pixel_width")
+        b = transform.get("b", 0.0)
+        c = transform["c"] if "c" in transform else transform.get("origin_x")
+        d = transform.get("d", 0.0)
+
+        if "e" in transform:
+            e = transform["e"]
+        else:
+            pixel_height = transform.get("pixel_height")
+            if pixel_height is None:
+                raise ValueError(
+                    "Invalid transform dict: missing 'e' (or 'pixel_height' fallback)."
+                )
+            try:
+                e = -abs(float(pixel_height))
+            except Exception as exc:
+                raise ValueError("Invalid transform dict: 'pixel_height' must be numeric.") from exc
+
+        f = transform["f"] if "f" in transform else transform.get("origin_y")
+
+        if a is None:
+            raise ValueError("Invalid transform dict: missing 'a' (or 'pixel_width' fallback).")
+        if c is None:
+            raise ValueError("Invalid transform dict: missing 'c' (or 'origin_x' fallback).")
+        if f is None:
+            raise ValueError("Invalid transform dict: missing 'f' (or 'origin_y' fallback).")
+
         try:
-            return [
-                float(transform.get("a", transform.get("pixel_width"))),
-                float(transform.get("b", 0.0)),
-                float(transform.get("c", transform.get("origin_x"))),
-                float(transform.get("d", 0.0)),
-                float(transform.get("e", -abs(float(transform.get("pixel_height"))))),
-                float(transform.get("f", transform.get("origin_y"))),
-            ]
+            return [float(a), float(b), float(c), float(d), float(e), float(f)]
         except Exception as exc:
             raise ValueError("Invalid transform dict.") from exc
 

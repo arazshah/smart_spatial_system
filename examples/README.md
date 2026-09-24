@@ -80,3 +80,16 @@ ranking formula's "metro" role is just the nearest major transit hub.
 
 `istanbul_health_access/data/processed/` is real OSM data (ODbL), unlike
 the synthetic layers above; see that folder's `data/README.md`.
+
+## Other case studies (separate repositories)
+
+Not every case study is vendored into this repo. [`smart-spatial-cairo-vegetation-change`](https://github.com/arazshah/smart-spatial-cairo-vegetation-change)
+is a complete, satellite-raster example: district-level NDVI change in
+Greater Cairo (2017–2025), run entirely through `ndvi_calculator`,
+`band_math`, `raster_reclassify`, `zonal_statistics` and the
+`raster_to_vector`/`centroid_extractor`/`spatial_join`/`attribute_statistics`
+chain, with no LLM arm. It found 8 defects in `0.5.6` (7 fixed in `0.5.7`,
+see `CHANGELOG.md`) and has its own paper, numbered reproducible scripts
+and bug reports. See [Case studies and papers](../README.md#case-studies-and-papers-written-with-s3geo)
+in the main README, or [docs/CASE_STUDIES.md](../docs/CASE_STUDIES.md) for
+the full catalog.

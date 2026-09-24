@@ -9,7 +9,7 @@
 
 **[s3geo.com](https://s3geo.com)** — project site, plugin catalog and case-study index.
 
-**Used in research:** four case studies have been built on s3geo so far (Vienna, Tehran, İstanbul, Urmia). Each compares an LLM-planned analysis against one written by hand on real OpenStreetMap data. The İstanbul study is included in full in [`examples/istanbul_health_access/`](examples/istanbul_health_access/README.md). See [Case studies and papers](#case-studies-and-papers-written-with-s3geo).
+**Used in research:** five case studies have been built on s3geo so far (Vienna, Tehran, İstanbul, Urmia, Cairo). Most compare an LLM-planned analysis against one written by hand on real OpenStreetMap data; the Cairo study is a pure-plugin raster pipeline (satellite NDVI change, no LLM arm) that found 8 defects fixed in `0.5.7`. The İstanbul study is included in full in [`examples/istanbul_health_access/`](examples/istanbul_health_access/README.md). See [Case studies and papers](#case-studies-and-papers-written-with-s3geo).
 
 Smart Spatial System is a plugin-based GeoAI backend with a React workbench. A question such as *"rank these candidate properties by distance to metro stations, malls and main roads"* is turned into a structured `QuerySpec`, planned as a DAG of spatial operations, executed by plugins against uploaded files or PostGIS, and returned as map-ready outputs with a full execution trace.
 
@@ -330,11 +330,12 @@ compliance, and a reproducibility-methodology replication) plus what's
 
 ### Case studies and papers written with s3geo
 
-Four research studies so far have used s3geo on real OpenStreetMap data. In
-each one, an LLM planned the analysis from a plain-language question and was
-checked against the same analysis written by hand. Each study has its own
-paper or plan. The three that have run each found real defects in this
-package, and all of those defects are now fixed and released.
+Five research studies so far have used s3geo on real data. Four compare an
+LLM-planned analysis (from a plain-language question) against the same
+analysis written by hand on real OpenStreetMap data; the fifth is a
+satellite-raster pipeline with no LLM arm. Each study has its own paper or
+plan. Four of the five have run, and all four found real defects in this
+package, now fixed and released.
 
 | # | Study | City | Question | Status | What it changed in s3geo |
 |---|---|---|---|---|---|
@@ -342,14 +343,18 @@ package, and all of those defects are now fixed and released.
 | 2 | [Tehran TOD gradient](https://github.com/arazshah/smart-spatial-tehran-tod-gradient) | Tehran | Does land-use diversity fall with distance from 122 metro stations? | Paper draft | 3 defects fixed (`0.2.5`–`0.2.9`); `ring_buffer_analysis` plugin |
 | 3 | [Istanbul health access](examples/istanbul_health_access/README.md) | İstanbul | Which mahalle are underserved by hospitals and clinics? | **Complete**: full paper, results and figures, included in this repo | 6 bug reports and 3 enhancements (`0.4.1`–`0.5.6`) |
 | 4 | [Urmia real estate](https://github.com/arazshah/smart-spatial-urmia-real-estate) | Urmia | Real-estate suitability ranking using transit, malls, roads, risk and zoning | Scaffolded, not yet run | Reuses the shipped real-estate workflow |
+| 5 | [Cairo vegetation change](https://github.com/arazshah/smart-spatial-cairo-vegetation-change) | Cairo | How has district-level NDVI changed 2017→2025, and where is vegetation loss sharpest? | **Complete**: full paper, results, figures and bug reproductions | 8 defects found, 7 fixed (`0.5.7`); pipeline ~20× faster |
 
-All four share one design. **Arm 1** is a deterministic plan written by
-hand. **Arm 2** is the same question in plain language, planned by
+The first four share one design. **Arm 1** is a deterministic plan written
+by hand. **Arm 2** is the same question in plain language, planned by
 `LLMQuerySpecGenerator` / `s3geo.query()` and run N times. The arms are
 compared with Plan Agreement Rate, variance in the chosen parameters, Set
 and Rank Stability, and agreement with Arm 1. Vienna's
 `paper/comparison_metric.md` defines the metric, and the İstanbul study
-reuses it unchanged.
+reuses it unchanged. Cairo has no LLM arm: it is a fixed, hand-designed
+raster pipeline (§4 of its paper is titled "Using s3geo: what worked, what
+broke") verified against an independent numpy/rasterio re-implementation
+instead of against an LLM-planned one.
 
 #### 1. Vienna: district accessibility to metro, schools and parks
 
@@ -452,6 +457,57 @@ convention as
 **Status:** scaffolded, not yet run. Both arms are written, and their logic
 that needs no network or LLM has been verified offline. That repository's
 `paper/PLAN.md` lists what is left.
+
+#### 5. Cairo: district-level NDVI change, 2017–2025
+
+**Repository:** [`smart-spatial-cairo-vegetation-change`](https://github.com/arazshah/smart-spatial-cairo-vegetation-change).
+The paper is `paper/paper.md` in that repository.
+
+This study compares two Sentinel-2 L2A scenes of Greater Cairo (27 Aug 2017,
+1 Sep 2025) and ranks 48 districts (qism/markaz, from geoBoundaries via
+CAPMAS/OCHA) by change in vegetation health and extent. Unlike the other
+four studies, it has no LLM arm — every analytical step is a fixed,
+hand-designed chain of s3geo raster and vector plugins:
+
+- NDVI (`ndvi_calculator`) → ΔNDVI and masks (`band_math`) → vegetation/
+  change classes (`raster_reclassify`) → per-district statistics
+  (`zonal_statistics`) → a change table (`raster_to_vector` →
+  `centroid_extractor` → `spatial_join` → `attribute_statistics`).
+
+numpy/rasterio are used only for I/O, regridding and plotting; the result
+is cross-checked against an independent numpy/rasterio re-computation and
+agrees to 5 × 10⁻⁵.
+
+**Result:** mean NDVI across the AOI barely moved (0.1823 → 0.1818), but the
+vegetated area (NDVI ≥ 0.2) shrank by about 2,000 ha (−6.6%), concentrated
+on the peri-urban farmland fringe (Waraq, Shubra al-Khayma, Kardasa,
+Al-Ahram). The ranking is robust to masking water and to using a different
+metric (change in vegetated share instead of mean ΔNDVI).
+
+**What it changed here:** running the full pipeline at real resolution
+surfaced 8 defects in `0.5.6`, each with a minimal reproduction
+(`scripts/verify_bugs.py`), 7 of them fixed in `0.5.7`:
+
+- the local raster loader's output couldn't be consumed by any analysis
+  plugin;
+- `zonal_statistics(all_touched=True)` scanned a zone's bounding box
+  instead of its real polygon;
+- `raster_to_vector(mode="components")` merged neighbouring different
+  classes into one component;
+- a dict/`affine_transform` metadata transform was silently replaced by
+  the pixel-unit default;
+- `raster_reclassify` output metadata carried the input nodata value
+  instead of the output one;
+- an O(H²·W) pixel loop shared across every raster plugin (fixed: ~20×
+  faster end to end, 18.5 min → 55 s for the full pipeline);
+- a transform-normalization helper crashed on a complete, well-formed
+  dict transform;
+- generic top-level installed package names (`config`, `plugins`, `api`,
+  …) — left open, deferred by design.
+
+Re-running the same pipeline on `0.5.7` reproduces every number in the
+paper exactly, with none of the fixes changing a single published result
+(the analysis had already worked around every affected option).
 
 Want to write the next one? [docs/CASE_STUDIES.md](docs/CASE_STUDIES.md)
 lists suggested studies, and the

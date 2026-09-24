@@ -37,6 +37,26 @@ correctness bugs found and fixed upstream this way, `0.2.1`–`0.2.4`) are also
 the best evidence this system is under active, responsive maintenance —
 worth pointing a reviewer or advisor at directly.
 
+## Finished
+
+- [`smart-spatial-cairo-vegetation-change`](https://github.com/arazshah/smart-spatial-cairo-vegetation-change) —
+  district-level NDVI change in Greater Cairo, 2017–2025 (48 qism/markaz
+  districts, geoBoundaries via CAPMAS/OCHA). It runs case study 4 below
+  (vegetation/land-cover change) end to end purely on s3geo raster
+  plugins — `ndvi_calculator` → `band_math` → `raster_reclassify` →
+  `zonal_statistics` → `raster_to_vector`/`centroid_extractor`/
+  `spatial_join`/`attribute_statistics` — with numpy/rasterio used only for
+  I/O and plotting, cross-checked against an independent numpy/rasterio
+  re-implementation to 5 × 10⁻⁵. It found **8 defects in 0.5.6** (loader
+  output not consumable, `all_touched` using the zone bbox, connected
+  components merging classes, a dict transform silently dropped, wrong
+  output nodata, an O(H²·W) pixel loop, a transform-normalization crash,
+  and generic top-level package names); **7 are fixed in `0.5.7`**
+  (see [`CHANGELOG.md`](../CHANGELOG.md)), and re-running the same
+  pipeline on `0.5.7` reproduces every number exactly, about 20× faster.
+  Full paper, reproducible numbered scripts, and per-bug reports with
+  minimal reproductions are in that repository.
+
 ## In progress
 
 - [`smart-spatial-urmia-real-estate`](https://github.com/arazshah/smart-spatial-urmia-real-estate) —
@@ -103,7 +123,11 @@ two or more dates (urban heat islands, deforestation, agricultural stress).
 already — no new plugin needed, only a workflow that runs it twice and
 diffs. **Data:** Sentinel-2 (Copernicus Open Access Hub) or Landsat
 (USGS EarthExplorer), both free. **Effort:** medium — the raster download/
-preprocessing is the real work, the analysis chain already exists.
+preprocessing is the real work, the analysis chain already exists. **Done:**
+[`smart-spatial-cairo-vegetation-change`](https://github.com/arazshah/smart-spatial-cairo-vegetation-change)
+(see "Finished" above) — a different region or sensor pair (Landsat,
+a different city's district boundaries) is still a fresh, citable
+replication.
 
 ### 5. Zoning / land-use compliance screening
 

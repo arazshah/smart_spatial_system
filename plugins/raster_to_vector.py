@@ -566,9 +566,15 @@ def _connected_components(
     selected: list[list[bool]],
     *,
     connectivity: int,
+    values: list[list[Any]] | None = None,
 ) -> list[list[tuple[int, int]]]:
     """
     Extract connected components from selected grid.
+
+    When `values` is given, a component only grows across neighbours that
+    are selected AND have the same pixel value (via `_values_equal`), so
+    two touching regions of different classes (e.g. class 1 next to class
+    2) are never merged into a single component.
     """
     height = len(selected)
     width = len(selected[0]) if height else 0
@@ -598,6 +604,11 @@ def _connected_components(
                     connectivity=connectivity,
                 ):
                     if visited[n_row][n_col] or not selected[n_row][n_col]:
+                        continue
+
+                    if values is not None and not _values_equal(
+                        values[cur_row][cur_col], values[n_row][n_col]
+                    ):
                         continue
 
                     visited[n_row][n_col] = True
@@ -892,7 +903,16 @@ def raster_to_vector(
                 break
 
     else:
-        components = _connected_components(selected, connectivity=final_connectivity)
+        value_grid = [
+            [
+                _band_value(data, band_index=final_band_index, row=row, col=col)
+                for col in range(width)
+            ]
+            for row in range(height)
+        ]
+        components = _connected_components(
+            selected, connectivity=final_connectivity, values=value_grid
+        )
 
         for component_index, cells in enumerate(components, start=1):
             if final_max_features is not None and len(features) >= final_max_features:

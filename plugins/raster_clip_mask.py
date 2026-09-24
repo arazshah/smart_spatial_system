@@ -260,23 +260,54 @@ def _geometry_bbox(geometry: dict[str, Any] | None) -> list[float] | None:
 def _normalize_transform(transform: Any) -> list[float]:
     """
     Normalize affine transform [a, b, c, d, e, f].
+
+    Each component is resolved by explicitly checking whether its primary
+    key ("a".."f") is present before falling back to an alias/derived
+    default. This matters because a `.get(key, <expensive_default_expr>)`
+    call always evaluates <expensive_default_expr> eagerly in Python, even
+    when `key` is present in the dict -- so a complete {a..f} dict without
+    the alias keys (pixel_width/pixel_height/origin_x/origin_y) used to
+    raise a spurious "Invalid transform dict" error.
     """
     if isinstance(transform, dict):
+        a = transform["a"] if "a" in transform else transform.get("pixel_width")
+        b = transform.get("b", 0.0)
+        c = transform["c"] if "c" in transform else transform.get("origin_x")
+        d = transform.get("d", 0.0)
+
+        if "e" in transform:
+            e = transform["e"]
+        else:
+            pixel_height = transform.get("pixel_height")
+            if pixel_height is None:
+                raise ValueError(
+                    "Invalid transform dict: missing 'e' (or 'pixel_height' fallback)."
+                )
+            try:
+                e = -abs(float(pixel_height))
+            except Exception as exc:
+                raise ValueError("Invalid transform dict: 'pixel_height' must be numeric.") from exc
+
+        f = transform["f"] if "f" in transform else transform.get("origin_y")
+
+        if a is None:
+            raise ValueError("Invalid transform dict: missing 'a' (or 'pixel_width' fallback).")
+        if c is None:
+            raise ValueError("Invalid transform dict: missing 'c' (or 'origin_x' fallback).")
+        if f is None:
+            raise ValueError("Invalid transform dict: missing 'f' (or 'origin_y' fallback).")
+
         try:
-            return [
-                float(transform.get("a", transform.get("pixel_width"))),
-                float(transform.get("b", 0.0)),
-                float(transform.get("c", transform.get("origin_x"))),
-                float(transform.get("d", 0.0)),
-                float(transform.get("e", -abs(float(transform.get("pixel_height"))))),
-                float(transform.get("f", transform.get("origin_y"))),
-            ]
+            return [float(a), float(b), float(c), float(d), float(e), float(f)]
         except Exception as exc:
             raise ValueError("Invalid transform dict.") from exc
 
-    if isinstance(transform, (list, tuple)) and len(transform) == 6:
+    if isinstance(transform, (list, tuple)) and len(transform) >= 6:
+        # >= 6 (not == 6) so a 9-element homogeneous affine matrix
+        # ([a, b, c, d, e, f, 0, 0, 1], as some callers store it) still
+        # vectorizes by taking its first six coefficients.
         try:
-            return [float(item) for item in transform]
+            return [float(item) for item in transform[:6]]
         except Exception as exc:
             raise ValueError("transform list must contain six numeric values.") from exc
 
@@ -394,16 +425,123 @@ def _set_pixel(data: Any, row: int, col: int, value: Any) -> None:
         band[row][col] = value
 
 
+def _read_raster_data_from_path(path: str) -> tuple[Any, dict[str, Any]]:
+    """
+    Lazily read raster pixel data from a file path using rasterio.
+
+    Used when a RasterOut-like object (e.g. from local_raster_loader) only
+    carries .path/.metadata, with no in-memory .data. Returns band-first
+    lists plus the file's transform/crs/nodata, so callers can fill in
+    whatever the object's own metadata is missing.
+    """
+    try:
+        import rasterio
+    except ImportError as exc:
+        from geochat_sdk.exceptions import SDKDependencyError
+
+        raise SDKDependencyError(
+            "Reading raster pixel data from a file path requires 'rasterio'. "
+            "Install it with: pip install rasterio"
+        ) from exc
+
+    with rasterio.open(str(path)) as src:
+        data = [src.read(band_number).tolist() for band_number in range(1, src.count + 1)]
+        transform = list(src.transform)[:6]
+        crs = src.crs.to_string() if src.crs is not None else None
+        nodata = float(src.nodata) if src.nodata is not None else None
+        width, height = src.width, src.height
+
+    # rasterio/GDAL fills in the identity transform when a file (e.g. a
+    # plain PNG/JPEG with no worldfile or embedded georeferencing, such as
+    # a WMS response saved without a transform) carries none of its own.
+    # Treating that as a real affine would silently reinterpret pixel
+    # coordinates as map coordinates for every downstream plugin.
+    is_identity_transform = transform == [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+
+    return data, {
+        "transform": transform,
+        "crs": crs,
+        "nodata": nodata,
+        "width": width,
+        "height": height,
+        "is_identity_transform": is_identity_transform,
+    }
+
+
+def _derive_transform_from_bbox_metadata(
+    metadata: dict[str, Any], width: int, height: int
+) -> list[float] | None:
+    """
+    Derive a north-up affine transform from a bbox {minx,miny,maxx,maxy}
+    metadata entry (e.g. the one wms_wfs_fetcher attaches) plus pixel
+    dimensions, for files that carry no georeferencing of their own.
+    """
+    bbox = metadata.get("bbox")
+    if not isinstance(bbox, dict) or width <= 0 or height <= 0:
+        return None
+
+    try:
+        minx = float(bbox["minx"])
+        miny = float(bbox["miny"])
+        maxx = float(bbox["maxx"])
+        maxy = float(bbox["maxy"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    pixel_width = (maxx - minx) / width
+    pixel_height = (maxy - miny) / height
+
+    return [pixel_width, 0.0, minx, 0.0, -pixel_height, maxy]
+
+
 def _extract_raster(input_data: Any) -> tuple[Any, dict[str, Any], dict[str, Any]]:
     """
     Extract raster data and metadata.
     """
     source_info: dict[str, Any] = {}
 
-    if hasattr(input_data, "data") and not isinstance(input_data, dict):
+    if (
+        hasattr(input_data, "data")
+        and not isinstance(input_data, dict)
+        and getattr(input_data, "data") is not None
+    ):
         data = getattr(input_data, "data")
         metadata = getattr(input_data, "metadata", {}) or {}
         source_info["input_type"] = type(input_data).__name__
+
+    elif (
+        not isinstance(input_data, dict)
+        and getattr(input_data, "path", None)
+    ):
+        # RasterOut-like object with no in-memory data (e.g. the SDK's
+        # RasterOut, which only carries .path and .metadata) - lazily read
+        # pixel data from the file it points to.
+        path = getattr(input_data, "path")
+        metadata = dict(getattr(input_data, "metadata", None) or {})
+        source_info["input_type"] = type(input_data).__name__
+        source_info["lazily_read_from_path"] = True
+
+        data, file_info = _read_raster_data_from_path(path)
+
+        if metadata.get("transform") is None and metadata.get("affine_transform") is None:
+            if file_info["is_identity_transform"]:
+                derived = _derive_transform_from_bbox_metadata(
+                    metadata, file_info["width"], file_info["height"]
+                )
+                if derived is None:
+                    raise ValueError(
+                        "Raster file has no embedded georeferencing (identity transform) "
+                        "and no 'bbox' metadata to derive one from; refusing to treat pixel "
+                        "coordinates as map coordinates. Provide 'transform'/'affine_transform' "
+                        "or a 'bbox' + width/height in metadata."
+                    )
+                metadata["transform"] = derived
+            else:
+                metadata["transform"] = file_info["transform"]
+        if metadata.get("crs") is None:
+            metadata["crs"] = file_info["crs"]
+        if metadata.get("nodata") is None:
+            metadata["nodata"] = file_info["nodata"]
 
     elif isinstance(input_data, dict):
         if "data" in input_data:

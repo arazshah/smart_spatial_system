@@ -178,11 +178,23 @@ def _validate_band_index(value: Any, band_count: int, *, name: str) -> int:
     return band_index
 
 
-def _band_value(data: Any, *, band_index: int, row: int, col: int) -> Any:
+def _band_value(
+    data: Any,
+    *,
+    band_index: int,
+    row: int,
+    col: int,
+    shape: tuple[int, int, int] | None = None,
+) -> Any:
     """
     Read 1-based raster band value.
+
+    `shape` lets callers pass a precomputed (bands, height, width) so this
+    doesn't have to re-walk the whole array (via _array_shape) on every
+    single pixel - re-validating shape per-pixel made whole-raster loops
+    scale roughly with height squared instead of linearly.
     """
-    bands, _height, _width = _array_shape(data)
+    bands, _height, _width = shape if shape is not None else _array_shape(data)
 
     if bands == 1:
         # 2D raster
@@ -407,6 +419,7 @@ def calculate_ndvi(
 
     data, input_metadata, source_info = _extract_raster(raster)
     band_count, height, width = _array_shape(data)
+    raster_shape = (band_count, height, width)
 
     final_red_band = _validate_band_index(
         pick_first(red_band, config.get("default_red_band"), default=1),
@@ -466,8 +479,8 @@ def calculate_ndvi(
         out_row: list[Any] = []
 
         for col in range(width):
-            red_value = _band_value(data, band_index=final_red_band, row=row, col=col)
-            nir_value = _band_value(data, band_index=final_nir_band, row=row, col=col)
+            red_value = _band_value(data, band_index=final_red_band, row=row, col=col, shape=raster_shape)
+            nir_value = _band_value(data, band_index=final_nir_band, row=row, col=col, shape=raster_shape)
 
             ndvi_value, status = _calculate_ndvi_value(
                 red=red_value,

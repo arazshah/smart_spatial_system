@@ -60,10 +60,13 @@ from plugins.raster_clip_mask import (
     _is_geographic_crs,
     _pixel_bbox,
     _pixel_center,
+    _point_in_ring,
     _point_matches_geometry,
 )
 
 PLUGIN_ID = "zonal_statistics"
+
+EPSILON_GEOM = 1e-9
 
 VALID_ENGINES = {"python", "auto"}
 
@@ -379,11 +382,22 @@ def _get_property_path(obj: dict[str, Any], path: str, default: Any = None) -> A
     return current
 
 
-def _pixel_value(data: Any, *, row: int, col: int, band_index: int) -> Any:
+def _pixel_value(
+    data: Any,
+    *,
+    row: int,
+    col: int,
+    band_index: int,
+    shape: tuple[int, int, int] | None = None,
+) -> Any:
     """
     Read raster pixel value using 1-based band_index.
+
+    `shape` lets callers pass a precomputed (bands, height, width) so this
+    doesn't have to re-walk the whole array (via _array_shape) on every
+    single pixel.
     """
-    bands, _height, _width = _array_shape(data)
+    bands, _height, _width = shape if shape is not None else _array_shape(data)
 
     if bands == 1:
         # 2D raster
@@ -408,6 +422,175 @@ def _point_matches_zone(x: float, y: float, geometry: dict[str, Any] | None) -> 
     return bool(_point_matches_geometry(x, y, geometry))
 
 
+def _segments_intersect(
+    p1: tuple[float, float],
+    p2: tuple[float, float],
+    p3: tuple[float, float],
+    p4: tuple[float, float],
+) -> bool:
+    """
+    True if closed segments p1-p2 and p3-p4 intersect or touch.
+    """
+
+    def _cross(o: tuple[float, float], a: tuple[float, float], b: tuple[float, float]) -> float:
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    def _on_segment(p: tuple[float, float], q: tuple[float, float], r: tuple[float, float]) -> bool:
+        return (
+            min(p[0], r[0]) - EPSILON_GEOM <= q[0] <= max(p[0], r[0]) + EPSILON_GEOM
+            and min(p[1], r[1]) - EPSILON_GEOM <= q[1] <= max(p[1], r[1]) + EPSILON_GEOM
+        )
+
+    d1 = _cross(p3, p4, p1)
+    d2 = _cross(p3, p4, p2)
+    d3 = _cross(p1, p2, p3)
+    d4 = _cross(p1, p2, p4)
+
+    if ((d1 > 0) != (d2 > 0)) and ((d3 > 0) != (d4 > 0)):
+        return True
+
+    if abs(d1) <= EPSILON_GEOM and _on_segment(p3, p1, p4):
+        return True
+    if abs(d2) <= EPSILON_GEOM and _on_segment(p3, p2, p4):
+        return True
+    if abs(d3) <= EPSILON_GEOM and _on_segment(p1, p3, p2):
+        return True
+    if abs(d4) <= EPSILON_GEOM and _on_segment(p1, p4, p2):
+        return True
+
+    return False
+
+
+def _ring_intersects_square(
+    ring: list[Any],
+    minx: float,
+    miny: float,
+    maxx: float,
+    maxy: float,
+) -> bool:
+    """
+    True if a closed ring (list of [x, y]-like positions) touches or
+    overlaps the axis-aligned square [minx, maxx] x [miny, maxy].
+    """
+    if not ring:
+        return False
+
+    points = [(float(p[0]), float(p[1])) for p in ring]
+
+    for x, y in points:
+        if minx - EPSILON_GEOM <= x <= maxx + EPSILON_GEOM and miny - EPSILON_GEOM <= y <= maxy + EPSILON_GEOM:
+            return True
+
+    corners = [(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy)]
+    for corner in corners:
+        if _point_in_ring(corner[0], corner[1], points):
+            return True
+
+    square_edges = [(corners[i], corners[(i + 1) % 4]) for i in range(4)]
+    n = len(points)
+    for i in range(n):
+        a = points[i]
+        b = points[(i + 1) % n]
+        for sa, sb in square_edges:
+            if _segments_intersect(a, b, sa, sb):
+                return True
+
+    return False
+
+
+def _polygon_intersects_square(
+    polygon_coords: list[Any],
+    minx: float,
+    miny: float,
+    maxx: float,
+    maxy: float,
+) -> bool:
+    """
+    True if a GeoJSON Polygon coordinate ring set (outer ring + holes)
+    actually overlaps the pixel square, respecting holes.
+    """
+    if not polygon_coords:
+        return False
+
+    outer = polygon_coords[0]
+    if not _ring_intersects_square(outer, minx, miny, maxx, maxy):
+        return False
+
+    center_x = (minx + maxx) / 2.0
+    center_y = (miny + maxy) / 2.0
+
+    for hole in polygon_coords[1:]:
+        if _ring_intersects_square(hole, minx, miny, maxx, maxy):
+            # The square straddles the hole boundary, so part of it is
+            # still inside the polygon (outside the hole).
+            continue
+        if _point_in_ring(center_x, center_y, hole):
+            # The square lies entirely inside this hole.
+            return False
+
+    return True
+
+
+def _pixel_square_matches_geometry(
+    minx: float,
+    miny: float,
+    maxx: float,
+    maxy: float,
+    geometry: dict[str, Any] | None,
+) -> bool:
+    """
+    True if a pixel's square footprint actually intersects a GeoJSON
+    geometry (Polygon/MultiPolygon handled precisely with holes; other
+    geometry types fall back to a bbox intersection test).
+    """
+    if geometry is None:
+        return False
+
+    if not isinstance(geometry, dict):
+        return False
+
+    gtype = geometry.get("type")
+
+    if gtype == "Feature":
+        return _pixel_square_matches_geometry(minx, miny, maxx, maxy, geometry.get("geometry"))
+
+    if gtype == "FeatureCollection":
+        return any(
+            _pixel_square_matches_geometry(minx, miny, maxx, maxy, feature)
+            for feature in geometry.get("features", [])
+            if isinstance(feature, dict)
+        )
+
+    if gtype == "GeometryCollection":
+        return any(
+            _pixel_square_matches_geometry(minx, miny, maxx, maxy, sub)
+            for sub in geometry.get("geometries", [])
+            if isinstance(sub, dict)
+        )
+
+    if gtype == "Point":
+        coords = geometry.get("coordinates") or []
+        if len(coords) < 2:
+            return False
+        x, y = float(coords[0]), float(coords[1])
+        return minx - EPSILON_GEOM <= x <= maxx + EPSILON_GEOM and miny - EPSILON_GEOM <= y <= maxy + EPSILON_GEOM
+
+    if gtype == "Polygon":
+        return _polygon_intersects_square(geometry.get("coordinates") or [], minx, miny, maxx, maxy)
+
+    if gtype == "MultiPolygon":
+        return any(
+            _polygon_intersects_square(polygon, minx, miny, maxx, maxy)
+            for polygon in geometry.get("coordinates") or []
+        )
+
+    bbox = _geometry_bbox(geometry)
+    if bbox is None:
+        return False
+
+    return _bboxes_intersect([minx, miny, maxx, maxy], bbox)
+
+
 def _pixel_matches_zone(
     *,
     row: int,
@@ -419,6 +602,11 @@ def _pixel_matches_zone(
 ) -> bool:
     """
     Decide whether a pixel belongs to a zone.
+
+    For all_touched=True, a pixel matches when its actual square footprint
+    intersects the zone geometry (holes respected for polygons), not
+    merely when it intersects the zone's bounding box. The bbox test is
+    kept as a cheap pre-filter before the more expensive geometry test.
     """
     if geometry is None:
         return False
@@ -426,7 +614,13 @@ def _pixel_matches_zone(
     if all_touched:
         if geometry_bbox is None:
             return False
-        return _bboxes_intersect(_pixel_bbox(row, col, transform), geometry_bbox)
+
+        pixel_bbox = _pixel_bbox(row, col, transform)
+        if not _bboxes_intersect(pixel_bbox, geometry_bbox):
+            return False
+
+        minx, miny, maxx, maxy = pixel_bbox
+        return _pixel_square_matches_geometry(minx, miny, maxx, maxy, geometry)
 
     x, y = _pixel_center(row, col, transform)
     return _point_matches_zone(x, y, geometry)
@@ -540,6 +734,44 @@ def _calculate_zone_stats(
     return output
 
 
+def _bbox_to_pixel_window(
+    bbox: list[float],
+    *,
+    transform: list[float],
+    height: int,
+    width: int,
+) -> tuple[int, int, int, int]:
+    """
+    Map a map-space bbox to a (row_start, row_stop, col_start, col_stop)
+    pixel window, using the (already-validated north-up/south-up, i.e.
+    non-rotated: b == d == 0) affine transform directly instead of scanning
+    every pixel in the raster.
+
+    A 1-pixel buffer is added on each side (then clamped to the raster
+    bounds) so pixels that only partially overlap the bbox aren't excluded
+    from the window before the precise per-pixel intersection test runs.
+    """
+    a, _b, c, _d, e, f = transform
+    minx, miny, maxx, maxy = bbox
+
+    col_lo = (minx - c) / a
+    col_hi = (maxx - c) / a
+    row_lo = (miny - f) / e
+    row_hi = (maxy - f) / e
+
+    col_start = int(math.floor(min(col_lo, col_hi))) - 1
+    col_stop = int(math.ceil(max(col_lo, col_hi))) + 1
+    row_start = int(math.floor(min(row_lo, row_hi))) - 1
+    row_stop = int(math.ceil(max(row_lo, row_hi))) + 1
+
+    row_start = max(0, row_start)
+    row_stop = min(height, row_stop)
+    col_start = max(0, col_start)
+    col_stop = min(width, col_stop)
+
+    return row_start, row_stop, col_start, col_stop
+
+
 def _collect_zone_values(
     *,
     data: Any,
@@ -547,20 +779,35 @@ def _collect_zone_values(
     zone_geometry: dict[str, Any] | None,
     band_index: int,
     all_touched: bool,
+    shape: tuple[int, int, int] | None = None,
 ) -> list[Any]:
     """
     Collect raster values inside one zone.
+
+    Only the row/column window covering the zone's bounding box is scanned
+    (mapped from map-space to pixel-space via the raster transform),
+    instead of every pixel in the whole raster - zonal statistics over many
+    small zones on a large raster would otherwise re-scan the entire raster
+    once per zone.
     """
-    _bands, height, width = _array_shape(data)
+    raster_shape = shape if shape is not None else _array_shape(data)
+    _bands, height, width = raster_shape
     geometry_bbox = _geometry_bbox(zone_geometry)
 
     if zone_geometry is None or geometry_bbox is None:
         return []
 
+    row_start, row_stop, col_start, col_stop = _bbox_to_pixel_window(
+        geometry_bbox,
+        transform=transform,
+        height=height,
+        width=width,
+    )
+
     values: list[Any] = []
 
-    for row in range(height):
-        for col in range(width):
+    for row in range(row_start, row_stop):
+        for col in range(col_start, col_stop):
             if _pixel_matches_zone(
                 row=row,
                 col=col,
@@ -575,6 +822,7 @@ def _collect_zone_values(
                         row=row,
                         col=col,
                         band_index=band_index,
+                        shape=raster_shape,
                     )
                 )
 
@@ -776,6 +1024,7 @@ def calculate_zonal_statistics(
     source_transform = _get_transform_from_metadata(raster_metadata, transform=transform)
 
     band_count, raster_height, raster_width = _array_shape(data)
+    raster_shape = (band_count, raster_height, raster_width)
 
     final_band_index = _validate_band_index(
         pick_first(band_index, config.get("default_band_index"), default=1),
@@ -833,6 +1082,7 @@ def calculate_zonal_statistics(
             zone_geometry=zone.get("geometry"),
             band_index=final_band_index,
             all_touched=final_all_touched,
+            shape=raster_shape,
         )
 
         zone_stats = _calculate_zone_stats(

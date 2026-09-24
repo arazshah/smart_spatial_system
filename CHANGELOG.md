@@ -17,6 +17,87 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are kept. `examples/README.md` is reorganized into scripts, case study and
   sample data.
 
+## [0.5.7] - 2026-09-24
+
+Fixes for 8 defects found by an independent case study, reproduced on both
+0.3.0 and 0.5.6 (the affected plugin files were byte-identical between
+those versions). All 8 are cross-referenced by number in this repo's
+commit history (`fix(<plugin>): ... (#00N)`).
+
+### Fixed
+
+- **#001 (high): `local_raster_loader` output couldn't be consumed by any
+  raster analysis plugin.** `raster_clip_mask._extract_raster` (shared by
+  every raster analysis plugin) required an object with in-memory `.data`,
+  but the SDK's `RasterOut` (returned by `load_local_raster`) only carries
+  `.path`/`.metadata`. It now lazily reads pixel data via `rasterio` when
+  given a RasterOut-like object with a readable `.path` but no `.data`,
+  filling in `transform`/`crs`/`nodata` from the file when not already
+  present in the object's own metadata, and raising a clear
+  `SDKDependencyError` if `rasterio` is missing.
+- **#002 (high, behavior change): `zonal_statistics(all_touched=True)`
+  used the zone's bounding box instead of its actual polygon.** A
+  triangular (or any non-rectangular) zone wrongly selected every pixel in
+  its bbox - for a triangle covering half a 10x10 raster, that was 100
+  pixels instead of the real footprint. `_pixel_matches_zone` now tests
+  the pixel's actual square against the zone geometry (holes respected for
+  polygons), using the bbox test only as a cheap pre-filter.
+  **Callers relying on the old (buggy) `all_touched=True` pixel counts for
+  non-rectangular zones will see different, smaller, correct counts and
+  statistics.** Rectangular zones are unaffected.
+- **#003 (high): `raster_to_vector(mode="components")` merged different
+  classes into one component.** `_connected_components` grew a component
+  across any selected neighbor regardless of pixel value. It now only
+  grows a component across neighbors with the same value.
+- **#004 (medium, behavior change): `raster_to_vector` silently ignored a
+  dict/`affine_transform` metadata transform**, falling back to the
+  default `[1, 0, 0, 0, -1, 0]` transform with no indication anything was
+  wrong. It now parses a dict transform via
+  `raster_clip_mask._normalize_transform` (see #007) and raises a clear
+  error if a transform is present but unparseable. The default transform
+  is now used only when no transform/`affine_transform` key exists at all,
+  and that case now adds a `"warning"` to output metadata saying so.
+  **Callers passing a dict transform or `affine_transform` metadata (and
+  unknowingly getting the `[1,0,0,0,-1,0]` default before) will see
+  different, correct output coordinates.**
+- **#005 (high, behavior change): `raster_reclassify` output metadata
+  carried the INPUT nodata value under `"nodata"` instead of the OUTPUT
+  nodata value.** Any downstream plugin trusting
+  `reclassify_raster(...).metadata["nodata"]` (e.g. `zonal_statistics`)
+  treated the wrong value as nodata. `metadata["nodata"]` is now the
+  output nodata value; the resolved input nodata is preserved separately
+  as `metadata["input_nodata"]`, and `metadata["output_nodata"]` is kept
+  for backward compatibility. **Callers reading
+  `reclassify_raster(...).metadata["nodata"]` now get the OUTPUT nodata
+  value instead of the input one - this changes downstream nodata handling
+  for any pipeline that read that field directly.**
+- **#006 (high, performance): O(H^2*W)-ish blowup in raster pixel loops.**
+  `_band_value`/`_pixel_value` in `ndvi_calculator`, `raster_reclassify`,
+  `band_math`, `zonal_statistics`, `raster_to_vector`, and
+  `spectral_indices` re-validated the whole array's shape on every single
+  pixel. Each now accepts a precomputed `shape`, computed once per call
+  instead of once per pixel. `zonal_statistics._collect_zone_values` also
+  now scans only the pixel window covering each zone's bbox instead of the
+  whole raster per zone. Measured: NDVI on a 1000x1000 raster now runs in
+  ~2.3s (previously would have taken minutes); a full
+  NDVI -> reclassify -> zonal-statistics pipeline over a 1000x1000 raster
+  with 30 polygons completes in ~4.3s (well under the 60s target).
+- **#007 (medium, crash): `raster_clip_mask._normalize_transform` rejected
+  a complete `{a..f}` affine transform dict** whenever it lacked the
+  alias keys (`pixel_width`/`pixel_height`/`origin_x`/`origin_y`), because
+  Python's `dict.get(key, <default_expr>)` always evaluates `<default_expr>`
+  eagerly, even when `key` is present. It now branches explicitly on key
+  presence for `a`/`c`/`e`/`f` and raises a clear error only when neither
+  the key nor its alias is available.
+- **#008 (low-medium, packaging, documentation only): the wheel installs
+  generic top-level packages** (`api`, `config`, `orchestrator`,
+  `plugins`, `templates`) alongside `smart_spatial_system`/`s3geo`, which
+  can collide with any other installed project's own top-level package of
+  the same name. Documented in `docs/PACKAGE_NAMESPACE_COLLISION.md`
+  (risk, why it's deferred, and a migration plan), with a guard test
+  (`tests/test_bug_008_package_namespace_collision.py`) demonstrating the
+  collision concretely. No source code was renamed or moved.
+
 ## [0.5.6] - 2026-09-23
 
 Response to enhancements/003, filed against the 0.5.5 Istanbul batches.

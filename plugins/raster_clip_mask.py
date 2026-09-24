@@ -422,16 +422,69 @@ def _set_pixel(data: Any, row: int, col: int, value: Any) -> None:
         band[row][col] = value
 
 
+def _read_raster_data_from_path(path: str) -> tuple[Any, dict[str, Any]]:
+    """
+    Lazily read raster pixel data from a file path using rasterio.
+
+    Used when a RasterOut-like object (e.g. from local_raster_loader) only
+    carries .path/.metadata, with no in-memory .data. Returns band-first
+    lists plus the file's transform/crs/nodata, so callers can fill in
+    whatever the object's own metadata is missing.
+    """
+    try:
+        import rasterio
+    except ImportError as exc:
+        from geochat_sdk.exceptions import SDKDependencyError
+
+        raise SDKDependencyError(
+            "Reading raster pixel data from a file path requires 'rasterio'. "
+            "Install it with: pip install rasterio"
+        ) from exc
+
+    with rasterio.open(str(path)) as src:
+        data = [src.read(band_number).tolist() for band_number in range(1, src.count + 1)]
+        transform = list(src.transform)[:6]
+        crs = src.crs.to_string() if src.crs is not None else None
+        nodata = float(src.nodata) if src.nodata is not None else None
+
+    return data, {"transform": transform, "crs": crs, "nodata": nodata}
+
+
 def _extract_raster(input_data: Any) -> tuple[Any, dict[str, Any], dict[str, Any]]:
     """
     Extract raster data and metadata.
     """
     source_info: dict[str, Any] = {}
 
-    if hasattr(input_data, "data") and not isinstance(input_data, dict):
+    if (
+        hasattr(input_data, "data")
+        and not isinstance(input_data, dict)
+        and getattr(input_data, "data") is not None
+    ):
         data = getattr(input_data, "data")
         metadata = getattr(input_data, "metadata", {}) or {}
         source_info["input_type"] = type(input_data).__name__
+
+    elif (
+        not isinstance(input_data, dict)
+        and getattr(input_data, "path", None)
+    ):
+        # RasterOut-like object with no in-memory data (e.g. the SDK's
+        # RasterOut, which only carries .path and .metadata) - lazily read
+        # pixel data from the file it points to.
+        path = getattr(input_data, "path")
+        metadata = dict(getattr(input_data, "metadata", None) or {})
+        source_info["input_type"] = type(input_data).__name__
+        source_info["lazily_read_from_path"] = True
+
+        data, file_info = _read_raster_data_from_path(path)
+
+        if metadata.get("transform") is None and metadata.get("affine_transform") is None:
+            metadata["transform"] = file_info["transform"]
+        if metadata.get("crs") is None:
+            metadata["crs"] = file_info["crs"]
+        if metadata.get("nodata") is None:
+            metadata["nodata"] = file_info["nodata"]
 
     elif isinstance(input_data, dict):
         if "data" in input_data:

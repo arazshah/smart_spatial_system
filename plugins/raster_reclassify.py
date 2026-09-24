@@ -705,7 +705,11 @@ def reclassify_raster(
         "height": height,
         "rules": serialized_rules,
         "rule_count": len(serialized_rules),
-        "nodata": final_nodata,
+        # "nodata" describes THIS raster's own nodata marker, i.e. the
+        # output nodata value - not the input raster's nodata value, which
+        # is preserved separately as "input_nodata" so it isn't lost.
+        "input_nodata": final_nodata,
+        "nodata": final_output_nodata,
         "output_nodata": final_output_nodata,
         "keep_unmatched": final_keep_unmatched,
         "unmatched_value": final_unmatched_value,

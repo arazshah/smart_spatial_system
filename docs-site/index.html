@@ -400,8 +400,9 @@
         <li>Five correctness bugs found and fixed via the Vienna reproducibility case study, documented in the <a href="https://github.com/arazshah/smart_spatial_system/blob/main/CHANGELOG.md" target="_blank" rel="noopener">CHANGELOG</a> (<code>0.2.1</code>–<code>0.2.4</code>): a silent domain-wrong default, an undocumented required input role, un-chained multi-factor scoring, an asymmetric CRS mismatch, and a scoring factor silently defaulting to the wrong type.</li>
         <li>Three more found and fixed via the Tehran TOD-gradient case study (<code>0.2.5</code>–<code>0.2.9</code>), running a real LLM (gpt-4o-mini) against real OpenStreetMap data: a missing multi-ring buffer primitive, a boolean-filter-vs-zone-preserving-join planning choice, and a <code>spatial_join</code> cardinality default that silently dropped matches.</li>
         <li>Nine more found and fixed through the İstanbul health-access case study (<code>0.4.1</code>–<code>0.5.6</code>): 6 bug reports and 3 enhancements. The fixes include the shape of the <code>where</code> value, explicit <code>None</code> overriding defaults, a CRS leaked from a prompt example, a projected CRS derived from the data, and a repair retry. At <code>0.5.6</code>, 20/20 unhinted LLM-planned runs match the answer written by hand exactly.</li>
+        <li>Eight more found through the Cairo NDVI-change case study (a pure raster pipeline, no LLM arm): 7 fixed in <code>0.5.7</code>, including a loader whose output couldn't be consumed by any raster plugin, <code>zonal_statistics(all_touched=True)</code> scanning a zone's bounding box instead of its polygon, connected components merging different classes, and an O(H²·W) pixel loop — the fix made the full pipeline run about 20× faster with identical results.</li>
         <li>Each was root-caused from source, fixed at both the plugin layer (protects every caller) and the LLM-prompt/validation layer (catches what the prompt can't guarantee), and shipped with regression tests reproducing the exact failure.</li>
-        <li>See <a href="https://github.com/arazshah/smart-spatial-vienna-accessibility" target="_blank" rel="noopener">smart-spatial-vienna-accessibility</a> and <a href="https://github.com/arazshah/smart-spatial-tehran-tod-gradient" target="_blank" rel="noopener">smart-spatial-tehran-tod-gradient</a> and <a href="https://github.com/arazshah/smart_spatial_system/tree/main/examples/istanbul_health_access" target="_blank" rel="noopener">examples/istanbul_health_access</a> for the case studies that found them.</li>
+        <li>See <a href="https://github.com/arazshah/smart-spatial-vienna-accessibility" target="_blank" rel="noopener">smart-spatial-vienna-accessibility</a>, <a href="https://github.com/arazshah/smart-spatial-tehran-tod-gradient" target="_blank" rel="noopener">smart-spatial-tehran-tod-gradient</a>, <a href="https://github.com/arazshah/smart_spatial_system/tree/main/examples/istanbul_health_access" target="_blank" rel="noopener">examples/istanbul_health_access</a> and <a href="https://github.com/arazshah/smart-spatial-cairo-vegetation-change" target="_blank" rel="noopener">smart-spatial-cairo-vegetation-change</a> for the case studies that found them.</li>
       </ul>
     </div>
   </div>
@@ -458,7 +459,7 @@
     <div class="section-head">
       <div class="kicker">Research</div>
       <h2>Built to be studied, not just used</h2>
-      <p>The full catalog — including what isn't a good fit yet — is in <a href="https://github.com/arazshah/smart_spatial_system/blob/main/docs/CASE_STUDIES.md" target="_blank" rel="noopener">docs/CASE_STUDIES.md</a>. Four studies written with s3geo so far: Vienna, Tehran, İstanbul (complete, with a full paper) and Urmia. Six more are proposed below, plus the reference pattern they all build on.</p>
+      <p>The full catalog — including what isn't a good fit yet — is in <a href="https://github.com/arazshah/smart_spatial_system/blob/main/docs/CASE_STUDIES.md" target="_blank" rel="noopener">docs/CASE_STUDIES.md</a>. Five studies written with s3geo so far: Vienna, Tehran, İstanbul and Cairo (each complete, with a full paper) and Urmia. Five more are proposed below, plus the reference pattern they all build on.</p>
     </div>
 
     <div class="flagship">
@@ -481,7 +482,7 @@
 
     <div class="section-head" style="margin-bottom:20px;">
       <div class="kicker">Done and in progress</div>
-      <h3 style="font-size:20px; margin:0;">Three follow-on studies building on this</h3>
+      <h3 style="font-size:20px; margin:0;">Four follow-on studies building on this</h3>
     </div>
     <div class="study-grid" style="margin-bottom:40px;">
       <div class="study-card">
@@ -495,6 +496,11 @@
         <p>Land-use diversity vs. distance from 122 Tehran metro stations, real OSM data. Manual arm done; the LLM arm surfaced and fixed three more defects (<code>0.2.5</code>–<code>0.2.9</code>), and its output is now bit-identical to the hand-authored pipeline.</p>
       </div>
       <div class="study-card">
+        <div class="num">NDVI</div>
+        <h4><a href="https://github.com/arazshah/smart-spatial-cairo-vegetation-change" target="_blank" rel="noopener">Cairo vegetation change</a></h4>
+        <p>District-level NDVI change across 48 Greater Cairo districts, 2017→2025 — a pure raster pipeline (<code class="mono">ndvi_calculator</code> → <code class="mono">band_math</code> → <code class="mono">raster_reclassify</code> → <code class="mono">zonal_statistics</code> → <code class="mono">raster_to_vector</code>), no LLM arm. Complete: full paper, figures and reproducible scripts. Found 8 defects, 7 fixed in <code>0.5.7</code>; the same pipeline now runs ~20× faster with identical results.</p>
+      </div>
+      <div class="study-card">
         <div class="num">RE</div>
         <h4><a href="https://github.com/arazshah/smart-spatial-urmia-real-estate" target="_blank" rel="noopener">Urmia real-estate ranking</a></h4>
         <p>Real-estate suitability ranking against real Urmia OSM data (transit/mall/road proximity, flood/earthquake/fire risk, allowed-construction zoning), reusing this system's shipped real-estate workflow end to end. Scaffolded, not yet run.</p>
@@ -503,15 +509,14 @@
 
     <div class="section-head" style="margin-bottom:20px;">
       <div class="kicker">Suggested</div>
-      <h3 style="font-size:20px; margin:0;">Six more studies this catalog is a fit for</h3>
+      <h3 style="font-size:20px; margin:0;">Five more studies this catalog is a fit for</h3>
     </div>
     <div class="study-grid">
       <div class="study-card"><div class="num">01</div><h4>Multi-amenity accessibility, any city</h4><p>Generalizes Vienna — swap the amenity list and OSM extract, same rule-based builder.</p></div>
       <div class="study-card"><div class="num">02</div><h4>Flood / earthquake risk-aware siting</h4><p>Combine proximity scoring with hazard exposure via <code class="mono">enrich_risk</code>.</p></div>
       <div class="study-card"><div class="num">03</div><h4>Facility siting / coverage gaps</h4><p>Where population falls outside a walking-time threshold from existing facilities.</p></div>
-      <div class="study-card"><div class="num">04</div><h4>Vegetation / land-cover change</h4><p>NDVI + spectral indices + zonal statistics across two dates — full pipeline already exists.</p></div>
-      <div class="study-card"><div class="num">05</div><h4>Zoning / land-use compliance</h4><p>Which parcels violate a buffer or permitted-use rule — geometry + predicate + buffer.</p></div>
-      <div class="study-card"><div class="num">06</div><h4>Cross-domain reproducibility replication</h4><p>Does the reliability gap found in Vienna hold for a raster-based analysis instead?</p></div>
+      <div class="study-card"><div class="num">04</div><h4>Zoning / land-use compliance</h4><p>Which parcels violate a buffer or permitted-use rule — geometry + predicate + buffer.</p></div>
+      <div class="study-card"><div class="num">05</div><h4>Cross-domain reproducibility replication</h4><p>Does the reliability gap found in Vienna hold for a raster-based analysis instead? <a href="https://github.com/arazshah/smart-spatial-cairo-vegetation-change" target="_blank" rel="noopener">Cairo</a> already answers the raster-pipeline-correctness half; a full LLM-vs-rule-based reproducibility replication on raster data is still open.</p></div>
     </div>
   </div>
 </section>

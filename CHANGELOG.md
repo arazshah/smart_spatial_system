@@ -19,10 +19,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.5.7] - 2026-09-24
 
-Fixes for 8 defects found by an independent case study, reproduced on both
-0.3.0 and 0.5.6 (the affected plugin files were byte-identical between
-those versions). All 8 are cross-referenced by number in this repo's
-commit history (`fix(<plugin>): ... (#00N)`).
+Fixes for 8 defects found by an independent case study
+([`smart-spatial-cairo-vegetation-change`](https://github.com/arazshah/smart-spatial-cairo-vegetation-change),
+district-level NDVI change in Greater Cairo), reproduced on both 0.3.0 and
+0.5.6 (the affected plugin files were byte-identical between those
+versions). All 8 are cross-referenced by number in this repo's commit
+history (`fix(<plugin>): ... (#00N)`).
 
 ### Fixed
 

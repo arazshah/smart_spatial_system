@@ -382,11 +382,22 @@ def _get_property_path(obj: dict[str, Any], path: str, default: Any = None) -> A
     return current
 
 
-def _pixel_value(data: Any, *, row: int, col: int, band_index: int) -> Any:
+def _pixel_value(
+    data: Any,
+    *,
+    row: int,
+    col: int,
+    band_index: int,
+    shape: tuple[int, int, int] | None = None,
+) -> Any:
     """
     Read raster pixel value using 1-based band_index.
+
+    `shape` lets callers pass a precomputed (bands, height, width) so this
+    doesn't have to re-walk the whole array (via _array_shape) on every
+    single pixel.
     """
-    bands, _height, _width = _array_shape(data)
+    bands, _height, _width = shape if shape is not None else _array_shape(data)
 
     if bands == 1:
         # 2D raster
@@ -723,6 +734,44 @@ def _calculate_zone_stats(
     return output
 
 
+def _bbox_to_pixel_window(
+    bbox: list[float],
+    *,
+    transform: list[float],
+    height: int,
+    width: int,
+) -> tuple[int, int, int, int]:
+    """
+    Map a map-space bbox to a (row_start, row_stop, col_start, col_stop)
+    pixel window, using the (already-validated north-up/south-up, i.e.
+    non-rotated: b == d == 0) affine transform directly instead of scanning
+    every pixel in the raster.
+
+    A 1-pixel buffer is added on each side (then clamped to the raster
+    bounds) so pixels that only partially overlap the bbox aren't excluded
+    from the window before the precise per-pixel intersection test runs.
+    """
+    a, _b, c, _d, e, f = transform
+    minx, miny, maxx, maxy = bbox
+
+    col_lo = (minx - c) / a
+    col_hi = (maxx - c) / a
+    row_lo = (miny - f) / e
+    row_hi = (maxy - f) / e
+
+    col_start = int(math.floor(min(col_lo, col_hi))) - 1
+    col_stop = int(math.ceil(max(col_lo, col_hi))) + 1
+    row_start = int(math.floor(min(row_lo, row_hi))) - 1
+    row_stop = int(math.ceil(max(row_lo, row_hi))) + 1
+
+    row_start = max(0, row_start)
+    row_stop = min(height, row_stop)
+    col_start = max(0, col_start)
+    col_stop = min(width, col_stop)
+
+    return row_start, row_stop, col_start, col_stop
+
+
 def _collect_zone_values(
     *,
     data: Any,
@@ -730,20 +779,35 @@ def _collect_zone_values(
     zone_geometry: dict[str, Any] | None,
     band_index: int,
     all_touched: bool,
+    shape: tuple[int, int, int] | None = None,
 ) -> list[Any]:
     """
     Collect raster values inside one zone.
+
+    Only the row/column window covering the zone's bounding box is scanned
+    (mapped from map-space to pixel-space via the raster transform),
+    instead of every pixel in the whole raster - zonal statistics over many
+    small zones on a large raster would otherwise re-scan the entire raster
+    once per zone.
     """
-    _bands, height, width = _array_shape(data)
+    raster_shape = shape if shape is not None else _array_shape(data)
+    _bands, height, width = raster_shape
     geometry_bbox = _geometry_bbox(zone_geometry)
 
     if zone_geometry is None or geometry_bbox is None:
         return []
 
+    row_start, row_stop, col_start, col_stop = _bbox_to_pixel_window(
+        geometry_bbox,
+        transform=transform,
+        height=height,
+        width=width,
+    )
+
     values: list[Any] = []
 
-    for row in range(height):
-        for col in range(width):
+    for row in range(row_start, row_stop):
+        for col in range(col_start, col_stop):
             if _pixel_matches_zone(
                 row=row,
                 col=col,
@@ -758,6 +822,7 @@ def _collect_zone_values(
                         row=row,
                         col=col,
                         band_index=band_index,
+                        shape=raster_shape,
                     )
                 )
 
@@ -959,6 +1024,7 @@ def calculate_zonal_statistics(
     source_transform = _get_transform_from_metadata(raster_metadata, transform=transform)
 
     band_count, raster_height, raster_width = _array_shape(data)
+    raster_shape = (band_count, raster_height, raster_width)
 
     final_band_index = _validate_band_index(
         pick_first(band_index, config.get("default_band_index"), default=1),
@@ -1016,6 +1082,7 @@ def calculate_zonal_statistics(
             zone_geometry=zone.get("geometry"),
             band_index=final_band_index,
             all_touched=final_all_touched,
+            shape=raster_shape,
         )
 
         zone_stats = _calculate_zone_stats(

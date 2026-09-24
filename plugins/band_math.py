@@ -192,11 +192,22 @@ def _is_nodata(value: Any, nodata: Any) -> bool:
         return False
 
 
-def _band_value(data: Any, *, band_index: int, row: int, col: int) -> Any:
+def _band_value(
+    data: Any,
+    *,
+    band_index: int,
+    row: int,
+    col: int,
+    shape: tuple[int, int, int] | None = None,
+) -> Any:
     """
     Read 1-based raster band value.
+
+    `shape` lets callers pass a precomputed (bands, height, width) so this
+    doesn't have to re-walk the whole array (via _array_shape) on every
+    single pixel.
     """
-    bands, _height, _width = _array_shape(data)
+    bands, _height, _width = shape if shape is not None else _array_shape(data)
 
     if bands == 1:
         if data and isinstance(data[0], list) and (not data[0] or not isinstance(data[0][0], list)):
@@ -490,6 +501,7 @@ def calculate_band_math(
 
     data, input_metadata, source_info = _extract_raster(raster)
     band_count, height, width = _array_shape(data)
+    raster_shape = (band_count, height, width)
 
     final_expression = _resolve_expression(expression, preset, config)
     compiled_expr = _compile_expression(final_expression)
@@ -511,7 +523,7 @@ def calculate_band_math(
             pixel_has_nodata = False
 
             for band_idx in range(1, band_count + 1):
-                value = _band_value(data, band_index=band_idx, row=row, col=col)
+                value = _band_value(data, band_index=band_idx, row=row, col=col, shape=raster_shape)
                 variables[f"b{band_idx}"] = value
 
                 if _is_nodata(value, final_nodata):

@@ -53,8 +53,8 @@ from plugins._shared.plugin_config import (
 from plugins.raster_clip_mask import (
     _array_shape,
     _extract_raster,
-    _get_transform_from_metadata,
     _is_geographic_crs,
+    _normalize_transform,
 )
 
 PLUGIN_ID = "raster_to_vector"
@@ -335,11 +335,22 @@ def _as_bool(value: Any, default: bool) -> bool:
     return bool(value)
 
 
-def _band_value(data: Any, *, band_index: int, row: int, col: int) -> Any:
+def _band_value(
+    data: Any,
+    *,
+    band_index: int,
+    row: int,
+    col: int,
+    shape: tuple[int, int, int] | None = None,
+) -> Any:
     """
     Read 1-based raster band value.
+
+    `shape` lets callers pass a precomputed (bands, height, width) so this
+    doesn't have to re-walk the whole array (via _array_shape) on every
+    single pixel.
     """
-    bands, _height, _width = _array_shape(data)
+    bands, _height, _width = shape if shape is not None else _array_shape(data)
 
     if bands == 1:
         # 2D raster
@@ -370,19 +381,28 @@ def _extract_transform(
         x = a * col + b * row + c
         y = d * col + e * row + f
 
-    Reuses raster_clip_mask._get_transform_from_metadata so a dict transform
-    (or an "affine_transform" key) is honored the same way clip/mask and
-    zonal statistics honor it, instead of being silently ignored. If a
-    transform is present but cannot be parsed, this raises a clear error
-    rather than silently falling back.
+    Reuses raster_clip_mask._normalize_transform (fixed for bug #007) so a
+    dict transform (or an "affine_transform" key) is parsed the same way
+    clip/mask and zonal statistics parse it, instead of being silently
+    ignored. If a transform is present but cannot be parsed, this raises a
+    clear error rather than silently falling back. Unlike clip/mask and
+    zonal statistics, raster_to_vector does no window-scanning that
+    requires a non-rotated transform, so (deliberately, unlike
+    raster_clip_mask._get_transform_from_metadata) it does not reject a
+    rotated/axis-swapped transform - the per-pixel affine math in
+    _pixel_corner works for any invertible affine transform.
 
     Only when there is genuinely no transform anywhere (no "transform" and
     no "affine_transform" key in metadata) is a north-up default transform
     built:
         [x_res, 0, origin_x, 0, -y_res, origin_y]
     """
-    if metadata.get("transform") is not None or metadata.get("affine_transform") is not None:
-        return _get_transform_from_metadata(metadata), "metadata_transform"
+    candidate = metadata.get("transform")
+    if candidate is None:
+        candidate = metadata.get("affine_transform")
+
+    if candidate is not None:
+        return _normalize_transform(candidate), "metadata_transform"
 
     x_res = _validate_resolution(default_x_resolution, name="x_resolution")
     y_res = _validate_resolution(default_y_resolution, name="y_resolution")
@@ -505,6 +525,7 @@ def _selected_grid(
     include_values: list[Any] | None,
     exclude_values: list[Any],
     nodata: Any,
+    shape: tuple[int, int, int] | None = None,
 ) -> list[list[bool]]:
     """
     Build boolean selected grid.
@@ -515,7 +536,7 @@ def _selected_grid(
         out_row: list[bool] = []
 
         for col in range(width):
-            value = _band_value(data, band_index=band_index, row=row, col=col)
+            value = _band_value(data, band_index=band_index, row=row, col=col, shape=shape)
             out_row.append(
                 _value_is_selected(
                     value,
@@ -775,6 +796,7 @@ def raster_to_vector(
 
     data, input_metadata, source_info = _extract_raster(raster)
     band_count, height, width = _array_shape(data)
+    raster_shape = (band_count, height, width)
 
     final_band_index = _validate_band_index(
         pick_first(band_index, config.get("default_band_index"), default=1),
@@ -851,6 +873,7 @@ def raster_to_vector(
         include_values=final_include_values,
         exclude_values=final_exclude_values,
         nodata=final_nodata,
+        shape=raster_shape,
     )
 
     selected_pixel_count = sum(1 for row in selected for value in row if value)
@@ -869,7 +892,7 @@ def raster_to_vector(
                     truncated = True
                     break
 
-                value = _band_value(data, band_index=final_band_index, row=row, col=col)
+                value = _band_value(data, band_index=final_band_index, row=row, col=col, shape=raster_shape)
 
                 properties: dict[str, Any] = {
                     "value": value,
@@ -905,7 +928,7 @@ def raster_to_vector(
     else:
         value_grid = [
             [
-                _band_value(data, band_index=final_band_index, row=row, col=col)
+                _band_value(data, band_index=final_band_index, row=row, col=col, shape=raster_shape)
                 for col in range(width)
             ]
             for row in range(height)
@@ -920,12 +943,7 @@ def raster_to_vector(
                 break
 
             first_row, first_col = cells[0]
-            first_value = _band_value(
-                data,
-                band_index=final_band_index,
-                row=first_row,
-                col=first_col,
-            )
+            first_value = value_grid[first_row][first_col]
 
             properties = {
                 "component_id": component_index,

@@ -206,11 +206,22 @@ def _validate_band_index(value: Any, band_count: int) -> int:
     return band_index
 
 
-def _band_value(data: Any, *, band_index: int, row: int, col: int) -> Any:
+def _band_value(
+    data: Any,
+    *,
+    band_index: int,
+    row: int,
+    col: int,
+    shape: tuple[int, int, int] | None = None,
+) -> Any:
     """
     Read 1-based raster band value.
+
+    `shape` lets callers pass a precomputed (bands, height, width) so this
+    doesn't have to re-walk the whole array (via _array_shape) on every
+    single pixel.
     """
-    bands, _height, _width = _array_shape(data)
+    bands, _height, _width = shape if shape is not None else _array_shape(data)
 
     if bands == 1:
         # 2D raster
@@ -562,6 +573,7 @@ def reclassify_raster(
 
     data, input_metadata, source_info = _extract_raster(raster)
     band_count, height, width = _array_shape(data)
+    raster_shape = (band_count, height, width)
 
     final_band_index = _validate_band_index(
         pick_first(band_index, config.get("default_band_index"), default=1),
@@ -626,7 +638,7 @@ def reclassify_raster(
         output_row: list[Any] = []
 
         for col in range(width):
-            value = _band_value(data, band_index=final_band_index, row=row, col=col)
+            value = _band_value(data, band_index=final_band_index, row=row, col=col, shape=raster_shape)
 
             output_value, status, matched_rule = _reclassify_value(
                 value,

@@ -53,6 +53,7 @@ from plugins._shared.plugin_config import (
 from plugins.raster_clip_mask import (
     _array_shape,
     _extract_raster,
+    _get_transform_from_metadata,
     _is_geographic_crs,
 )
 
@@ -369,17 +370,19 @@ def _extract_transform(
         x = a * col + b * row + c
         y = d * col + e * row + f
 
-    If transform is missing, a north-up default transform is built:
+    Reuses raster_clip_mask._get_transform_from_metadata so a dict transform
+    (or an "affine_transform" key) is honored the same way clip/mask and
+    zonal statistics honor it, instead of being silently ignored. If a
+    transform is present but cannot be parsed, this raises a clear error
+    rather than silently falling back.
+
+    Only when there is genuinely no transform anywhere (no "transform" and
+    no "affine_transform" key in metadata) is a north-up default transform
+    built:
         [x_res, 0, origin_x, 0, -y_res, origin_y]
     """
-    transform = metadata.get("transform")
-
-    if isinstance(transform, (list, tuple)) and len(transform) >= 6:
-        try:
-            values = [float(transform[i]) for i in range(6)]
-            return values, "metadata_transform"
-        except Exception:
-            pass
+    if metadata.get("transform") is not None or metadata.get("affine_transform") is not None:
+        return _get_transform_from_metadata(metadata), "metadata_transform"
 
     x_res = _validate_resolution(default_x_resolution, name="x_resolution")
     y_res = _validate_resolution(default_y_resolution, name="y_resolution")
@@ -938,6 +941,17 @@ def raster_to_vector(
             "Generated coordinates are valid, but area/length calculations may require reprojection."
         )
 
+    transform_warning = None
+    if transform_source == "default_transform":
+        transform_warning = (
+            "No transform found in raster metadata (no 'transform' or 'affine_transform' key); "
+            "using the default identity-like transform instead."
+        )
+
+    combined_warning = "; ".join(
+        message for message in (transform_warning, geographic_warning) if message
+    ) or None
+
     user_metadata = metadata or {}
     if not isinstance(user_metadata, dict):
         raise ValueError("metadata must be a dict or None.")
@@ -968,7 +982,7 @@ def raster_to_vector(
         "transform_source": transform_source,
         "coordinate_precision": final_precision,
         "source_crs": final_source_crs,
-        "warning": geographic_warning,
+        "warning": combined_warning,
         "created_at": _utc_now_iso(),
         **source_info,
         **user_metadata,

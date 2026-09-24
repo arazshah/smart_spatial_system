@@ -302,9 +302,12 @@ def _normalize_transform(transform: Any) -> list[float]:
         except Exception as exc:
             raise ValueError("Invalid transform dict.") from exc
 
-    if isinstance(transform, (list, tuple)) and len(transform) == 6:
+    if isinstance(transform, (list, tuple)) and len(transform) >= 6:
+        # >= 6 (not == 6) so a 9-element homogeneous affine matrix
+        # ([a, b, c, d, e, f, 0, 0, 1], as some callers store it) still
+        # vectorizes by taking its first six coefficients.
         try:
-            return [float(item) for item in transform]
+            return [float(item) for item in transform[:6]]
         except Exception as exc:
             raise ValueError("transform list must contain six numeric values.") from exc
 
@@ -446,8 +449,49 @@ def _read_raster_data_from_path(path: str) -> tuple[Any, dict[str, Any]]:
         transform = list(src.transform)[:6]
         crs = src.crs.to_string() if src.crs is not None else None
         nodata = float(src.nodata) if src.nodata is not None else None
+        width, height = src.width, src.height
 
-    return data, {"transform": transform, "crs": crs, "nodata": nodata}
+    # rasterio/GDAL fills in the identity transform when a file (e.g. a
+    # plain PNG/JPEG with no worldfile or embedded georeferencing, such as
+    # a WMS response saved without a transform) carries none of its own.
+    # Treating that as a real affine would silently reinterpret pixel
+    # coordinates as map coordinates for every downstream plugin.
+    is_identity_transform = transform == [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+
+    return data, {
+        "transform": transform,
+        "crs": crs,
+        "nodata": nodata,
+        "width": width,
+        "height": height,
+        "is_identity_transform": is_identity_transform,
+    }
+
+
+def _derive_transform_from_bbox_metadata(
+    metadata: dict[str, Any], width: int, height: int
+) -> list[float] | None:
+    """
+    Derive a north-up affine transform from a bbox {minx,miny,maxx,maxy}
+    metadata entry (e.g. the one wms_wfs_fetcher attaches) plus pixel
+    dimensions, for files that carry no georeferencing of their own.
+    """
+    bbox = metadata.get("bbox")
+    if not isinstance(bbox, dict) or width <= 0 or height <= 0:
+        return None
+
+    try:
+        minx = float(bbox["minx"])
+        miny = float(bbox["miny"])
+        maxx = float(bbox["maxx"])
+        maxy = float(bbox["maxy"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    pixel_width = (maxx - minx) / width
+    pixel_height = (maxy - miny) / height
+
+    return [pixel_width, 0.0, minx, 0.0, -pixel_height, maxy]
 
 
 def _extract_raster(input_data: Any) -> tuple[Any, dict[str, Any], dict[str, Any]]:
@@ -480,7 +524,20 @@ def _extract_raster(input_data: Any) -> tuple[Any, dict[str, Any], dict[str, Any
         data, file_info = _read_raster_data_from_path(path)
 
         if metadata.get("transform") is None and metadata.get("affine_transform") is None:
-            metadata["transform"] = file_info["transform"]
+            if file_info["is_identity_transform"]:
+                derived = _derive_transform_from_bbox_metadata(
+                    metadata, file_info["width"], file_info["height"]
+                )
+                if derived is None:
+                    raise ValueError(
+                        "Raster file has no embedded georeferencing (identity transform) "
+                        "and no 'bbox' metadata to derive one from; refusing to treat pixel "
+                        "coordinates as map coordinates. Provide 'transform'/'affine_transform' "
+                        "or a 'bbox' + width/height in metadata."
+                    )
+                metadata["transform"] = derived
+            else:
+                metadata["transform"] = file_info["transform"]
         if metadata.get("crs") is None:
             metadata["crs"] = file_info["crs"]
         if metadata.get("nodata") is None:

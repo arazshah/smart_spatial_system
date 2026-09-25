@@ -461,31 +461,22 @@ def _segments_intersect(
     return False
 
 
-def _ring_intersects_square(
-    ring: list[Any],
+def _ring_boundary_touches_square(
+    points: list[tuple[float, float]],
     minx: float,
     miny: float,
     maxx: float,
     maxy: float,
 ) -> bool:
     """
-    True if a closed ring (list of [x, y]-like positions) touches or
-    overlaps the axis-aligned square [minx, maxx] x [miny, maxy].
+    True if the ring's boundary line itself (a vertex, or an edge) touches
+    or crosses the axis-aligned square [minx, maxx] x [miny, maxy].
     """
-    if not ring:
-        return False
-
-    points = [(float(p[0]), float(p[1])) for p in ring]
-
     for x, y in points:
         if minx - EPSILON_GEOM <= x <= maxx + EPSILON_GEOM and miny - EPSILON_GEOM <= y <= maxy + EPSILON_GEOM:
             return True
 
     corners = [(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy)]
-    for corner in corners:
-        if _point_in_ring(corner[0], corner[1], points):
-            return True
-
     square_edges = [(corners[i], corners[(i + 1) % 4]) for i in range(4)]
     n = len(points)
     for i in range(n):
@@ -496,6 +487,31 @@ def _ring_intersects_square(
                 return True
 
     return False
+
+
+def _ring_intersects_square(
+    ring: list[Any],
+    minx: float,
+    miny: float,
+    maxx: float,
+    maxy: float,
+) -> bool:
+    """
+    True if a closed ring (list of [x, y]-like positions) touches or
+    overlaps the axis-aligned square [minx, maxx] x [miny, maxy]: the ring's
+    boundary touches the square, or the square lies inside the ring.
+    """
+    if not ring:
+        return False
+
+    points = [(float(p[0]), float(p[1])) for p in ring]
+
+    if _ring_boundary_touches_square(points, minx, miny, maxx, maxy):
+        return True
+
+    # No boundary contact: the square is either entirely inside or entirely
+    # outside the ring, and one corner decides which.
+    return _point_in_ring(minx, miny, points)
 
 
 def _polygon_intersects_square(
@@ -520,12 +536,16 @@ def _polygon_intersects_square(
     center_y = (miny + maxy) / 2.0
 
     for hole in polygon_coords[1:]:
-        if _ring_intersects_square(hole, minx, miny, maxx, maxy):
-            # The square straddles the hole boundary, so part of it is
-            # still inside the polygon (outside the hole).
+        if not hole:
             continue
-        if _point_in_ring(center_x, center_y, hole):
-            # The square lies entirely inside this hole.
+        hole_points = [(float(p[0]), float(p[1])) for p in hole]
+        if _ring_boundary_touches_square(hole_points, minx, miny, maxx, maxy):
+            # The square straddles (or touches) the hole boundary, so part of
+            # it is still inside the polygon (outside the hole).
+            continue
+        if _point_in_ring(center_x, center_y, hole_points):
+            # No contact with the hole boundary and the centre is inside the
+            # hole: the square lies entirely inside this hole.
             return False
 
     return True

@@ -55,6 +55,7 @@ from orchestrator.planning.input_data_extent import (
     InputDataExtent,
     derive_input_data_extent,
 )
+from orchestrator.planning.input_layers import InputLayer, describe_input_layers
 from orchestrator.planning.llm_spec_generator import (
     LLMQuerySpecGenerator,
     LLMSpecGenerationError,
@@ -71,6 +72,8 @@ __all__ = [
     "S3GeoResult",
     "S3GeoExecutionError",
     "InputDataExtent",
+    "InputLayer",
+    "describe_input_layers",
     "SpecGenerationAttempt",
     # Planning pipeline classes `query()` wires up internally - re-exported
     # so they are reachable as `s3geo.<Name>` without importing orchestrator.
@@ -250,6 +253,14 @@ def query(
     the plan's crs_transform steps don't depend on how the question is
     worded. system_hints are rendered after them and can override them.
 
+    Layers: the planner is also told every layer's name and kind - for a
+    raster its band count (and band names from metadata "band_names"),
+    size, pixel size, CRS and nodata; for a vector layer its feature count,
+    geometry types and attribute fields (see
+    orchestrator.planning.input_layers). A plan that reads a layer name
+    that isn't in ``layers`` is rejected at generation time and repaired,
+    instead of failing later in execution.
+
         max_repair_attempts:
             How many times the LLM may be re-prompted after its plan fails
             generation-time validation, with the rejected plan and the
@@ -281,6 +292,7 @@ def query(
     # From the original layers, not initial_inputs: a GeoDataFrame's .crs
     # doesn't survive to_json().
     input_data_extent = derive_input_data_extent(layers)
+    input_layers = describe_input_layers(layers)
 
     client = OpenAICompatibleLLMClient()
     generator = LLMQuerySpecGenerator(client, max_repair_attempts=max_repair_attempts)
@@ -289,6 +301,7 @@ def query(
         context=context or {},
         system_hints=system_hints or "",
         input_data_extent=input_data_extent,
+        input_layers=input_layers,
     )
 
     plan = DeterministicPlanner(PlannerConfig(strict_params=strict_params)).build(query_spec)

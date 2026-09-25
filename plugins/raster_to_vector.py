@@ -27,9 +27,10 @@ Vectorization modes:
         each selected raster cell becomes one polygon feature.
 
     - components:
-        connected selected cells become grouped features.
-        In this dependency-free implementation, each component geometry is
-        represented by a bounding-box polygon.
+        connected selected cells become grouped features. Each component's
+        geometry is its exact outline - the union of its cells, traced along
+        cell edges, with holes - as a Polygon (or a MultiPolygon when cells
+        of an 8-connected component touch only at a corner).
 
 No external dependency is required.
 """
@@ -493,6 +494,200 @@ def _bbox_polygon_for_cells(
     }
 
 
+# ---------------------------------------------------------------------------
+# Exact component outline: trace the cell edges that separate the component
+# from everything else. Vertices are cell-corner indices (row, col); every
+# boundary edge is directed with the component on its left (x = col,
+# y = -row), so exteriors come out counter-clockwise and holes clockwise.
+# ---------------------------------------------------------------------------
+
+def _component_boundary_edges(cells: set[tuple[int, int]]) -> dict[tuple[int, int], list[tuple[int, int]]]:
+    """Map start corner -> end corners of the component's directed boundary edges."""
+    edges: dict[tuple[int, int], list[tuple[int, int]]] = {}
+
+    def add(start: tuple[int, int], end: tuple[int, int]) -> None:
+        edges.setdefault(start, []).append(end)
+
+    for row, col in cells:
+        if (row + 1, col) not in cells:  # bottom side, west -> east
+            add((row + 1, col), (row + 1, col + 1))
+        if (row, col + 1) not in cells:  # right side, south -> north
+            add((row + 1, col + 1), (row, col + 1))
+        if (row - 1, col) not in cells:  # top side, east -> west
+            add((row, col + 1), (row, col))
+        if (row, col - 1) not in cells:  # left side, north -> south
+            add((row, col), (row + 1, col))
+
+    return edges
+
+
+def _trace_rings(edges: dict[tuple[int, int], list[tuple[int, int]]]) -> list[list[tuple[int, int]]]:
+    """
+    Link directed boundary edges into closed rings of corner indices.
+
+    Where two cells touch only at a corner the corner has two outgoing
+    edges; taking the left-most turn keeps each ring simple (no
+    self-crossing).
+    """
+    rings: list[list[tuple[int, int]]] = []
+
+    while edges:
+        start = min(edges)
+        ring = [start]
+        prev = None
+        current = start
+
+        while True:
+            outs = edges.get(current)
+            if not outs:
+                raise ValueError("raster_to_vector: open boundary while tracing a component outline.")
+
+            if len(outs) == 1 or prev is None:
+                nxt = outs[0]
+            else:
+                # direction in (x = col, y = -row)
+                din = (current[1] - prev[1], -(current[0] - prev[0]))
+
+                def turn(end: tuple[int, int]) -> int:
+                    dout = (end[1] - current[1], -(end[0] - current[0]))
+                    return din[0] * dout[1] - din[1] * dout[0]  # > 0: left turn
+
+                nxt = max(outs, key=turn)
+
+            outs.remove(nxt)
+            if not outs:
+                del edges[current]
+
+            prev, current = current, nxt
+            if current == start:
+                break
+            ring.append(current)
+
+        rings.append(ring)
+
+    return rings
+
+
+def _split_self_touching(ring: list[tuple[int, int]]) -> list[list[tuple[int, int]]]:
+    """
+    Split a traced ring at vertices it visits more than once (two cells
+    meeting only at a corner) into simple rings, so every output ring is
+    valid: a pinched hole becomes two holes touching at a point, a pinched
+    outline becomes an outer ring plus a hole (or two outer rings) sharing
+    that corner.
+    """
+    out: list[list[tuple[int, int]]] = []
+    stack: list[tuple[int, int]] = []
+    position: dict[tuple[int, int], int] = {}
+    for vertex in ring:
+        if vertex in position:
+            start = position[vertex]
+            loop = stack[start:]
+            for v in loop[1:]:
+                del position[v]
+            del stack[start + 1:]
+            if len(loop) >= 3:
+                out.append(loop)
+        else:
+            position[vertex] = len(stack)
+            stack.append(vertex)
+    if len(stack) >= 3:
+        out.append(stack)
+    return out
+
+
+def _drop_collinear(ring: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Remove vertices in the middle of straight runs (ring without closing vertex)."""
+    n = len(ring)
+    out = []
+    for i in range(n):
+        a, b, c = ring[i - 1], ring[i], ring[(i + 1) % n]
+        if (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]) != 0:
+            out.append(b)
+    return out or ring
+
+
+def _ring_signed_area(ring: list[tuple[int, int]]) -> float:
+    """Shoelace area in (x = col, y = -row): > 0 counter-clockwise."""
+    total = 0.0
+    n = len(ring)
+    for i in range(n):
+        r1, c1 = ring[i]
+        r2, c2 = ring[(i + 1) % n]
+        total += c1 * (-r2) - c2 * (-r1)
+    return total / 2.0
+
+
+def _corner_ring_contains(ring: list[tuple[int, int]], row: float, col: float) -> bool:
+    """Ray casting in corner-index space (point never on a ring edge here)."""
+    inside = False
+    j = len(ring) - 1
+    for i in range(len(ring)):
+        ri, ci = ring[i]
+        rj, cj = ring[j]
+        if (ri > row) != (rj > row) and col < (cj - ci) * (row - ri) / (rj - ri) + ci:
+            inside = not inside
+        j = i
+    return inside
+
+
+def _component_polygon(
+    *,
+    transform: list[float],
+    cells: list[tuple[int, int]],
+    precision: int | None,
+) -> dict[str, Any]:
+    """
+    Exact GeoJSON geometry of a set of raster cells: the union of the cell
+    squares, holes included. Polygon for one outer ring, MultiPolygon when
+    the cells form several outer rings (8-connected corner contacts).
+    """
+    cell_set = set(cells)
+    rings = [
+        _drop_collinear(simple)
+        for ring in _trace_rings(_component_boundary_edges(cell_set))
+        for simple in _split_self_touching(ring)
+    ]
+
+    exteriors = [ring for ring in rings if _ring_signed_area(ring) > 0]
+    holes = [ring for ring in rings if _ring_signed_area(ring) < 0]
+
+    polygons: list[list[list[tuple[int, int]]]] = [[ring] for ring in exteriors]
+    for hole in holes:
+        # centre of the cell just outside the component across the hole's
+        # first edge: strictly inside the hole, never on any ring
+        (r1, c1), (r2, c2) = hole[0], hole[1]
+        dr, dc = r2 - r1, c2 - c1
+        length = abs(dr) + abs(dc)
+        dr, dc = dr / length, dc / length
+        # the component is left of the edge; its right, (row + dc, col - dr), is the hole
+        probe_row = r1 + dr * 0.5 + dc * 0.5
+        probe_col = c1 + dc * 0.5 - dr * 0.5
+        owner = None
+        for index, polygon in enumerate(polygons):
+            if _corner_ring_contains(polygon[0], probe_row, probe_col):
+                if owner is None or abs(_ring_signed_area(polygon[0])) < abs(_ring_signed_area(polygons[owner][0])):
+                    owner = index
+        if owner is None:
+            raise ValueError("raster_to_vector: hole outside every outer ring while tracing a component.")
+        polygons[owner].append(hole)
+
+    def to_map(ring: list[tuple[int, int]]) -> list[list[float]]:
+        coords = [
+            _round_coord_pair(_pixel_corner(transform=transform, row=row, col=col), precision)
+            for row, col in ring
+        ]
+        coords.append(coords[0])
+        return coords
+
+    mapped = [[to_map(ring) for ring in polygon] for polygon in polygons]
+
+    if len(mapped) == 1:
+        return {"type": "Polygon", "coordinates": mapped[0]}
+
+    return {"type": "MultiPolygon", "coordinates": mapped}
+
+
 def _value_is_selected(
     value: Any,
     *,
@@ -950,7 +1145,7 @@ def raster_to_vector(
                 "value": first_value,
                 "class_value": first_value,
                 "pixel_count": len(cells),
-                "bbox_mode": True,
+                "bbox_mode": False,
             }
 
             if final_include_component_cells:
@@ -962,7 +1157,7 @@ def raster_to_vector(
             features.append(
                 _make_feature(
                     feature_id=feature_id,
-                    geometry=_bbox_polygon_for_cells(
+                    geometry=_component_polygon(
                         transform=transform,
                         cells=cells,
                         precision=final_precision,

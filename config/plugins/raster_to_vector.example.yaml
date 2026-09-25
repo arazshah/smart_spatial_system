@@ -14,8 +14,8 @@
 #
 #   components:
 #     connected selected pixels become grouped features.
-#     In this dependency-free implementation, each component geometry is
-#     represented by its bounding-box polygon.
+#     Each component geometry is the exact union of its cells (traced
+#     along cell edges, holes included), not its bounding box.
 #
 # Connectivity:
 #   4 or 8

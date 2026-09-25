@@ -853,6 +853,62 @@ OP_CATALOG: dict[str, OpDescriptor] = {
     ),
 
     # ---------------------------------------------------------------------
+    # Vector metrics / attribute statistics
+    # ---------------------------------------------------------------------
+    "area_perimeter": OpDescriptor(
+        op_name="area_perimeter",
+        capability_name="calculate_area_perimeter",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "engine": "engine",
+            "precision": "precision",
+            "drop_failed": "drop_failed",
+            "source_crs": "source_crs",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Add planar area (_area, square CRS units) and perimeter/length "
+            "(_perimeter, _length) to every feature. Use for 'how large is each "
+            "polygon / the largest water body / total area'; the layer must be "
+            "in a projected (metric) CRS - crs_transform first if it is not. "
+            "Typically after raster_to_vector(mode='components') or dissolve."
+        ),
+    ),
+
+    "attribute_statistics": OpDescriptor(
+        op_name="attribute_statistics",
+        capability_name="calculate_attribute_statistics",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "fields": "fields",
+            "group_by": "group_by",
+            "include_nulls": "include_nulls",
+            "numeric_only": "numeric_only",
+            "max_top_values": "max_top_values",
+            "precision": "precision",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Descriptive statistics (count, min, max, sum, mean, median, stdev, "
+            "top values) of feature properties, optionally per group_by field. "
+            "Use to total/average a numeric field such as _area or pixel_count "
+            "across features, or per class/category."
+        ),
+    ),
+
+    # ---------------------------------------------------------------------
     # Scoring / ranking / top-N
     # ---------------------------------------------------------------------
     "score_features": OpDescriptor(

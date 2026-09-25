@@ -20,6 +20,11 @@ from orchestrator.planning.input_data_extent import (
     InputDataExtent,
     render_input_data_facts,
 )
+from orchestrator.planning.input_layers import (
+    InputLayer,
+    render_input_layer_facts,
+    unknown_input_refs,
+)
 from orchestrator.planning.op_catalog import (
     get_op,
     is_supported,
@@ -1368,6 +1373,7 @@ def build_llm_messages(
     context: dict[str, Any] | None = None,
     system_hints: str | None = None,
     input_data_extent: InputDataExtent | None = None,
+    input_layers: tuple[InputLayer, ...] | None = None,
 ) -> list[dict[str, str]]:
     system = _domain_guidance() + "\n" + _schema_hint()
 
@@ -1376,6 +1382,9 @@ def build_llm_messages(
 
     # Before system_hints, so a caller's own hints still come last and can
     # override a computed fact they know better about.
+    if input_layers:
+        system += "\n" + render_input_layer_facts(input_layers) + "\n"
+
     if input_data_extent is not None:
         system += "\n" + render_input_data_facts(input_data_extent) + "\n"
 
@@ -2856,8 +2865,16 @@ class LLMQuerySpecGenerator:
         context: dict[str, Any] | None = None,
         system_hints: str | None = None,
         input_data_extent: InputDataExtent | None = None,
+        input_layers: tuple[InputLayer, ...] | None = None,
     ) -> QuerySpec:
         """
+        input_layers:
+            The query's input layers as described by
+            orchestrator.planning.input_layers.describe_input_layers - their
+            names, kinds, bands and fields are stated in the system prompt,
+            and a plan whose operations read a layer that is not among them
+            (and is not an earlier operation's output) is rejected here, so
+            the repair loop can fix it before execution.
         input_data_extent:
             Facts computed from the query's own input layers (see
             orchestrator.planning.input_data_extent.derive_input_data_extent)
@@ -2883,6 +2900,7 @@ class LLMQuerySpecGenerator:
             context=context,
             system_hints=system_hints,
             input_data_extent=input_data_extent,
+            input_layers=input_layers,
         )
 
         kwargs: dict[str, Any] = {
@@ -2922,6 +2940,7 @@ class LLMQuerySpecGenerator:
                     raw_query=raw_query,
                     context=context,
                     input_data_extent=input_data_extent,
+                    input_layers=input_layers,
                 )
             except LLMSpecGenerationError as exc:
                 attempts.append(SpecGenerationAttempt(number, plan, text, str(exc)))
@@ -2962,6 +2981,7 @@ def _validated_query_spec(
     raw_query: str,
     context: dict[str, Any] | None,
     input_data_extent: InputDataExtent | None,
+    input_layers: tuple[InputLayer, ...] | None = None,
 ) -> QuerySpec:
     """Parsed LLM JSON -> normalized QuerySpec, or LLMSpecGenerationError."""
     data = _pre_normalize_query_spec_json(data, context=context)
@@ -2976,6 +2996,10 @@ def _validated_query_spec(
     _validate_filter_points_in_polygon_usage(spec)
     _validate_structured_param_shapes(spec)
     _validate_max_distance_filter_composition(spec)
+    if input_layers:
+        problems = unknown_input_refs(spec, input_layers)
+        if problems:
+            raise LLMSpecGenerationError("; ".join(problems))
     return spec
 
 

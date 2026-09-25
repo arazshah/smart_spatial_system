@@ -1,4 +1,4 @@
-default_engine: python
+default_engine: auto
 default_output_dtype: float
 default_nodata: null
 coordinate_precision: 6

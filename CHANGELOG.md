@@ -17,6 +17,58 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are kept. `examples/README.md` is reorganized into scripts, case study and
   sample data.
 
+## [0.5.8] - 2026-09-25
+
+Fixes for 5 defects found by an independent case study
+([`smart-spatial-urmia-lake-shrinkage`](https://github.com/arazshah/smart-spatial-urmia-lake-shrinkage),
+open-water/salt-crust change on Lake Urmia from Sentinel-2, 2018-2025),
+run entirely through `s3geo.query()` and the plugin pipeline directly.
+Each is cross-referenced with its report in that repo's `bugs/` folder.
+
+### Fixed
+
+- **(bugs/002) `raster_to_vector`'s `components` mode returned each
+  component's bounding box, not its outline.** On a lake-bed-sized grid
+  (millions of pixels, thousands of water-body components with holes and
+  concavities) this made per-component area/perimeter figures meaningless.
+  Components are now traced to their exact boundary rings, including
+  holes and multi-part geometry, via directed-edge tracing with
+  corner-ambiguity resolution (self-touching 8-connectivity contacts are
+  split into simple sub-rings so tracing never emits a self-intersecting
+  polygon).
+- **(bugs/003) `zonal_statistics(all_touched=True)` counted pixels lying
+  inside a zone polygon's holes.** A hole's boundary was only checked for
+  intersecting the pixel square, never for actually containing it, so
+  pixels wholly inside a hole (e.g. a dry patch inside a lake-bed
+  polygon) were wrongly included in the zone.
+- **(bugs/004) `s3geo.query()` never told the LLM what its own input
+  layers were.** The model had to guess entity-ref names, raster band
+  order/count and vector field names from the question text alone, and a
+  wrong guess only surfaced as an unresolvable-reference failure after
+  planning, past where the repair loop can help. `describe_input_layers()`
+  now measures every input layer's real shape, bands, CRS and fields and
+  states them in the system prompt; `unknown_input_refs()` rejects (and
+  triggers repair on) a generated plan that reads a layer, band role or
+  field that isn't actually there.
+- **(bugs/005) `OP_CATALOG` had no entry for `area_perimeter` or
+  `attribute_statistics`**, so the deterministic planner could not
+  produce a plan using either operation even though both plugins exist
+  and are registered.
+
+### Added
+
+- **(bugs/001) Optional numpy engine for `band_math`, `zonal_statistics`
+  and `raster_to_vector`.** The existing pure-Python per-pixel loops are
+  correct but impractical on grids with tens of millions of pixels. Each
+  plugin gains an `engine` param (`"python"` (default) / `"numpy"` /
+  `"auto"`); the numpy path is verified bit-identical to the Python path
+  by randomized property-based tests, including the same hole/multipolygon/
+  8-connectivity edge cases the two fixes above cover. Nothing changes for
+  existing callers that don't pass `engine`.
+
+Bumped to `0.5.8` (patch, per semver): bug fixes plus an additive,
+opt-in engine parameter, nothing existing changed or removed.
+
 ## [0.5.7] - 2026-09-24
 
 Fixes for 8 defects found by an independent case study

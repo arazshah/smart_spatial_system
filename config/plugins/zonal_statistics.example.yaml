@@ -18,7 +18,7 @@
 # Usually:
 #   [pixel_width, 0, origin_x, 0, -pixel_height, origin_y]
 
-default_engine: python
+default_engine: auto
 default_band_index: 1           # 1-based band index
 default_all_touched: false
 default_include_zone_geometry: true

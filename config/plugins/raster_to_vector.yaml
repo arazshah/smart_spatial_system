@@ -1,4 +1,4 @@
-default_engine: python
+default_engine: auto
 default_band_index: 1
 
 default_mode: cells

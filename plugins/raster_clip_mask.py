@@ -51,6 +51,7 @@ from plugins._shared.plugin_config import (
     pick_first,
     resolve_env_refs,
 )
+from plugins._shared.raster_numpy import is_ndarray, ndarray_shape
 
 PLUGIN_ID = "raster_clip_mask"
 
@@ -374,7 +375,13 @@ def _is_3d_array(data: Any) -> bool:
 def _array_shape(data: Any) -> tuple[int, int, int]:
     """
     Return (bands, height, width).
+
+    Accepts nested lists (2D, or band-first 3D) and numpy ndarrays of the
+    same layouts (the raster plugins' numpy engine passes arrays through).
     """
+    if is_ndarray(data):
+        return ndarray_shape(data)
+
     if _is_3d_array(data) and data and data[0] and isinstance(data[0][0], list):
         bands = len(data)
         height = len(data[0])

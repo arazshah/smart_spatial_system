@@ -27,9 +27,10 @@ Vectorization modes:
         each selected raster cell becomes one polygon feature.
 
     - components:
-        connected selected cells become grouped features.
-        In this dependency-free implementation, each component geometry is
-        represented by a bounding-box polygon.
+        connected selected cells become grouped features. Each component's
+        geometry is its exact outline - the union of its cells, traced along
+        cell edges, with holes - as a Polygon (or a MultiPolygon when cells
+        of an 8-connected component touch only at a corner).
 
 No external dependency is required.
 """
@@ -50,6 +51,13 @@ from plugins._shared.plugin_config import (
     pick_first,
     resolve_env_refs,
 )
+from plugins._shared.raster_numpy import (
+    boundary_edges_by_label,
+    is_ndarray,
+    label_runs,
+    numeric_band,
+    resolve_engine,
+)
 from plugins.raster_clip_mask import (
     _array_shape,
     _extract_raster,
@@ -59,7 +67,7 @@ from plugins.raster_clip_mask import (
 
 PLUGIN_ID = "raster_to_vector"
 
-VALID_ENGINES = {"python", "auto"}
+VALID_ENGINES = {"python", "numpy", "auto"}
 VALID_MODES = {"cells", "components"}
 VALID_CONNECTIVITY = {4, 8}
 
@@ -493,6 +501,211 @@ def _bbox_polygon_for_cells(
     }
 
 
+# ---------------------------------------------------------------------------
+# Exact component outline: trace the cell edges that separate the component
+# from everything else. Vertices are cell-corner indices (row, col); every
+# boundary edge is directed with the component on its left (x = col,
+# y = -row), so exteriors come out counter-clockwise and holes clockwise.
+# ---------------------------------------------------------------------------
+
+def _component_boundary_edges(cells: set[tuple[int, int]]) -> dict[tuple[int, int], list[tuple[int, int]]]:
+    """Map start corner -> end corners of the component's directed boundary edges."""
+    edges: dict[tuple[int, int], list[tuple[int, int]]] = {}
+
+    def add(start: tuple[int, int], end: tuple[int, int]) -> None:
+        edges.setdefault(start, []).append(end)
+
+    for row, col in cells:
+        if (row + 1, col) not in cells:  # bottom side, west -> east
+            add((row + 1, col), (row + 1, col + 1))
+        if (row, col + 1) not in cells:  # right side, south -> north
+            add((row + 1, col + 1), (row, col + 1))
+        if (row - 1, col) not in cells:  # top side, east -> west
+            add((row, col + 1), (row, col))
+        if (row, col - 1) not in cells:  # left side, north -> south
+            add((row, col), (row + 1, col))
+
+    return edges
+
+
+def _trace_rings(edges: dict[tuple[int, int], list[tuple[int, int]]]) -> list[list[tuple[int, int]]]:
+    """
+    Link directed boundary edges into closed rings of corner indices.
+
+    Where two cells touch only at a corner the corner has two outgoing
+    edges; taking the left-most turn keeps each ring simple (no
+    self-crossing).
+    """
+    rings: list[list[tuple[int, int]]] = []
+
+    while edges:
+        start = min(edges)
+        ring = [start]
+        prev = None
+        current = start
+
+        while True:
+            outs = edges.get(current)
+            if not outs:
+                raise ValueError("raster_to_vector: open boundary while tracing a component outline.")
+
+            if len(outs) == 1 or prev is None:
+                nxt = outs[0]
+            else:
+                # direction in (x = col, y = -row)
+                din = (current[1] - prev[1], -(current[0] - prev[0]))
+
+                def turn(end: tuple[int, int]) -> int:
+                    dout = (end[1] - current[1], -(end[0] - current[0]))
+                    return din[0] * dout[1] - din[1] * dout[0]  # > 0: left turn
+
+                nxt = max(outs, key=turn)
+
+            outs.remove(nxt)
+            if not outs:
+                del edges[current]
+
+            prev, current = current, nxt
+            if current == start:
+                break
+            ring.append(current)
+
+        rings.append(ring)
+
+    return rings
+
+
+def _split_self_touching(ring: list[tuple[int, int]]) -> list[list[tuple[int, int]]]:
+    """
+    Split a traced ring at vertices it visits more than once (two cells
+    meeting only at a corner) into simple rings, so every output ring is
+    valid: a pinched hole becomes two holes touching at a point, a pinched
+    outline becomes an outer ring plus a hole (or two outer rings) sharing
+    that corner.
+    """
+    out: list[list[tuple[int, int]]] = []
+    stack: list[tuple[int, int]] = []
+    position: dict[tuple[int, int], int] = {}
+    for vertex in ring:
+        if vertex in position:
+            start = position[vertex]
+            loop = stack[start:]
+            for v in loop[1:]:
+                del position[v]
+            del stack[start + 1:]
+            if len(loop) >= 3:
+                out.append(loop)
+        else:
+            position[vertex] = len(stack)
+            stack.append(vertex)
+    if len(stack) >= 3:
+        out.append(stack)
+    return out
+
+
+def _drop_collinear(ring: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Remove vertices in the middle of straight runs (ring without closing vertex)."""
+    n = len(ring)
+    out = []
+    for i in range(n):
+        a, b, c = ring[i - 1], ring[i], ring[(i + 1) % n]
+        if (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]) != 0:
+            out.append(b)
+    return out or ring
+
+
+def _ring_signed_area(ring: list[tuple[int, int]]) -> float:
+    """Shoelace area in (x = col, y = -row): > 0 counter-clockwise."""
+    total = 0.0
+    n = len(ring)
+    for i in range(n):
+        r1, c1 = ring[i]
+        r2, c2 = ring[(i + 1) % n]
+        total += c1 * (-r2) - c2 * (-r1)
+    return total / 2.0
+
+
+def _corner_ring_contains(ring: list[tuple[int, int]], row: float, col: float) -> bool:
+    """Ray casting in corner-index space (point never on a ring edge here)."""
+    inside = False
+    j = len(ring) - 1
+    for i in range(len(ring)):
+        ri, ci = ring[i]
+        rj, cj = ring[j]
+        if (ri > row) != (rj > row) and col < (cj - ci) * (row - ri) / (rj - ri) + ci:
+            inside = not inside
+        j = i
+    return inside
+
+
+def _component_polygon(
+    *,
+    transform: list[float],
+    cells: list[tuple[int, int]],
+    precision: int | None,
+) -> dict[str, Any]:
+    """
+    Exact GeoJSON geometry of a set of raster cells: the union of the cell
+    squares, holes included. Polygon for one outer ring, MultiPolygon when
+    the cells form several outer rings (8-connected corner contacts).
+    """
+    cell_set = set(cells)
+    rings = [
+        _drop_collinear(simple)
+        for ring in _trace_rings(_component_boundary_edges(cell_set))
+        for simple in _split_self_touching(ring)
+    ]
+    return _rings_to_geometry(rings, transform=transform, precision=precision)
+
+
+def _rings_to_geometry(
+    rings: list[list[tuple[int, int]]],
+    *,
+    transform: list[float],
+    precision: int | None,
+) -> dict[str, Any]:
+    """Traced corner-index rings of one component -> Polygon / MultiPolygon."""
+    exteriors = [ring for ring in rings if _ring_signed_area(ring) > 0]
+    holes = [ring for ring in rings if _ring_signed_area(ring) < 0]
+
+    polygons: list[list[list[tuple[int, int]]]] = [[ring] for ring in exteriors]
+    for hole in holes:
+        if len(polygons) == 1:
+            polygons[0].append(hole)
+            continue
+        # centre of the cell just outside the component across the hole's
+        # first edge: strictly inside the hole, never on any ring
+        (r1, c1), (r2, c2) = hole[0], hole[1]
+        dr, dc = r2 - r1, c2 - c1
+        length = abs(dr) + abs(dc)
+        dr, dc = dr / length, dc / length
+        # the component is left of the edge; its right, (row + dc, col - dr), is the hole
+        probe_row = r1 + dr * 0.5 + dc * 0.5
+        probe_col = c1 + dc * 0.5 - dr * 0.5
+        owner = None
+        for index, polygon in enumerate(polygons):
+            if _corner_ring_contains(polygon[0], probe_row, probe_col):
+                if owner is None or abs(_ring_signed_area(polygon[0])) < abs(_ring_signed_area(polygons[owner][0])):
+                    owner = index
+        if owner is None:
+            raise ValueError("raster_to_vector: hole outside every outer ring while tracing a component.")
+        polygons[owner].append(hole)
+
+    def to_map(ring: list[tuple[int, int]]) -> list[list[float]]:
+        coords = [
+            _round_coord_pair(_pixel_corner(transform=transform, row=row, col=col), precision)
+            for row, col in ring
+        ]
+        coords.append(coords[0])
+        return coords
+
+    mapped = [[to_map(ring) for ring in polygon] for polygon in polygons]
+
+    if len(mapped) == 1:
+        return {"type": "Polygon", "coordinates": mapped[0]}
+
+    return {"type": "MultiPolygon", "coordinates": mapped}
+
 def _value_is_selected(
     value: Any,
     *,
@@ -640,6 +853,91 @@ def _connected_components(
     return components
 
 
+# ---------------------------------------------------------------------------
+# numpy engine
+# ---------------------------------------------------------------------------
+
+def _selected_mask_numpy(
+    band: Any,
+    *,
+    include_values: list[Any] | None,
+    exclude_values: list[Any],
+    nodata: Any,
+) -> Any | None:
+    """
+    Vectorized _value_is_selected for a numeric band (float64, NaN = None /
+    NaN). Returns None when an include/exclude/nodata value is not a plain
+    number (the python path then decides with its own equality rules).
+    """
+    import numpy as np
+
+    def number(v: Any) -> bool:
+        return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+    targets = list(exclude_values) + list(include_values or [])
+    if any(not number(v) for v in targets):
+        return None
+    if nodata is not None and not number(nodata):
+        return None
+
+    def equal(value: float) -> Any:
+        if math.isfinite(value):
+            with np.errstate(invalid="ignore"):
+                return (band == value) | (np.abs(band - value) <= EPSILON)
+        return band == value
+
+    selected = ~np.isnan(band)
+    if nodata is not None and not _is_nan(nodata):
+        selected &= band != float(nodata)
+    for value in exclude_values:
+        selected &= ~equal(float(value))
+    if include_values is not None:
+        wanted = np.zeros(band.shape, dtype=bool)
+        for value in include_values:
+            wanted |= equal(float(value))
+        selected &= wanted
+    return selected
+
+
+def _components_numpy(
+    *,
+    selected: Any,
+    band: Any,
+    connectivity: int,
+    transform: list[float],
+    precision: int | None,
+) -> list[tuple[tuple[int, int], int, dict[str, Any]]]:
+    """
+    (first cell, pixel count, exact geometry) per component, in the python
+    engine's component order. Labelling and edge extraction are vectorized;
+    only the boundary edges (not the cells) are walked in python.
+    """
+    import numpy as np
+
+    labels, count = label_runs(selected, band, connectivity)
+    if count == 0:
+        return []
+
+    pixel_counts = np.bincount(labels.ravel(), minlength=count + 1)
+    flat_first = np.full(count + 1, labels.size, dtype="int64")
+    nz = np.flatnonzero(labels)
+    np.minimum.at(flat_first, labels.ravel()[nz], nz)
+
+    edges = boundary_edges_by_label(labels)
+    width = labels.shape[1]
+    out = []
+    for lab in range(1, count + 1):
+        rings = [
+            _drop_collinear(simple)
+            for ring in _trace_rings(edges[lab])
+            for simple in _split_self_touching(ring)
+        ]
+        geometry = _rings_to_geometry(rings, transform=transform, precision=precision)
+        first = int(flat_first[lab])
+        out.append(((first // width, first % width), int(pixel_counts[lab]), geometry))
+    return out
+
+
 def _make_feature(
     *,
     feature_id: int,
@@ -672,6 +970,77 @@ def _make_vector_output(
         "features": features,
         "metadata": metadata,
     }
+
+
+def _raster_to_vector_numpy_output(
+    *,
+    data: Any,
+    band: Any,
+    selected: Any,
+    mode: str,
+    connectivity: int,
+    band_index: int,
+    raster_shape: tuple[int, int, int],
+    transform: list[float],
+    precision: int | None,
+    include_pixel_properties: bool,
+    max_features: int | None,
+    finish: Any,
+) -> dict[str, Any]:
+    """numpy-engine body of raster_to_vector: same features as the python loop."""
+    import numpy as np
+
+    def original_value(row: int, col: int) -> Any:
+        if is_ndarray(data):
+            plane = data if data.ndim == 2 else data[band_index - 1]
+            return plane[row, col].item()
+        return _band_value(data, band_index=band_index, row=row, col=col, shape=raster_shape)
+
+    selected_pixel_count = int(selected.sum())
+    features: list[dict[str, Any]] = []
+    truncated = False
+
+    if mode == "cells":
+        rows, cols = np.nonzero(selected)
+        if max_features is not None and len(rows) > max_features:
+            rows, cols = rows[:max_features], cols[:max_features]
+            truncated = True
+        for feature_id, (row, col) in enumerate(zip(rows.tolist(), cols.tolist()), start=1):
+            value = original_value(row, col)
+            properties: dict[str, Any] = {"value": value, "class_value": value}
+            if include_pixel_properties:
+                properties.update({"row": row, "col": col, "pixel_id": f"r{row}_c{col}"})
+            features.append(
+                _make_feature(
+                    feature_id=feature_id,
+                    geometry=_cell_polygon(transform=transform, row=row, col=col, precision=precision),
+                    properties=properties,
+                )
+            )
+    else:
+        components = _components_numpy(
+            selected=selected, band=band, connectivity=connectivity, transform=transform, precision=precision
+        )
+        if max_features is not None and len(components) > max_features:
+            components = components[:max_features]
+            truncated = True
+        for component_index, ((row, col), pixel_count, geometry) in enumerate(components, start=1):
+            value = original_value(row, col)
+            features.append(
+                _make_feature(
+                    feature_id=component_index,
+                    geometry=geometry,
+                    properties={
+                        "component_id": component_index,
+                        "value": value,
+                        "class_value": value,
+                        "pixel_count": pixel_count,
+                        "bbox_mode": False,
+                    },
+                )
+            )
+
+    return finish(features, selected_pixel_count, truncated)
 
 
 @capability(
@@ -758,7 +1127,10 @@ def raster_to_vector(
         nodata:
             Input nodata value.
         engine:
-            python | auto.
+            python | numpy | auto. numpy selects pixels, labels components
+            and extracts their outlines with array operations (same
+            features, same order as python); auto = numpy when installed.
+            include_component_cells=True keeps the python path.
         precision:
             Coordinate rounding precision.
         source_crs:
@@ -865,6 +1237,111 @@ def raster_to_vector(
         pick_first(max_features, config.get("max_features"), default=None)
     )
 
+    def _finish_output(
+        *,
+        features: list[dict[str, Any]],
+        selected_pixel_count: int,
+        truncated: bool,
+        engine_used: str,
+    ) -> dict[str, Any]:
+        geographic_warning = None
+        if warn_if_geographic_crs and _is_geographic_crs(final_source_crs):
+            geographic_warning = (
+                "Raster-to-vector conversion is being performed on a geographic CRS. "
+                "Generated coordinates are valid, but area/length calculations may require reprojection."
+            )
+
+        transform_warning = None
+        if transform_source == "default_transform":
+            transform_warning = (
+                "No transform found in raster metadata (no 'transform' or 'affine_transform' key); "
+                "using the default identity-like transform instead."
+            )
+
+        combined_warning = "; ".join(
+            message for message in (transform_warning, geographic_warning) if message
+        ) or None
+
+        user_metadata = metadata or {}
+        if not isinstance(user_metadata, dict):
+            raise ValueError("metadata must be a dict or None.")
+
+        base_metadata = deepcopy(input_metadata) if preserve_metadata else {}
+
+        output_metadata = {
+            **base_metadata,
+            "source": "raster_to_vector",
+            "loader": PLUGIN_ID,
+            "operation": "raster_to_vector",
+            "engine_requested": final_engine,
+            "engine_used": engine_used,
+            "input_band_count": band_count,
+            "selected_band_index": final_band_index,
+            "width": width,
+            "height": height,
+            "mode": final_mode,
+            "connectivity": final_connectivity,
+            "include_values": final_include_values,
+            "exclude_values": final_exclude_values,
+            "nodata": final_nodata,
+            "selected_pixel_count": selected_pixel_count,
+            "feature_count": len(features),
+            "truncated": truncated,
+            "max_features": final_max_features,
+            "transform": transform,
+            "transform_source": transform_source,
+            "coordinate_precision": final_precision,
+            "source_crs": final_source_crs,
+            "warning": combined_warning,
+            "created_at": _utc_now_iso(),
+            **source_info,
+            **user_metadata,
+        }
+
+        return _make_vector_output(
+            features=features,
+            metadata=output_metadata,
+        )
+
+    engine_used = resolve_engine(final_engine)
+    numpy_band = None
+    numpy_selected = None
+    if engine_used == "numpy":
+        numpy_band = numeric_band(data, final_band_index)
+        if numpy_band is not None:
+            numpy_selected = _selected_mask_numpy(
+                numpy_band,
+                include_values=final_include_values,
+                exclude_values=final_exclude_values,
+                nodata=final_nodata,
+            )
+        if numpy_selected is None or (final_mode == "components" and final_include_component_cells):
+            engine_used = "python"
+
+    if engine_used == "numpy":
+        return _raster_to_vector_numpy_output(
+            data=data,
+            band=numpy_band,
+            selected=numpy_selected,
+            mode=final_mode,
+            connectivity=final_connectivity,
+            band_index=final_band_index,
+            raster_shape=raster_shape,
+            transform=transform,
+            precision=final_precision,
+            include_pixel_properties=final_include_pixel_properties,
+            max_features=final_max_features,
+            finish=lambda features, selected_pixel_count, truncated: _finish_output(
+                features=features,
+                selected_pixel_count=selected_pixel_count,
+                truncated=truncated,
+                engine_used="numpy",
+            ),
+        )
+
+    if is_ndarray(data):
+        data = data.tolist()
+
     selected = _selected_grid(
         data,
         band_index=final_band_index,
@@ -950,7 +1427,7 @@ def raster_to_vector(
                 "value": first_value,
                 "class_value": first_value,
                 "pixel_count": len(cells),
-                "bbox_mode": True,
+                "bbox_mode": False,
             }
 
             if final_include_component_cells:
@@ -962,7 +1439,7 @@ def raster_to_vector(
             features.append(
                 _make_feature(
                     feature_id=feature_id,
-                    geometry=_bbox_polygon_for_cells(
+                    geometry=_component_polygon(
                         transform=transform,
                         cells=cells,
                         precision=final_precision,
@@ -972,64 +1449,13 @@ def raster_to_vector(
             )
             feature_id += 1
 
-    geographic_warning = None
-    if warn_if_geographic_crs and _is_geographic_crs(final_source_crs):
-        geographic_warning = (
-            "Raster-to-vector conversion is being performed on a geographic CRS. "
-            "Generated coordinates are valid, but area/length calculations may require reprojection."
-        )
-
-    transform_warning = None
-    if transform_source == "default_transform":
-        transform_warning = (
-            "No transform found in raster metadata (no 'transform' or 'affine_transform' key); "
-            "using the default identity-like transform instead."
-        )
-
-    combined_warning = "; ".join(
-        message for message in (transform_warning, geographic_warning) if message
-    ) or None
-
-    user_metadata = metadata or {}
-    if not isinstance(user_metadata, dict):
-        raise ValueError("metadata must be a dict or None.")
-
-    base_metadata = deepcopy(input_metadata) if preserve_metadata else {}
-
-    output_metadata = {
-        **base_metadata,
-        "source": "raster_to_vector",
-        "loader": PLUGIN_ID,
-        "operation": "raster_to_vector",
-        "engine_requested": final_engine,
-        "engine_used": "python",
-        "input_band_count": band_count,
-        "selected_band_index": final_band_index,
-        "width": width,
-        "height": height,
-        "mode": final_mode,
-        "connectivity": final_connectivity,
-        "include_values": final_include_values,
-        "exclude_values": final_exclude_values,
-        "nodata": final_nodata,
-        "selected_pixel_count": selected_pixel_count,
-        "feature_count": len(features),
-        "truncated": truncated,
-        "max_features": final_max_features,
-        "transform": transform,
-        "transform_source": transform_source,
-        "coordinate_precision": final_precision,
-        "source_crs": final_source_crs,
-        "warning": combined_warning,
-        "created_at": _utc_now_iso(),
-        **source_info,
-        **user_metadata,
-    }
-
-    return _make_vector_output(
+    return _finish_output(
         features=features,
-        metadata=output_metadata,
+        selected_pixel_count=selected_pixel_count,
+        truncated=truncated,
+        engine_used="python",
     )
+
 
 
 PLUGIN = auto_collect(

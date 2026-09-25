@@ -219,14 +219,16 @@ def test_query_max_repair_attempts_zero_disables_repair(monkeypatch):
 
 
 def test_execution_failure_carries_the_plan(monkeypatch):
-    # Resolves at generation (valid CRS) but the buffer input ref is a
-    # layer that was never passed, so execution fails.
+    # Passes generation-time validation (real layer, valid params) but the
+    # buffer plugin rejects the engine value when it runs, so execution fails.
+    # (A missing layer ref used to be this test's trigger; it is now rejected
+    # at generation - see tests/test_query_input_layer_facts.py.)
     plan = {
         "goal": "buffer",
-        "entities": [{"ref": "missing_layer", "kind": "vector"}],
+        "entities": [{"ref": "areas", "kind": "vector"}],
         "operations": [
-            {"op": "buffer", "inputs": {"vector": "missing_layer"},
-             "params": {"distance": 100, "engine": "python"}, "output": "buffered"}
+            {"op": "buffer", "inputs": {"vector": "areas"},
+             "params": {"distance": 100, "engine": "no_such_engine"}, "output": "buffered"}
         ],
         "outputs": [{"kind": "vector_layer", "source": "buffered"}],
     }

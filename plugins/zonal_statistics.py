@@ -51,6 +51,12 @@ from plugins._shared.plugin_config import (
     pick_first,
     resolve_env_refs,
 )
+from plugins._shared.raster_numpy import (
+    is_ndarray,
+    pixel_centers,
+    polygon_center_mask,
+    resolve_engine,
+)
 from plugins.raster_clip_mask import (
     _array_shape,
     _bboxes_intersect,
@@ -68,7 +74,7 @@ PLUGIN_ID = "zonal_statistics"
 
 EPSILON_GEOM = 1e-9
 
-VALID_ENGINES = {"python", "auto"}
+VALID_ENGINES = {"python", "numpy", "auto"}
 
 VALID_STATS = {
     "count",
@@ -461,31 +467,22 @@ def _segments_intersect(
     return False
 
 
-def _ring_intersects_square(
-    ring: list[Any],
+def _ring_boundary_touches_square(
+    points: list[tuple[float, float]],
     minx: float,
     miny: float,
     maxx: float,
     maxy: float,
 ) -> bool:
     """
-    True if a closed ring (list of [x, y]-like positions) touches or
-    overlaps the axis-aligned square [minx, maxx] x [miny, maxy].
+    True if the ring's boundary line itself (a vertex, or an edge) touches
+    or crosses the axis-aligned square [minx, maxx] x [miny, maxy].
     """
-    if not ring:
-        return False
-
-    points = [(float(p[0]), float(p[1])) for p in ring]
-
     for x, y in points:
         if minx - EPSILON_GEOM <= x <= maxx + EPSILON_GEOM and miny - EPSILON_GEOM <= y <= maxy + EPSILON_GEOM:
             return True
 
     corners = [(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy)]
-    for corner in corners:
-        if _point_in_ring(corner[0], corner[1], points):
-            return True
-
     square_edges = [(corners[i], corners[(i + 1) % 4]) for i in range(4)]
     n = len(points)
     for i in range(n):
@@ -496,6 +493,31 @@ def _ring_intersects_square(
                 return True
 
     return False
+
+
+def _ring_intersects_square(
+    ring: list[Any],
+    minx: float,
+    miny: float,
+    maxx: float,
+    maxy: float,
+) -> bool:
+    """
+    True if a closed ring (list of [x, y]-like positions) touches or
+    overlaps the axis-aligned square [minx, maxx] x [miny, maxy]: the ring's
+    boundary touches the square, or the square lies inside the ring.
+    """
+    if not ring:
+        return False
+
+    points = [(float(p[0]), float(p[1])) for p in ring]
+
+    if _ring_boundary_touches_square(points, minx, miny, maxx, maxy):
+        return True
+
+    # No boundary contact: the square is either entirely inside or entirely
+    # outside the ring, and one corner decides which.
+    return _point_in_ring(minx, miny, points)
 
 
 def _polygon_intersects_square(
@@ -520,12 +542,16 @@ def _polygon_intersects_square(
     center_y = (miny + maxy) / 2.0
 
     for hole in polygon_coords[1:]:
-        if _ring_intersects_square(hole, minx, miny, maxx, maxy):
-            # The square straddles the hole boundary, so part of it is
-            # still inside the polygon (outside the hole).
+        if not hole:
             continue
-        if _point_in_ring(center_x, center_y, hole):
-            # The square lies entirely inside this hole.
+        hole_points = [(float(p[0]), float(p[1])) for p in hole]
+        if _ring_boundary_touches_square(hole_points, minx, miny, maxx, maxy):
+            # The square straddles (or touches) the hole boundary, so part of
+            # it is still inside the polygon (outside the hole).
+            continue
+        if _point_in_ring(center_x, center_y, hole_points):
+            # No contact with the hole boundary and the centre is inside the
+            # hole: the square lies entirely inside this hole.
             return False
 
     return True
@@ -829,6 +855,154 @@ def _collect_zone_values(
     return values
 
 
+# ---------------------------------------------------------------------------
+# numpy engine
+# ---------------------------------------------------------------------------
+
+def _zone_polygons(geometry: dict[str, Any] | None) -> list[Any] | None:
+    """Polygon coordinate sets of a Polygon/MultiPolygon zone, else None (-> python path)."""
+    if not isinstance(geometry, dict):
+        return None
+    gtype = geometry.get("type")
+    if gtype == "Polygon":
+        return [geometry.get("coordinates") or []]
+    if gtype == "MultiPolygon":
+        return list(geometry.get("coordinates") or [])
+    return None
+
+
+def _zone_mask_numpy(
+    *,
+    zone_geometry: dict[str, Any] | None,
+    transform: list[float],
+    height: int,
+    width: int,
+    all_touched: bool,
+) -> tuple[tuple[int, int, int, int], Any] | None:
+    """
+    Pixel selection for one zone as (window, bool mask), identical to the
+    python engine's per-pixel _pixel_matches_zone. Returns None when the
+    zone/transform is outside what the vectorized rule covers (non-polygon
+    geometry, rotated transform) so the caller uses the python path.
+    """
+    import numpy as np
+
+    polygons = _zone_polygons(zone_geometry)
+    geometry_bbox = _geometry_bbox(zone_geometry)
+    if polygons is None or geometry_bbox is None:
+        return None
+
+    window = _bbox_to_pixel_window(geometry_bbox, transform=transform, height=height, width=width)
+    row_start, row_stop, col_start, col_stop = window
+    centers = pixel_centers(transform, row_start, row_stop, col_start, col_stop)
+    if centers is None:
+        return None
+    xs, ys = centers
+
+    mask = np.zeros((len(ys), len(xs)), dtype=bool)
+    for polygon in polygons:
+        mask |= polygon_center_mask(polygon, xs, ys)
+
+    if all_touched:
+        # Pixels whose square is well inside / well outside every ring are
+        # decided by their centre; only pixels near a ring edge need the exact
+        # square-vs-polygon test, which is run with the python engine's own
+        # function so the two engines select exactly the same pixels.
+        import shapely
+
+        a, _b, _c, _d, e, _f = transform
+        half_diag = 0.5 * math.hypot(float(a), float(e))
+        rings = [ring for polygon in polygons for ring in polygon if ring and len(ring) >= 2]
+        boundary = shapely.multilinestrings([[(float(p[0]), float(p[1])) for p in ring] for ring in rings])
+        gx, gy = np.meshgrid(xs, ys)
+        near = shapely.dwithin(boundary, shapely.points(gx.ravel(), gy.ravel()),
+                               half_diag * (1.0 + 1e-6) + 1e-6).reshape(mask.shape)
+        for r, c in zip(*np.nonzero(near)):
+            mask[r, c] = _pixel_matches_zone(
+                row=row_start + int(r),
+                col=col_start + int(c),
+                transform=transform,
+                geometry=zone_geometry,
+                geometry_bbox=geometry_bbox,
+                all_touched=True,
+            )
+
+    return window, mask
+
+
+def _calculate_zone_stats_numpy(
+    values: Any,
+    *,
+    nodata: Any,
+    precision: int | None,
+) -> dict[str, Any]:
+    """
+    _calculate_zone_stats for a numeric ndarray of the selected pixels, with
+    the same arithmetic (sorted sequential sums, python types for
+    majority/minority, repr-ordered ties) so both engines report identical
+    numbers.
+    """
+    import numpy as np
+
+    count = int(values.size)
+    as_float = values.astype("float64", copy=False)
+    keep = ~np.isnan(as_float)
+    if nodata is not None and not _is_nan(nodata) and _is_number(nodata):
+        keep &= as_float != float(nodata)
+    valid_values = values[keep]
+    finite = np.isfinite(valid_values.astype("float64", copy=False))
+
+    numeric = np.sort(valid_values[finite].astype("float64"))
+    numeric_count = int(numeric.size)
+    non_numeric_count = int(valid_values.size) - numeric_count
+
+    if numeric_count:
+        numeric_list = numeric.tolist()
+        total = float(sum(numeric_list))
+        mean = total / numeric_count
+        if numeric_count % 2 == 1:
+            median = numeric_list[numeric_count // 2]
+        else:
+            median = (numeric_list[(numeric_count // 2) - 1] + numeric_list[numeric_count // 2]) / 2.0
+        squares = sum(((numeric - mean) ** 2).tolist())
+        sample_stdev = math.sqrt(squares / (numeric_count - 1)) if numeric_count > 1 else None
+        population_stdev = math.sqrt(squares / numeric_count)
+        min_value, max_value = float(numeric_list[0]), float(numeric_list[-1])
+    else:
+        total = mean = median = sample_stdev = population_stdev = min_value = max_value = None
+
+    if valid_values.size:
+        uniq, counts = np.unique(valid_values, return_counts=True)
+        py_uniq = uniq.tolist()
+        counts_list = counts.tolist()
+        top = max(counts_list)
+        low = min(counts_list)
+        majority = min((v for v, c in zip(py_uniq, counts_list) if c == top), key=_safe_sort_key)
+        minority = min((v for v, c in zip(py_uniq, counts_list) if c == low), key=_safe_sort_key)
+        unique_count = len(set(repr(v) for v in py_uniq))
+    else:
+        majority = minority = None
+        unique_count = 0
+
+    return {
+        "count": count,
+        "valid_count": int(valid_values.size),
+        "nodata_count": count - int(valid_values.size),
+        "numeric_count": numeric_count,
+        "non_numeric_count": non_numeric_count,
+        "min": _round_value(min_value, precision),
+        "max": _round_value(max_value, precision),
+        "sum": _round_value(total, precision),
+        "mean": _round_value(mean, precision),
+        "median": _round_value(median, precision),
+        "sample_stdev": _round_value(sample_stdev, precision),
+        "population_stdev": _round_value(population_stdev, precision),
+        "unique_count": unique_count,
+        "majority": majority,
+        "minority": minority,
+    }
+
+
 def _make_output_feature(
     *,
     zone: dict[str, Any],
@@ -1003,7 +1177,10 @@ def calculate_zonal_statistics(
         stat_prefix:
             Prefix for statistic property names.
         engine:
-            python | auto.
+            python | numpy | auto. numpy selects each Polygon/MultiPolygon
+            zone's pixels with a vectorized version of the same ray-casting
+            rule and computes the statistics on arrays; results are identical
+            to python. auto = numpy when installed.
         precision:
             Rounding precision for floating-point statistics.
         source_crs:
@@ -1062,6 +1239,20 @@ def calculate_zonal_statistics(
 
     zone_features, zones_info = _extract_zones(zones)
 
+    engine_used = resolve_engine(final_engine)
+    # numpy engine: a numeric ndarray band is sliced directly; nested lists
+    # keep their python values (ints stay ints, non-numeric values stay
+    # countable) and only the pixel selection is vectorized.
+    band_array = None
+    python_data = data
+    if is_ndarray(data):
+        band_array = data if data.ndim == 2 else data[final_band_index - 1]
+        if band_array.dtype.kind not in "iuf":
+            band_array = None
+        if engine_used == "python" or band_array is None:
+            python_data = data.tolist()
+            data = python_data
+
     output_features: list[dict[str, Any]] = []
 
     total_selected_pixel_count = 0
@@ -1076,20 +1267,48 @@ def calculate_zonal_statistics(
         else:
             zone_id = zone_props.get("id", zone_index)
 
-        values = _collect_zone_values(
-            data=data,
-            transform=source_transform,
-            zone_geometry=zone.get("geometry"),
-            band_index=final_band_index,
-            all_touched=final_all_touched,
-            shape=raster_shape,
-        )
+        zone_selection = None
+        if engine_used == "numpy":
+            zone_selection = _zone_mask_numpy(
+                zone_geometry=zone.get("geometry"),
+                transform=source_transform,
+                height=raster_height,
+                width=raster_width,
+                all_touched=final_all_touched,
+            )
 
-        zone_stats = _calculate_zone_stats(
-            values,
-            nodata=final_nodata,
-            precision=final_precision,
-        )
+        if zone_selection is not None:
+            (row_start, row_stop, col_start, col_stop), zone_mask = zone_selection
+            band_view = band_array[row_start:row_stop, col_start:col_stop] if band_array is not None else None
+            if band_view is not None:
+                zone_stats = _calculate_zone_stats_numpy(
+                    band_view[zone_mask],
+                    nodata=final_nodata,
+                    precision=final_precision,
+                )
+            else:
+                rows, cols = zone_mask.nonzero()
+                values = [
+                    _pixel_value(data, row=row_start + int(r), col=col_start + int(c),
+                                 band_index=final_band_index, shape=raster_shape)
+                    for r, c in zip(rows, cols)
+                ]
+                zone_stats = _calculate_zone_stats(values, nodata=final_nodata, precision=final_precision)
+        else:
+            values = _collect_zone_values(
+                data=python_data,
+                transform=source_transform,
+                zone_geometry=zone.get("geometry"),
+                band_index=final_band_index,
+                all_touched=final_all_touched,
+                shape=raster_shape,
+            )
+
+            zone_stats = _calculate_zone_stats(
+                values,
+                nodata=final_nodata,
+                precision=final_precision,
+            )
 
         total_selected_pixel_count += zone_stats["count"]
         total_valid_pixel_count += zone_stats["valid_count"]
@@ -1110,7 +1329,7 @@ def calculate_zonal_statistics(
                 output_fields=output_fields,
                 preserve_properties=preserve_properties,
                 include_zone_geometry=final_include_zone_geometry,
-                engine_used="python",
+                engine_used=engine_used if zone_selection is not None else "python",
                 band_index=final_band_index,
                 status=status,
             )
@@ -1134,7 +1353,7 @@ def calculate_zonal_statistics(
         "loader": PLUGIN_ID,
         "operation": "zonal_statistics",
         "engine_requested": final_engine,
-        "engine_used": "python",
+        "engine_used": engine_used,
         "raster_width": raster_width,
         "raster_height": raster_height,
         "raster_band_count": band_count,

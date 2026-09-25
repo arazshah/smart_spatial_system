@@ -230,6 +230,15 @@ PARAM_SHAPES: dict[tuple[str, str], ParamShape] = {
         "a pixel value or list of pixel values to skip", ([0],),
     ),
     ("raster_to_vector", "nodata"): _NODATA,
+    ("calculate_attribute_statistics", "fields"): ParamShape(
+        "a property name or list of property names to summarize; omit to infer all fields",
+        (["_area", "pixel_count"], "_area"),
+    ),
+    ("calculate_attribute_statistics", "group_by"): ParamShape(
+        "a property name or list of property names; one output feature per distinct value "
+        "(combination), with the group in _group_value",
+        ("class_value", ["sector", "class_value"]),
+    ),
     ("reclassify_raster", "rules"): ParamShape(
         "ordered list of rule objects, first match wins: range {\"min\", \"max\", \"value\"}, "
         "exact {\"equals\", \"value\"}, or set {\"values\": [...], \"value\"}; optional \"label\"",

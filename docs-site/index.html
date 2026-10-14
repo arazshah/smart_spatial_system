@@ -164,6 +164,11 @@
   .stat b { display: block; font-size: 30px; font-weight: 800; color: var(--text); }
   .stat span { font-size: 13.5px; color: var(--text-muted); }
 
+  .demo-figure { margin-top: 48px; max-width: 760px; }
+  .demo-figure img { width: 100%; display: block; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); }
+  .demo-figure .cap { margin-top: 12px; font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+  .demo-figure .cap code { background: var(--accent-soft); color: var(--accent-strong); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+
   /* Sections */
   section { padding: 76px 0; border-top: 1px solid var(--border); }
   .section-head { max-width: 640px; margin-bottom: 44px; }
@@ -315,7 +320,7 @@
   <div class="wrap">
     <span class="eyebrow">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg>
-      Open source · MIT licensed · v0.5.7 on PyPI
+      Open source · MIT licensed · v0.5.8 on PyPI
     </span>
     <h1>Ask a geospatial question in plain language.<br>Get a <span class="accent">reproducible answer</span> back.</h1>
     <p class="lead">
@@ -349,6 +354,10 @@
       <div class="stat"><b>17</b><span>documented bugs and enhancements from real research use</span></div>
       <div class="stat"><b>2</b><span>planning paths — deterministic and LLM-backed</span></div>
     </div>
+    <figure class="demo-figure">
+      <img src="assets/demo.gif" alt="Running the Vienna accessibility ranking end to end through s3geo: the planned DAG, then the ranked output" loading="lazy">
+      <figcaption class="cap">Real, unedited terminal output from <code>examples/s3geo_accessibility_demo.py</code> — the deterministic ranking path, called entirely through <code>import s3geo</code> (no server, no LLM key needed). <a href="https://github.com/arazshah/smart_spatial_system/blob/main/examples/s3geo_accessibility_demo.py" target="_blank" rel="noopener">See the source →</a></figcaption>
+    </figure>
   </div>
 </header>
 

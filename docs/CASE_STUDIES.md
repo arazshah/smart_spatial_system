@@ -75,6 +75,26 @@ worth pointing a reviewer or advisor at directly.
   station (a zonal gradient, not a ranking). Manual/deterministic arm
   done; LLM arm blocked on an upstream plugin — see that repository's
   `paper/PLAN.md`.
+- [`smart-spatial-urmia-lake-shrinkage`](https://github.com/arazshah/smart-spatial-urmia-lake-shrinkage) —
+  open-water and salt-crust change on Lake Urmia from Sentinel-2
+  (2018→2025), a raster change-detection study like Cairo's but run
+  through `s3geo.query()` directly rather than only the hand-written
+  plugin chain, so it doubles as a raster-pipeline instance of the
+  reproducibility pattern (case study 6 below). Reference run: open water
+  fell from 1,497 km² to 293 km² (−1,220 km², 63% of it now salt, mostly
+  on the west shore), cross-checked independently (197/197 numbers
+  match). **In progress:** the deterministic arm, cross-check and figures
+  are done; the six `s3geo.query()` questions are written and all
+  execute from hand-written reference plans (6/6, 11/11 checks pass,
+  `llm/reference_results/`), but the live LLM run and the paper are not
+  done yet. Found **5 defects**, all fixed in `0.5.8` (see
+  [`CHANGELOG.md`](../CHANGELOG.md)): an O(H²·W) raster-plugin
+  bottleneck (fixed with an opt-in numpy engine), `raster_to_vector`
+  components returning bounding boxes instead of real outlines,
+  `zonal_statistics(all_touched=True)` counting pixels inside a zone's
+  holes, `s3geo.query()` never telling the LLM its own input layers'
+  shape/bands/fields, and two operations (`area_perimeter`,
+  `attribute_statistics`) missing from `OP_CATALOG` entirely.
 
 ## Suggested studies
 
@@ -147,7 +167,10 @@ structurally different analysis — say, raster-based (case study 4) instead
 of vector distance-based? **Fit:** this is a methodology paper, not a new
 capability — it reuses `comparison_metric.md`'s definitions verbatim.
 **Effort:** low to set up, but needs real LLM API budget for N repeated
-runs, same as the original.
+runs, same as the original. **In progress:**
+[`smart-spatial-urmia-lake-shrinkage`](https://github.com/arazshah/smart-spatial-urmia-lake-shrinkage)
+(see "In progress" above) is exactly this on raster data — deterministic
+arm and cross-check done, live LLM run and comparison still pending.
 
 ## What isn't a good fit yet
 

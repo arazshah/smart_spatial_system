@@ -9,7 +9,7 @@
 
 **[s3geo.com](https://s3geo.com)** — project site, plugin catalog and case-study index.
 
-**Used in research:** five case studies have been built on s3geo so far (Vienna, Tehran, İstanbul, Urmia, Cairo). Most compare an LLM-planned analysis against one written by hand on real OpenStreetMap data; the Cairo study is a pure-plugin raster pipeline (satellite NDVI change, no LLM arm) that found 8 defects fixed in `0.5.7`. The İstanbul study is included in full in [`examples/istanbul_health_access/`](examples/istanbul_health_access/README.md). See [Case studies and papers](#case-studies-and-papers-written-with-s3geo).
+**Used in research:** six case studies have been built on s3geo so far (Vienna, Tehran, İstanbul, Urmia real estate, Cairo, Lake Urmia). Most compare an LLM-planned analysis against one written by hand on real OpenStreetMap data; Cairo and Lake Urmia are satellite-raster pipelines (NDVI and open-water/salt-crust change) that together found 13 defects fixed in `0.5.7`–`0.5.8`. The İstanbul study is included in full in [`examples/istanbul_health_access/`](examples/istanbul_health_access/README.md). See [Case studies and papers](#case-studies-and-papers-written-with-s3geo).
 
 Smart Spatial System is a plugin-based GeoAI backend with a React workbench. A question such as *"rank these candidate properties by distance to metro stations, malls and main roads"* is turned into a structured `QuerySpec`, planned as a DAG of spatial operations, executed by plugins against uploaded files or PostGIS, and returned as map-ready outputs with a full execution trace.
 
@@ -330,11 +330,12 @@ compliance, and a reproducibility-methodology replication) plus what's
 
 ### Case studies and papers written with s3geo
 
-Five research studies so far have used s3geo on real data. Four compare an
+Six research studies so far have used s3geo on real data. Four compare an
 LLM-planned analysis (from a plain-language question) against the same
-analysis written by hand on real OpenStreetMap data; the fifth is a
-satellite-raster pipeline with no LLM arm. Each study has its own paper or
-plan. Four of the five have run, and all four found real defects in this
+analysis written by hand on real OpenStreetMap data; two are
+satellite-raster pipelines (Cairo has no LLM arm, Lake Urmia's LLM arm is
+still pending). Each study has its own paper or plan. Five of the six have
+run analysis against real data, and all five found real defects in this
 package, now fixed and released.
 
 | # | Study | City | Question | Status | What it changed in s3geo |
@@ -344,6 +345,7 @@ package, now fixed and released.
 | 3 | [Istanbul health access](examples/istanbul_health_access/README.md) | İstanbul | Which mahalle are underserved by hospitals and clinics? | **Complete**: full paper, results and figures, included in this repo | 6 bug reports and 3 enhancements (`0.4.1`–`0.5.6`) |
 | 4 | [Urmia real estate](https://github.com/arazshah/smart-spatial-urmia-real-estate) | Urmia | Real-estate suitability ranking using transit, malls, roads, risk and zoning | Scaffolded, not yet run | Reuses the shipped real-estate workflow |
 | 5 | [Cairo vegetation change](https://github.com/arazshah/smart-spatial-cairo-vegetation-change) | Cairo | How has district-level NDVI changed 2017→2025, and where is vegetation loss sharpest? | **Complete**: full paper, results, figures and bug reproductions | 8 defects found, 7 fixed (`0.5.7`); pipeline ~20× faster |
+| 6 | [Lake Urmia shrinkage](https://github.com/arazshah/smart-spatial-urmia-lake-shrinkage) | Urmia (lake) | How much open water/salt crust did Lake Urmia gain or lose, 2018→2025, and where? | Deterministic arm, cross-check and figures done; LLM run and paper pending | 5 defects fixed (`0.5.8`); numpy raster engine |
 
 The first four share one design. **Arm 1** is a deterministic plan written
 by hand. **Arm 2** is the same question in plain language, planned by
@@ -354,7 +356,12 @@ and Rank Stability, and agreement with Arm 1. Vienna's
 reuses it unchanged. Cairo has no LLM arm: it is a fixed, hand-designed
 raster pipeline (§4 of its paper is titled "Using s3geo: what worked, what
 broke") verified against an independent numpy/rasterio re-implementation
-instead of against an LLM-planned one.
+instead of against an LLM-planned one. Lake Urmia follows the same two-arm
+design as Vienna/Tehran/İstanbul, but on a raster pipeline instead of a
+vector one: its deterministic arm and independent cross-check (197/197
+numbers match) are done, and all six questions it will ask `s3geo.query()`
+already execute from hand-written reference plans (6/6, 11/11 checks
+pass) — only the live LLM run and the comparison write-up are outstanding.
 
 #### 1. Vienna: district accessibility to metro, schools and parks
 
@@ -466,8 +473,8 @@ The paper is `paper/paper.md` in that repository.
 This study compares two Sentinel-2 L2A scenes of Greater Cairo (27 Aug 2017,
 1 Sep 2025) and ranks 48 districts (qism/markaz, from geoBoundaries via
 CAPMAS/OCHA) by change in vegetation health and extent. Unlike the other
-four studies, it has no LLM arm — every analytical step is a fixed,
-hand-designed chain of s3geo raster and vector plugins:
+studies with a completed LLM arm, Cairo has none at all — every analytical
+step is a fixed, hand-designed chain of s3geo raster and vector plugins:
 
 - NDVI (`ndvi_calculator`) → ΔNDVI and masks (`band_math`) → vegetation/
   change classes (`raster_reclassify`) → per-district statistics
@@ -508,6 +515,57 @@ surfaced 8 defects in `0.5.6`, each with a minimal reproduction
 Re-running the same pipeline on `0.5.7` reproduces every number in the
 paper exactly, with none of the fixes changing a single published result
 (the analysis had already worked around every affected option).
+
+#### 6. Lake Urmia: open-water and salt-crust change, 2018–2025
+
+**Repository:** [`smart-spatial-urmia-lake-shrinkage`](https://github.com/arazshah/smart-spatial-urmia-lake-shrinkage).
+**Status: in progress** — the deterministic arm, independent cross-check
+and figures are done; the paper and the live LLM run are not.
+
+This study measures how much open water and salt crust/brine-saturated
+flats Lake Urmia (Iran) gained or lost between late summer 2018 and late
+summer 2025, and along which shore, from Sentinel-2 L2A at 20 m. Like
+Cairo, it is a raster change-detection study, but it asks the same
+questions two ways instead of one:
+
+- **Arm 1**, a fixed plugin chain run directly
+  (`scripts/04_run_s3geo_pipeline.py`).
+- **Arm 2**, the same six questions in plain language through
+  `s3geo.query()` (`scripts/05_run_s3geo_queries.py`) — making this the
+  first raster-pipeline instance of the Vienna-style reproducibility
+  methodology (case study 6 in [docs/CASE_STUDIES.md](docs/CASE_STUDIES.md)).
+
+**Reference-run result:** open water in the lake-bed domain fell from
+1,497.3 km² (2018) to 293.0 km² (2025) — a loss of 1,220 km², 1,192 km² of
+it now salt crust, 63% of that loss on the west (Urmia-city) shore. The
+largest single water body shrank from 1,439.3 km² to 198.8 km². All 197
+numbers in the reference run were independently cross-checked and match.
+
+**Status of the LLM arm:** all six questions are expressible — the
+hand-written reference plans for each run 6/6, passing 11/11 checks
+(`llm/reference_results/`) — but the live run against a real model is
+still waiting on LLM API access, and the paper has not been started.
+
+**What it changed here:** running the pipeline at real (lake-bed) scale
+surfaced 5 defects, all fixed in `0.5.8`:
+
+- the pure-Python raster plugins were too slow at tens of millions of
+  pixels (fixed with an opt-in `engine="numpy"` parameter on
+  `band_math`, `zonal_statistics` and `raster_to_vector`, verified
+  bit-identical to the Python path);
+- `raster_to_vector(mode="components")` returned each component's
+  bounding box instead of its real outline — meaningless on a grid with
+  thousands of concave, holed water-body components;
+- `zonal_statistics(all_touched=True)` counted pixels lying inside a
+  zone polygon's holes;
+- `s3geo.query()` never told the LLM its own input layers' shape, bands,
+  CRS or fields, so a wrong guess only surfaced as a late,
+  unresolvable-reference failure — `describe_input_layers()` now states
+  them in the prompt, and `unknown_input_refs()` rejects (and triggers
+  repair on) a plan that reads something that isn't there;
+- `area_perimeter` and `attribute_statistics` were missing from
+  `OP_CATALOG` entirely, so the deterministic planner couldn't produce a
+  plan using either, even though both plugins exist and are registered.
 
 Want to write the next one? [docs/CASE_STUDIES.md](docs/CASE_STUDIES.md)
 lists suggested studies, and the

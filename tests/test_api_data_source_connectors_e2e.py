@@ -164,13 +164,18 @@ def test_wfs_source_registration_success_end_to_end(
 
 
 def test_postgis_source_registration_rejects_sql_injection_where_clause(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """
     A malicious `where` filter must be rejected before any database
     connection is attempted - no PostGIS instance is needed for this
     request to fail correctly.
     """
+    # These requests carry host/password in the body, which is refused by default
+    # (tests/test_api_connectors.py); opt in as a deployer would.
+    monkeypatch.setattr(
+        "api.routers.data_source_connectors._allow_client", lambda spec: True
+    )
     client = _client(tmp_path)
 
     response = client.post(
@@ -190,8 +195,13 @@ def test_postgis_source_registration_rejects_sql_injection_where_clause(
 
 
 def test_postgis_source_registration_rejects_unsafe_table_identifier(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # These requests carry host/password in the body, which is refused by default
+    # (tests/test_api_connectors.py); opt in as a deployer would.
+    monkeypatch.setattr(
+        "api.routers.data_source_connectors._allow_client", lambda spec: True
+    )
     client = _client(tmp_path)
 
     response = client.post(

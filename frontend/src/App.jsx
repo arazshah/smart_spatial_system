@@ -312,6 +312,7 @@ export default function App() {
   const [dsmError, setDsmError] = useState("");
 
   // PostGIS form
+  const [dsmPGProfile, setDsmPGProfile] = useState("");
   const [dsmPGHost, setDsmPGHost] = useState("");
   const [dsmPGPort, setDsmPGPort] = useState("5432");
   const [dsmPGDatabase, setDsmPGDatabase] = useState("");
@@ -744,7 +745,7 @@ const [dsmUploadKind, setDsmUploadKind] = useState("vector");
   // ── DSM Handlers ────────────────────────────────────────────
 
   function resetDsmForms() {
-    setDsmPGHost(""); setDsmPGPort("5432"); setDsmPGDatabase("");
+    setDsmPGProfile(""); setDsmPGHost(""); setDsmPGPort("5432"); setDsmPGDatabase("");
     setDsmPGUser(""); setDsmPGPassword(""); setDsmPGSchema("public");
     setDsmPGTable(""); setDsmPGWhere(""); setDsmPGLimit("1000"); setDsmPGName("");
     setDsmWFSUrl(""); setDsmWFSTypeName(""); setDsmWFSVersion("2.0.0");
@@ -896,17 +897,20 @@ const [dsmUploadKind, setDsmUploadKind] = useState("vector");
 
       if (dsmTab === "postgis") {
         if (!dsmPGTable.trim()) throw new Error("نام جدول الزامی است.");
-        if (!dsmPGHost.trim() && !dsmPGDatabase.trim())
-          throw new Error("host و database الزامی هستند.");
+        // A server-side profile is the safe default; raw connection details are only
+        // accepted when the server enables allow_client_connection.
+        if (!dsmPGProfile.trim() && !dsmPGHost.trim() && !dsmPGDatabase.trim())
+          throw new Error("نام پروفایل سرور، یا host و database الزامی هستند.");
 
         result = await registerPostGISSource({
           project_id: activeProject?.project_id || getDsmUploadProjectId() || null,
           display_name: dsmPGName.trim() || dsmPGTable.trim(),
-          host: dsmPGHost.trim() || undefined,
-          port: dsmPGPort ? parseInt(dsmPGPort) : undefined,
-          database: dsmPGDatabase.trim() || undefined,
-          user: dsmPGUser.trim() || undefined,
-          password: dsmPGPassword || undefined,
+          profile: dsmPGProfile.trim() || undefined,
+          host: dsmPGProfile.trim() ? undefined : dsmPGHost.trim() || undefined,
+          port: dsmPGProfile.trim() ? undefined : dsmPGPort ? parseInt(dsmPGPort) : undefined,
+          database: dsmPGProfile.trim() ? undefined : dsmPGDatabase.trim() || undefined,
+          user: dsmPGProfile.trim() ? undefined : dsmPGUser.trim() || undefined,
+          password: dsmPGProfile.trim() ? undefined : dsmPGPassword || undefined,
           schema: dsmPGSchema.trim() || "public",
           table: dsmPGTable.trim(),
           where: dsmPGWhere.trim() || undefined,
@@ -1424,6 +1428,11 @@ const [dsmUploadKind, setDsmUploadKind] = useState("vector");
                 <label className="dsm-field">
                   <span>نام نمایشی</span>
                   <input dir="ltr" value={dsmPGName} onChange={e => setDsmPGName(e.target.value)} placeholder="Main Database" />
+                </label>
+
+                <label className="dsm-field">
+                  <span>Server profile <em>Recommended</em></span>
+                  <input dir="ltr" value={dsmPGProfile} onChange={e => setDsmPGProfile(e.target.value)} placeholder="local (config/plugins/postgis_connector.yaml)" />
                 </label>
 
                 <div className="dsm-row-2">

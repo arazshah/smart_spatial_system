@@ -11,6 +11,7 @@ from __future__ import annotations
 import inspect
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -51,6 +52,7 @@ class ConnectorSpec:
     required: tuple[str, ...]
     optional: tuple[str, ...]
     params: frozenset[str] = field(default_factory=frozenset)
+    plugin_id: str = ""
 
     @property
     def supports_preview(self) -> bool:
@@ -109,19 +111,26 @@ def parse_block(capability: str, descriptor: Any, handler: Any) -> ConnectorSpec
         required=required,
         optional=optional,
         params=frozenset(signature.parameters),
+        plugin_id=str(getattr(descriptor, "plugin_id", "") or ""),
     )
 
 
 class ConnectorRegistry:
     def __init__(self, registry: Any, specs: dict[str, ConnectorSpec],
-                 *, allow_client_connection: bool = False) -> None:
+                 *, allow_client_connection: bool | Callable[[ConnectorSpec], bool] = False) -> None:
         self._registry = registry
         self._specs = specs
         self.allow_client_connection = allow_client_connection
 
+    def client_connection_allowed(self, spec: ConnectorSpec) -> bool:
+        """Whether callers may pass connection details (dsn, host, ...) for this connector."""
+        flag = self.allow_client_connection
+        return bool(flag(spec)) if callable(flag) else bool(flag)
+
     @classmethod
     def from_capability_registry(
-        cls, registry: Any, *, allow_client_connection: bool = False
+        cls, registry: Any, *,
+        allow_client_connection: bool | Callable[[ConnectorSpec], bool] = False,
     ) -> ConnectorRegistry:
         specs: dict[str, ConnectorSpec] = {}
         for name in sorted(registry.registered_capability_names()):
@@ -155,7 +164,7 @@ class ConnectorRegistry:
         missing = [p for p in spec.required if params.get(p) in (None, "")]
         if missing:
             raise ConnectorError(f"Missing required parameter(s): {missing}.", code="invalid_params")
-        if not self.allow_client_connection:
+        if not self.client_connection_allowed(spec):
             supplied = sorted(p for p in params if p in CLIENT_CONNECTION_PARAMS and params[p] is not None)
             if supplied:
                 raise ConnectorError(

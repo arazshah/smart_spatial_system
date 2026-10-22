@@ -54,6 +54,7 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.network_routing",
     "plugins.chart_builder",
     "plugins.tabular_exporter",
+    "plugins.geojson_url_loader",
     "plugins.local_raster_loader",
     "plugins.geocoding_resolver",
     "plugins.postgis_connector",

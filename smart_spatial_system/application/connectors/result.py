@@ -7,19 +7,17 @@ metadata from the raw plugin output (VectorOut / RasterOut / table rows).
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
 
 from smart_spatial_system.shared.jsonable import as_feature_collection, to_jsonable
+from smart_spatial_system.shared.net_policy import redact_url
 
 # Parameter names whose values must never be echoed back (provenance, logs, errors).
 SECRET_PARAMS = frozenset(
     {"dsn", "password", "passwd", "user", "token", "api_key", "key", "secret", "headers",
      "authorization", "credentials", "connection_string", "host", "port"}
 )
-_SECRET_QUERY_RE = re.compile(r"(?i)^(key|api_?key|token|access_token|auth|password|secret)$")
 KINDS = ("vector", "raster", "table")
 
 
@@ -30,28 +28,12 @@ def redact_ref(params: dict[str, Any]) -> dict[str, Any]:
         if name in SECRET_PARAMS:
             ref[name] = "<redacted>"
         elif isinstance(value, str) and "://" in value:
-            ref[name] = _redact_url(value)
+            ref[name] = redact_url(value)
         elif isinstance(value, (str, int, float, bool)) or value is None:
             ref[name] = value
         else:
             ref[name] = f"<{type(value).__name__}>"
     return ref
-
-
-def _redact_url(url: str) -> str:
-    try:
-        parts = urlsplit(url)
-    except ValueError:
-        return "<url>"
-    netloc = parts.hostname or ""
-    if parts.port:
-        netloc += f":{parts.port}"
-    query = "&".join(
-        f"{pair.split('=', 1)[0]}=<redacted>" if _SECRET_QUERY_RE.match(pair.split("=", 1)[0])
-        else pair
-        for pair in parts.query.split("&") if pair
-    )
-    return urlunsplit((parts.scheme, netloc, parts.path, query, ""))
 
 
 def _walk_bounds(coords: Any, box: list[float]) -> None:

@@ -30,6 +30,25 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `find_shortest_path`, `calculate_service_area`, `build_chart`, `export_table`. Each has hard
   size/work limits in its config, OP_CATALOG entries and tests.
 
+- Connector registry (`smart_spatial_system.application.connectors`): sources declare a
+  `connector` block; normalized `ConnectorResult`, redacted provenance and errors, preview.
+  New endpoints `GET /connectors`, `POST /connectors/preview`, `POST /data-sources/connect`.
+  New `geojson_url_loader` (`load_geojson_url`) and shared `net_policy` (see
+  `docs/CONNECTOR_REGISTRY_DESIGN.md`).
+
+### Security
+
+- **Breaking:** `POST /data-sources/postgis` no longer accepts `dsn`/`host`/`port`/`database`/
+  `user`/`password` from the request body by default (it let any caller make the server connect
+  to arbitrary hosts). Name a server-side `profile` instead, or set
+  `allow_client_connection: true` in `config/plugins/postgis_connector.yaml` to keep the old
+  behaviour. The UI form has a "Server profile" field.
+- **Breaking:** `POST /data-sources/url` now goes through the shared network policy: it was
+  fetching any URL with redirects followed (SSRF, including cloud metadata endpoints). It refuses
+  non-public addresses, redirects and oversized responses, accepts GeoJSON only, and no longer
+  accepts request `headers` (use a `profile`).
+- Filesystem and raw-SQL connectors cannot be driven through the HTTP connector endpoints.
+
 ### Changed
 
 - `local_raster_loader` and `geocoding_resolver` are now in `DEFAULT_SAFE_PLUGIN_MODULES`.

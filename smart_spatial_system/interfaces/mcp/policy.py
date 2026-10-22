@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import ipaddress
 import re
-import socket
 from collections.abc import Iterable
 from pathlib import Path
-from urllib.parse import urlparse
+
+from smart_spatial_system.shared.net_policy import NetworkPolicyError, validate_http_url
 
 from .config import (
     RISK_DATABASE,
@@ -58,7 +58,7 @@ FS_PARAMS = frozenset(
 PATH_PARAMS = frozenset({"path", "paths", "file_path", "output_path", "output_dir"})
 NAME_PARAMS = frozenset({"filename", "template_name"})
 URL_PARAMS = frozenset({"url", "base_url", "endpoint"})
-DB_PARAMS = frozenset({"dsn", "profile", "connection", "connection_string"})
+DB_PARAMS = frozenset({"dsn", "connection", "connection_string"})
 SQL_PARAMS = frozenset({"sql", "query_sql"})
 FS_OUTPUT_KINDS = frozenset({"pdf", "file"})
 
@@ -138,55 +138,14 @@ def check_filename(value: object, *, param: str) -> str:
     return value
 
 
-def _host_allowed(host: str, patterns: Iterable[str]) -> bool:
-    host = host.lower()
-    for pattern in patterns:
-        pattern = pattern.lower()
-        if pattern.startswith("*."):
-            if host.endswith(pattern[1:]):
-                return True
-        elif host == pattern:
-            return True
-    return False
-
-
-def _is_public_ip(address: str) -> bool:
-    ip = ipaddress.ip_address(address)
-    return not (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_multicast
-        or ip.is_reserved
-        or ip.is_unspecified
-    )
-
-
 def check_url(value: object, settings: McpSettings, *, param: str, resolve: bool = True) -> str:
     """Allow only http(s) URLs to allow-listed, publicly routable hosts (SSRF guard)."""
-    if not isinstance(value, str) or not value.strip():
-        raise PolicyViolation(f"'{param}' must be a non-empty URL string.")
-    parsed = urlparse(value)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-        raise PolicyViolation(f"'{param}' must be an http(s) URL.")
-    if parsed.username or parsed.password:
-        raise PolicyViolation(f"'{param}' must not embed credentials.")
-    host = parsed.hostname
-    if not _host_allowed(host, settings.allowed_hosts):
-        raise PolicyViolation(f"Host '{host}' is not in this server's allowed hosts.")
     try:
-        literal = [str(ipaddress.ip_address(host))]
-    except ValueError:
-        literal = []
-    addresses = literal
-    if not literal and resolve:
-        try:
-            addresses = [info[4][0] for info in socket.getaddrinfo(host, None)]
-        except OSError as exc:
-            raise PolicyViolation(f"Host '{host}' could not be resolved.") from exc
-    if any(not _is_public_ip(address) for address in addresses):
-        raise PolicyViolation(f"Host '{host}' resolves to a non-public address.")
-    return value
+        return validate_http_url(
+            value, param, allowed_hosts=settings.allowed_hosts or ["-"], resolve=resolve
+        )
+    except NetworkPolicyError as exc:
+        raise PolicyViolation(str(exc)) from exc
 
 
 def safe_error_text(exc: BaseException, limit: int = 400) -> str:

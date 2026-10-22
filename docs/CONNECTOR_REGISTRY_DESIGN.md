@@ -1,6 +1,6 @@
 # Connector registry: design proposal
 
-Status: **proposal, awaiting decisions** (section 7). Implements ADR-004 phase 7
+Status: **decisions taken 2026-10 (section 7); migration steps 1-3 and the `geojson_url` connector are implemented**. Implements ADR-004 phase 7
 ("Data Connector Service: connector registry, normalized connector results, source metadata
 and preview") and unblocks the three P0 sources of `docs/PLUGIN_ROADMAP_100.md`
 (`csv_xy_loader`, `geojson_url_loader`, `osm_overpass_fetcher`).
@@ -104,7 +104,30 @@ DSN today; it needs a CHANGELOG entry.
 4. Add planner ops for unreachable connectors where a sensible op exists (WMS stays metadata-only).
 5. The three new connectors.
 
-## 7. Decisions needed
+## 7. Decisions (taken)
+
+1. Option A (contract layer over capabilities).
+2. Client DSN: **server profiles only by default** (`allow_client_connection: false`), breaking and
+   recorded in the CHANGELOG.
+3. Snapshot (fetch once, store as upload) with `fetched_at` provenance.
+4. Overpass: structured tag filters only.
+5. Persian CSV: auto-detect windows-1256 in addition to utf-8.
+
+### Implementation status
+
+| Step | State |
+|---|---|
+| 1 contract: `application/connectors/` (registry, `ConnectorResult`, contract tests) | done |
+| 2 `shared/net_policy.py` (WFS and MCP use it) | done; PostGIS host policy is the `allow_client_connection` gate |
+| 3 `/connectors`, `/connectors/preview`, `/data-sources/connect`, legacy wrappers, credential gate | done |
+| 4 planner ops for connectors | pending |
+| 5 `geojson_url_loader` | done (it also replaced the unprotected `/data-sources/url` fetch); `csv_xy_loader`, `osm_overpass_fetcher` pending |
+
+HTTP exposure: connectors reachable through the API are limited to `network` and `database`
+access (`SMART_SPATIAL_CONNECTOR_ACCESS`); filesystem and raw-SQL connectors are never driven by
+an HTTP caller (uploads are the file route).
+
+## 7b. Original open questions (kept for the record)
 
 1. **Option A (recommended) vs Option B** (section 3).
 2. **Client DSN default**: flip to server-profiles-only now (secure, breaking), or keep accepting

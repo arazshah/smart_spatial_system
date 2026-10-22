@@ -126,6 +126,11 @@ def build_spec(name: str, descriptor: Any, handler: Callable[..., Any]) -> ToolS
     # Classify on *all* signature parameters, not just exposed ones, so an
     # undeclared `output_path` still marks the tool as filesystem-touching.
     risks = classify(name, signature.parameters, output_kind)
+    # A connector block (docs/CONNECTOR_REGISTRY_DESIGN.md) declares its access explicitly;
+    # it can only add to what the parameter-name heuristics found, never remove.
+    connector = (getattr(descriptor, "metadata", None) or {}).get("connector")
+    if isinstance(connector, dict):
+        risks = risks | frozenset(connector.get("access") or ())
 
     exposed = tuple(
         param

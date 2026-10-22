@@ -3,7 +3,7 @@
 Unit of count: **capabilities** (`@capability` functions), because that is what the planner
 (`OP_CATALOG`) and the MCP server (one tool each) work with. A plugin file may hold several.
 
-Status 2026-10: **96 capabilities in 63 plugin modules** (50 at the start of this roadmap). Four more reach the 100-capability goal.
+Status 2026-10: **100 capabilities in 63 plugin modules** (50 at the start of this roadmap). **Goal reached.**
 
 ## Definition of done for a new capability
 
@@ -57,9 +57,30 @@ contract (`docs/CONNECTOR_REGISTRY_DESIGN.md`). All P0 items are complete.
 `write_postgis_layer` has no planner op on purpose (a natural-language prompt must not be able to
 trigger database writes); it is available to library callers and, when explicitly enabled, MCP.
 
-## Remaining candidates (P2/P3) - pick any 4 to reach 100
+## Done: the last four (to reach 100)
 
-`convex_hull_envelope`, `line_operations`, `random_sampling`, `topology_checker`, `outlier_detection`,
-`viewshed`, `flow_accumulation_watershed`, `unsupervised_classification`, `supervised_classification`,
-`cost_distance`, `ogc_api_arcgis_fetcher`, `fuzzy_suitability`, `kriging`, `map_matching`,
-`weather_climate_fetcher`, `kml_exporter`.
+| Plugin | Capabilities |
+|---|---|
+| `vector_geometry_tools` | `calculate_convex_hull` (hull / envelope / minimum rotated rectangle, per group), `check_topology` (invalid, empty, duplicate, overlap, sliver, small; one located point per issue) |
+| `attribute_prep` | `sample_features` (random / stratified / systematic, seeded), `detect_outliers` (IQR, z-score, modified z-score, per group) |
+
+## Further candidates (beyond the goal)
+
+`line_operations`, `viewshed`, `flow_accumulation_watershed`, `unsupervised_classification`,
+`supervised_classification`, `cost_distance`, `ogc_api_arcgis_fetcher`, `fuzzy_suitability`, `kriging`,
+`map_matching`, `weather_climate_fetcher`, `kml_exporter`.
+
+## Known limits (all batches)
+
+- All geometry work is planar (no geodesic distances); inputs should be in a projected CRS.
+- `network_routing` / `network_accessibility`: undirected edges; points snap to the nearest network
+  node (not mid-edge) and the snap distance is reported (`snap_tolerance` refuses far snaps).
+- `raster_tools`, `raster_surface`: north-up transforms only; mosaics need identical pixel size and
+  alignment (use `reproject_raster` first); `reproject_raster` and `export_raster_geotiff` need rasterio.
+- Raster data travels as nested lists; a binary raster format would be faster.
+- Gi* p-values are not corrected for multiple testing; Moran's I uses the normality variance.
+- `fetch_dem` returns Web Mercator unless `target_crs` is given: reproject before slope/hillshade.
+- Terrain, STAC and Overpass data carry their own licences and attribution (in the metadata).
+- `fetch_dem`, `search_stac`, `fetch_osm_features` and `write_postgis_layer` were exercised with fakes
+  or recorded structures, not against the live services in this repository's tests.
+- `aggregate_to_h3` needs the optional `h3` package (`smart_spatial_system[h3]`).

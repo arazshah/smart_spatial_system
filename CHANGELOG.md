@@ -45,7 +45,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `aggregate_to_h3` (extra `h3`), `calculate_od_cost_matrix`, `calculate_accessibility_2sfca`,
   `calculate_ahp_weights`, `rank_topsis`, `render_static_map`, `export_vector_file`,
   `export_raster_geotiff`, `fetch_dem`, `search_stac`, `write_postgis_layer` (disabled by default).
-  96 capabilities in total.
+  Plus `calculate_convex_hull`, `check_topology`, `sample_features`, `detect_outliers`:
+  100 capabilities in total (the goal of `docs/PLUGIN_ROADMAP_100.md`).
 
 ### Security
 

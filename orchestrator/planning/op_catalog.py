@@ -1966,6 +1966,130 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         ),
     ),
 
+    "ahp_weights": OpDescriptor(
+        op_name="ahp_weights",
+        capability_name="calculate_ahp_weights",
+        param_map={
+            "criteria": "criteria",
+            "comparisons": "comparisons",
+            "metadata": "metadata",
+        },
+        output_type="json",
+        notes=(
+            "Criteria weights from pairwise comparisons (AHP, Saaty 1-9 scale) "
+            "with a consistency ratio. comparisons is an n x n reciprocal "
+            "matrix or a list of {a, b, value} judgements for every pair."
+        ),
+    ),
+
+    "topsis": OpDescriptor(
+        op_name="topsis",
+        capability_name="rank_topsis",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "criteria": "criteria",
+            "score_field": "score_field",
+            "rank_field": "rank_field",
+            "missing": "missing",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Multi-criteria ranking (TOPSIS) of features: criteria = [{field, "
+            "weight, direction benefit|cost}]; adds topsis_score (0-1) and "
+            "topsis_rank (1 = best)."
+        ),
+    ),
+
+    "render_map": OpDescriptor(
+        op_name="render_map",
+        capability_name="render_static_map",
+        input_map={
+            "vector": "features",
+            "overlays": "overlays",
+        },
+        input_types={
+            "vector": "vector",
+            "overlays": "vector",
+        },
+        param_map={
+            "color_field": "color_field",
+            "palette": "palette",
+            "classes": "classes",
+            "fill": "fill",
+            "stroke": "stroke",
+            "stroke_width": "stroke_width",
+            "point_radius": "point_radius",
+            "opacity": "opacity",
+            "title": "title",
+            "width": "width",
+            "height": "height",
+            "legend": "legend",
+            "background": "background",
+            "metadata": "metadata",
+        },
+        output_type="json",
+        notes=(
+            "Render layers as an SVG map image (for reports): optionally colour "
+            "by color_field (numeric ramp or categories) with a legend; "
+            "overlays are background layers."
+        ),
+    ),
+
+    "export_gis_file": OpDescriptor(
+        op_name="export_gis_file",
+        capability_name="export_vector_file",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "format": "format",
+            "layer_name": "layer_name",
+            "crs": "crs",
+            "filename": "filename",
+            "overwrite": "overwrite",
+            "metadata": "metadata",
+        },
+        output_type="json",
+        notes=(
+            "Save a layer as a GeoPackage (gpkg) or zipped Shapefile (shp). Use "
+            "when the user asks for a GIS file download."
+        ),
+    ),
+
+    "export_geotiff": OpDescriptor(
+        op_name="export_geotiff",
+        capability_name="export_raster_geotiff",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "cog": "cog",
+            "dtype": "dtype",
+            "compress": "compress",
+            "filename": "filename",
+            "overwrite": "overwrite",
+            "metadata": "metadata",
+        },
+        output_type="json",
+        notes=(
+            "Save a raster as GeoTIFF or Cloud-Optimized GeoTIFF with CRS, "
+            "transform and nodata. Use when the user asks for a raster file "
+            "download."
+        ),
+    ),
+
     "attribute_statistics": OpDescriptor(
         op_name="attribute_statistics",
         capability_name="calculate_attribute_statistics",

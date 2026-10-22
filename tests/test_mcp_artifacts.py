@@ -240,3 +240,16 @@ def test_list_of_raster_handles_feeds_mosaic_and_overlay(registry, tmp_path):
         call(runtime, "mosaic_rasters", {"rasters": [
             {"artifact_id": handles[0]["artifact_id"]}, {"artifact_id": vector.artifact_id},
         ]})
+
+
+def test_overlays_accept_vector_handles(registry, tmp_path):
+    runtime = make_runtime(registry, tmp_path, inline_output_bytes=100)
+    handle = call(runtime, "buffer_vector_features", {"features": point_collection(3), "distance": 0.001})
+    assert handle["type"] == "artifact" and handle["kind"] == "vector"
+    result = call(runtime, "render_static_map", {
+        "features": point_collection(2), "overlays": [{"artifact_id": handle["artifact_id"]}]})
+    assert result["type"] == "artifact" or [layer["name"] for layer in result["layers"]] == ["overlay_1", "main"]
+    raster = call(runtime, "threshold_raster", {"raster": RASTER, "operator": "gt", "threshold": 2})
+    with pytest.raises(PolicyViolation):  # kind is checked for list items too
+        call(runtime, "render_static_map", {
+            "features": point_collection(2), "overlays": [{"artifact_id": raster["artifact_id"]}]})

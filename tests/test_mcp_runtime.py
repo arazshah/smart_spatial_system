@@ -26,6 +26,8 @@ SENSITIVE = {
     "export_vector_geojson",
     "export_raster_copy",
     "export_table",
+    "export_vector_file",
+    "export_raster_geotiff",
     "render_pdf",
     "fetch_wfs_features",
     "fetch_wms_map",

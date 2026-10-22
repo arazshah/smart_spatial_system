@@ -25,6 +25,7 @@ from .artifacts import (
 from .catalog import (
     RASTER_LIST_PARAM_NAMES,
     RASTER_PARAM_NAMES,
+    VECTOR_LIST_PARAM_NAMES,
     VECTOR_PARAM_NAMES,
     ToolSpec,
     build_tool_specs,
@@ -223,9 +224,13 @@ class ToolRuntime:
             return item.data
 
         for param, value in kwargs.items():
-            if param in RASTER_LIST_PARAM_NAMES and isinstance(value, list):
+            list_kind = (
+                "raster" if param in RASTER_LIST_PARAM_NAMES
+                else "vector" if param in VECTOR_LIST_PARAM_NAMES else None
+            )
+            if list_kind and isinstance(value, list):
                 resolved[param] = [
-                    fetch(param, v, "raster") if _is_ref(v) else v for v in value
+                    fetch(param, v, list_kind) if _is_ref(v) else v for v in value
                 ]
                 continue
             if not _is_ref(value):

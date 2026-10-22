@@ -154,6 +154,18 @@ PARAM_SHAPES: dict[tuple[str, str], ParamShape] = {
 
     # --- vector analysis ----------------------------------------------
     ("generate_grid", "bbox"): _BBOX,
+    ("calculate_ahp_weights", "criteria"): ParamShape(
+        "REQUIRED list of 2-10 unique criterion names",
+        (["price", "distance", "quality"],),
+    ),
+    ("calculate_ahp_weights", "comparisons"): ParamShape(
+        "REQUIRED either an n x n reciprocal matrix (list of rows, diagonal 1, a[j][i] = 1/a[i][j]) or a list with one {\"a\", \"b\", \"value\"} judgement per pair, meaning a is `value` times as important as b (1/9..9)",
+        ([[1, 3], [0.3333333333, 1]], [{"a": "price", "b": "distance", "value": 3}],),
+    ),
+    ("rank_topsis", "criteria"): ParamShape(
+        "REQUIRED list of 1-10 objects {\"field\": <numeric property>, \"weight\": <relative number>, \"direction\": \"benefit\" (higher is better, default) or \"cost\"}",
+        ([{"field": "price", "weight": 3, "direction": "cost"}, {"field": "area", "weight": 1}],),
+    ),
     ("interpolate_idw", "bbox"): _BBOX,
     ("aggregate_to_h3", "stats"): ParamShape(
         "list of statistics of value_field per hexagon: sum, mean, min, max",

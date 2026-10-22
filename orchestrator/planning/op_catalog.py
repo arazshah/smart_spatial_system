@@ -2128,6 +2128,105 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         ),
     ),
 
+    "convex_hull": OpDescriptor(
+        op_name="convex_hull",
+        capability_name="calculate_convex_hull",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "shape": "shape",
+            "group_by": "group_by",
+            "buffer": "buffer",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Convex hull, bounding box (envelope) or minimum rotated rectangle "
+            "around all features or around each group_by value, optionally "
+            "buffered. Use for 'the area covered by these points'."
+        ),
+    ),
+
+    "check_topology": OpDescriptor(
+        op_name="check_topology",
+        capability_name="check_topology",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "checks": "checks",
+            "min_area": "min_area",
+            "sliver_ratio": "sliver_ratio",
+            "overlap_tolerance": "overlap_tolerance",
+            "max_issues": "max_issues",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Quality report for a layer: invalid, empty, duplicate, "
+            "overlapping, sliver and tiny geometries, one point per issue. Use "
+            "before overlays or when the user asks whether the data is clean."
+        ),
+    ),
+
+    "sample": OpDescriptor(
+        op_name="sample",
+        capability_name="sample_features",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "size": "size",
+            "fraction": "fraction",
+            "method": "method",
+            "stratify_by": "stratify_by",
+            "per_stratum": "per_stratum",
+            "seed": "seed",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Reproducible random, stratified or systematic sample of features "
+            "(size or fraction, optional seed)."
+        ),
+    ),
+
+    "outliers": OpDescriptor(
+        op_name="outliers",
+        capability_name="detect_outliers",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "field": "field",
+            "method": "method",
+            "threshold": "threshold",
+            "group_by": "group_by",
+            "outlier_field": "outlier_field",
+            "score_field": "score_field",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Flag unusual values of a numeric field (iqr, zscore or "
+            "modified_zscore), optionally per group; adds is_outlier and "
+            "outlier_score."
+        ),
+    ),
+
     "attribute_statistics": OpDescriptor(
         op_name="attribute_statistics",
         capability_name="calculate_attribute_statistics",

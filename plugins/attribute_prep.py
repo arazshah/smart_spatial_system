@@ -15,6 +15,10 @@ Capabilities:
     - normalize_persian_text:
         Clean Persian/Arabic text attributes: Arabic yeh/kaf -> Persian, digit style,
         diacritics, spaces and zero-width characters.
+    - sample_features:
+        Reproducible random (optionally stratified) or systematic sample of features.
+    - detect_outliers:
+        Flag unusual values of a numeric attribute (IQR fences, z-score or robust modified z-score).
     - classify_breaks:
         Class breaks for a numeric attribute (equal interval, quantile, natural breaks,
         standard deviation or manual) and a class number/label per feature - the basis of
@@ -388,6 +392,226 @@ def normalize_persian_text(
         output, plugin_id=PLUGIN_ID, operation="normalize_persian_text", source_info=source_info,
         extra={"fields": wanted or "all text properties", "digits": digit_mode,
                "values_changed": changed},
+        user_metadata=metadata,
+    )
+
+
+# --------------------------------------------------------------- sampling
+@capability(
+    name="sample_features",
+    keywords=[
+        "random sample", "sample features", "subset randomly", "stratified sample", "systematic sample",
+        "pick random rows", "survey sample",
+        "نمونه گیری", "نمونه تصادفی", "نمونه گیری طبقه ای", "انتخاب تصادفی", "نمونه سیستماتیک",
+    ],
+    description=(
+        "Reproducible sample of features: random, stratified by an attribute (proportional or equal "
+        "per stratum) or systematic (every k-th); a seed makes it repeatable."
+    ),
+    required_inputs=["features"],
+    optional_inputs=["size", "fraction", "method", "stratify_by", "per_stratum", "seed", "metadata"],
+    output_kind="vector",
+    permissions=[],
+    metadata={**_META, "operation": "sample_features"},
+)
+def sample_features(
+    features: Any,
+    size: int | None = None,
+    fraction: float | None = None,
+    method: str = "random",
+    stratify_by: str | None = None,
+    per_stratum: bool = False,
+    seed: int = 0,
+    metadata: dict[str, Any] | None = None,
+) -> VectorOut:
+    """
+    Sample features.
+
+    Args:
+        features: Population.
+        size: Number of features wanted (or per stratum with ``per_stratum``).
+        fraction: Share of the population (0 < fraction <= 1), instead of ``size``.
+        method: ``random`` (without replacement) or ``systematic`` (every k-th after a seeded start).
+        stratify_by: Property to stratify on. By default the sample size is split between strata in
+            proportion to their size (every stratum keeps at least one if the sample allows).
+        per_stratum: Interpret ``size`` as a count for EACH stratum (equal allocation).
+        seed: Seed; the same input and seed always give the same sample.
+        metadata: Extra output metadata.
+
+    Returns:
+        VectorOut with the sampled features in their original order; metadata has the population
+        and sample sizes and the per-stratum counts.
+    """
+    import random
+
+    config = load_config(PLUGIN_ID)
+    chosen = validate_choice(method, {"random", "systematic"}, "method")
+    if (size is None) == (fraction is None):
+        raise ValueError("Provide exactly one of size or fraction.")
+    input_features, source_info = extract_features(features)
+    check_limit(len(input_features), _limit(config, "max_features"), "feature count")
+    total = len(input_features)
+    if total == 0:
+        raise ValueError("There are no features to sample.")
+    if fraction is not None:
+        share = float(fraction)
+        if not 0 < share <= 1:
+            raise ValueError("fraction must be in (0, 1].")
+        wanted = max(1, round(total * share))
+    else:
+        wanted = to_int(size, "size")
+        if wanted < 1:
+            raise ValueError("size must be >= 1.")
+    rng = random.Random(to_int(seed, "seed"))
+
+    strata: dict[str, list[int]] = {}
+    for index, feature in enumerate(input_features):
+        key = repr((feature.get("properties") or {}).get(stratify_by)) if stratify_by else "all"
+        strata.setdefault(key, []).append(index)
+
+    if per_stratum:
+        if not stratify_by:
+            raise ValueError("per_stratum needs stratify_by.")
+        quota = {k: min(wanted, len(v)) for k, v in strata.items()}
+    else:
+        wanted = min(wanted, total)
+        raw = {k: wanted * len(v) / total for k, v in strata.items()}
+        quota = {k: int(raw[k]) for k in strata}
+        for key in sorted(strata, key=lambda k: raw[k] - quota[k], reverse=True)[: wanted - sum(quota.values())]:
+            quota[key] += 1
+        if stratify_by and wanted >= len(strata):  # keep every stratum represented
+            for key in strata:
+                if quota[key] == 0:
+                    donor = max(quota, key=lambda k: quota[k])
+                    if quota[donor] > 1:
+                        quota[donor] -= 1
+                        quota[key] = 1
+
+    picked: set[int] = set()
+    for key, members in strata.items():
+        count = min(quota[key], len(members))
+        if count <= 0:
+            continue
+        if chosen == "random":
+            picked.update(rng.sample(members, count))
+        else:
+            step = len(members) / count
+            start = rng.random() * step
+            picked.update(members[min(len(members) - 1, int(start + i * step))] for i in range(count))
+    output = [feature for index, feature in enumerate(input_features) if index in picked]
+    return make_vector_out(
+        output, plugin_id=PLUGIN_ID, operation="sample_features", source_info=source_info,
+        extra={"population_size": total, "sample_size": len(output), "method": chosen, "seed": seed,
+               "stratify_by": stratify_by,
+               "stratum_counts": {k: sum(1 for i in v if i in picked) for k, v in strata.items()}
+               if stratify_by else None},
+        user_metadata=metadata,
+    )
+
+
+# -------------------------------------------------------------- outliers
+@capability(
+    name="detect_outliers",
+    keywords=[
+        "outliers", "detect outliers", "anomalies", "unusual values", "iqr", "z score", "data errors",
+        "extreme values",
+        "داده پرت", "تشخیص ناهنجاری", "مقادیر غیرعادی", "مقادیر حدی", "خطاهای داده", "پرت",
+    ],
+    description=(
+        "Flag outliers in a numeric attribute with IQR fences, z-score or the robust modified z-score "
+        "(MAD), optionally within groups."
+    ),
+    required_inputs=["features", "field"],
+    optional_inputs=["method", "threshold", "group_by", "outlier_field", "score_field", "metadata"],
+    output_kind="vector",
+    permissions=[],
+    metadata={**_META, "operation": "detect_outliers"},
+)
+def detect_outliers(
+    features: Any,
+    field: str,
+    method: str = "iqr",
+    threshold: float | None = None,
+    group_by: str | None = None,
+    outlier_field: str = "is_outlier",
+    score_field: str = "outlier_score",
+    metadata: dict[str, Any] | None = None,
+) -> VectorOut:
+    """
+    Outlier detection.
+
+    Args:
+        features: Input features.
+        field: Numeric attribute (Persian digits understood; non-numeric values stay unflagged).
+        method: ``iqr`` (outside Q1 - t*IQR .. Q3 + t*IQR, default t=1.5), ``zscore`` (|z| > t,
+            default 3) or ``modified_zscore`` (0.6745*|x - median| / MAD > t, default 3.5).
+        threshold: Override the method's default ``t``.
+        group_by: Compute the statistics separately per value of this property.
+        outlier_field / score_field: Output property names (the score is distance beyond the fence
+            for IQR, |z| otherwise).
+        metadata: Extra output metadata.
+
+    Returns:
+        VectorOut with a boolean ``is_outlier`` and a numeric score; metadata has the fences / limits
+        per group and the outlier count.
+    """
+    config = load_config(PLUGIN_ID)
+    chosen = validate_choice(method, {"iqr", "zscore", "modified_zscore"}, "method")
+    limit = {"iqr": 1.5, "zscore": 3.0, "modified_zscore": 3.5}[chosen] if threshold is None else float(threshold)
+    if limit <= 0 or not math.isfinite(limit):
+        raise ValueError("threshold must be a positive number.")
+    if not isinstance(field, str) or not field.strip():
+        raise ValueError("field must be a property name.")
+    input_features, source_info = extract_features(features)
+    check_limit(len(input_features), _limit(config, "max_features"), "feature count")
+
+    values: dict[str, list[tuple[int, float]]] = {}
+    for index, feature in enumerate(input_features):
+        props = feature.get("properties") or {}
+        number = parse_number(props.get(field))
+        if number is not None:
+            values.setdefault(repr(props.get(group_by)) if group_by else "all", []).append((index, number))
+    if not values:
+        raise ValueError(f"No numeric values found in '{field}'.")
+
+    flags: dict[int, tuple[bool, float]] = {}
+    summary: dict[str, Any] = {}
+    for key, pairs in values.items():
+        data = sorted(v for _, v in pairs)
+        if chosen == "iqr":
+            q1, q3 = _quantile(data, 0.25), _quantile(data, 0.75)
+            spread = q3 - q1
+            low, high = q1 - limit * spread, q3 + limit * spread
+            summary[key] = {"lower_fence": low, "upper_fence": high, "q1": q1, "q3": q3, "n": len(data)}
+            for index, value in pairs:
+                beyond = max(low - value, value - high, 0.0)
+                flags[index] = (value < low or value > high, beyond)
+        elif chosen == "zscore":
+            mean = statistics.fmean(data)
+            sd = statistics.pstdev(data)
+            summary[key] = {"mean": mean, "std": sd, "n": len(data)}
+            for index, value in pairs:
+                z = abs(value - mean) / sd if sd > 0 else 0.0
+                flags[index] = (z > limit, z)
+        else:
+            median = statistics.median(data)
+            mad = statistics.median([abs(v - median) for v in data])
+            summary[key] = {"median": median, "mad": mad, "n": len(data)}
+            for index, value in pairs:
+                score = 0.6745 * abs(value - median) / mad if mad > 0 else (0.0 if value == median else math.inf)
+                flags[index] = (score > limit, score if math.isfinite(score) else 1e12)
+    output = []
+    for index, feature in enumerate(input_features):
+        props = dict(feature.get("properties") or {})
+        flag = flags.get(index)
+        props[outlier_field] = None if flag is None else flag[0]
+        props[score_field] = None if flag is None else flag[1]
+        output.append({"type": "Feature", "geometry": feature.get("geometry"), "properties": props})
+    return make_vector_out(
+        output, plugin_id=PLUGIN_ID, operation="detect_outliers", source_info=source_info,
+        extra={"field": field, "method": chosen, "threshold": limit, "group_by": group_by,
+               "outlier_count": sum(1 for f in flags.values() if f[0]), "statistics": summary,
+               "unscored": len(input_features) - len(flags)},
         user_metadata=metadata,
     )
 

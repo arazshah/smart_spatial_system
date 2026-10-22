@@ -154,6 +154,10 @@ PARAM_SHAPES: dict[tuple[str, str], ParamShape] = {
 
     # --- vector analysis ----------------------------------------------
     ("generate_grid", "bbox"): _BBOX,
+    ("check_topology", "checks"): ParamShape(
+        "list chosen from invalid, empty, duplicate, overlap, sliver, small (default: all of them)",
+        (["invalid", "overlap"], ["duplicate"],),
+    ),
     ("fetch_dem", "bbox"): ParamShape(
         "REQUIRED WGS84 [min_lon, min_lat, max_lon, max_lat] (or the same as an object); each side at most 2 degrees",
         ([51.3, 35.6, 51.45, 35.75],),

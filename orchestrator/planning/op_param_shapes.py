@@ -154,6 +154,43 @@ PARAM_SHAPES: dict[tuple[str, str], ParamShape] = {
 
     # --- vector analysis ----------------------------------------------
     ("generate_grid", "bbox"): _BBOX,
+    ("generate_contours", "levels"): ParamShape(
+        "list of explicit contour levels (numbers) in raster value units; use instead of interval",
+        ([100, 500, 1000],),
+    ),
+    ("voronoi_thiessen", "bbox"): _BBOX,
+    ("deduplicate_features", "fields"): ParamShape(
+        "a property name or a list of property names to compare (default: all properties)",
+        ("id", ["name", "type"],),
+    ),
+    ("map_schema", "mapping"): ParamShape(
+        "object {old_name: new_name} of columns to rename",
+        ({"nm": "name", "pop": "population"},),
+    ),
+    ("map_schema", "cast"): ParamShape(
+        "object {column: type} with type one of int, float, str, bool",
+        ({"population": "int", "price": "float"},),
+    ),
+    ("map_schema", "defaults"): ParamShape(
+        "object {column: value} used where the column is missing or null",
+        ({"status": "unknown"},),
+    ),
+    ("map_schema", "drop"): ParamShape(
+        "a column name or list of column names to remove",
+        ("tmp", ["tmp", "note"],),
+    ),
+    ("map_schema", "keep_only"): ParamShape(
+        "a column name or list of column names; all others are removed",
+        (["name", "population"],),
+    ),
+    ("normalize_persian_text", "fields"): ParamShape(
+        "a text property name or list of names (default: every text property)",
+        ("name", ["name", "address"],),
+    ),
+    ("classify_breaks", "breaks"): ParamShape(
+        "for method=manual only: ascending list including the minimum and maximum; N+1 numbers make N classes",
+        ([0, 10, 50, 200],),
+    ),
     ("fetch_osm_features", "bbox"): ParamShape(
         "REQUIRED WGS84 [min_lon, min_lat, max_lon, max_lat] (or the same as an object); each "
         "side at most about 0.5 degrees",

@@ -1525,6 +1525,285 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         ),
     ),
 
+    "simplify": OpDescriptor(
+        op_name="simplify",
+        capability_name="simplify_geometries",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "tolerance": "tolerance",
+            "preserve_topology": "preserve_topology",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Reduce vertices (Douglas-Peucker); tolerance is in layer units. "
+            "Use before heavy overlays or to lighten map layers."
+        ),
+    ),
+
+    "explode": OpDescriptor(
+        op_name="explode",
+        capability_name="explode_multipart",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Split multipart geometries into one feature per part (adds "
+            "source_feature_index, part_index)."
+        ),
+    ),
+
+    "voronoi": OpDescriptor(
+        op_name="voronoi",
+        capability_name="voronoi_thiessen",
+        input_map={
+            "points": "points",
+            "clip_to": "clip_to",
+        },
+        input_types={
+            "points": "vector",
+            "clip_to": "vector",
+        },
+        param_map={
+            "bbox": "bbox",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Thiessen/Voronoi polygons: the area closest to each point "
+            "(optionally clipped to a boundary layer or bbox)."
+        ),
+    ),
+
+    "deduplicate": OpDescriptor(
+        op_name="deduplicate",
+        capability_name="deduplicate_features",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "by": "by",
+            "fields": "fields",
+            "keep": "keep",
+            "mark_only": "mark_only",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Remove or flag duplicate features by attributes, geometry or both."
+        ),
+    ),
+
+    "map_schema": OpDescriptor(
+        op_name="map_schema",
+        capability_name="map_schema",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "mapping": "mapping",
+            "cast": "cast",
+            "defaults": "defaults",
+            "drop": "drop",
+            "keep_only": "keep_only",
+            "on_error": "on_error",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Rename/cast/drop/keep/default attribute columns in one step (cast "
+            "types: int, float, str, bool)."
+        ),
+    ),
+
+    "normalize_persian_text": OpDescriptor(
+        op_name="normalize_persian_text",
+        capability_name="normalize_persian_text",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "fields": "fields",
+            "digits": "digits",
+            "arabic_to_persian": "arabic_to_persian",
+            "remove_diacritics": "remove_diacritics",
+            "clean_spaces": "clean_spaces",
+            "remove_zero_width": "remove_zero_width",
+            "suffix": "suffix",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Clean Persian/Arabic text attributes (yeh/kaf, digits, diacritics, "
+            "spaces); use before matching names or joining tables."
+        ),
+    ),
+
+    "classify": OpDescriptor(
+        op_name="classify",
+        capability_name="classify_breaks",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "field": "field",
+            "method": "method",
+            "classes": "classes",
+            "breaks": "breaks",
+            "class_field": "class_field",
+            "label_field": "label_field",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Class breaks for a numeric field (equal_interval, quantile, "
+            "natural_breaks, std_dev, manual) and a class number and label per "
+            "feature; for choropleth maps."
+        ),
+    ),
+
+    "hillshade": OpDescriptor(
+        op_name="hillshade",
+        capability_name="calculate_hillshade",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "azimuth": "azimuth",
+            "altitude": "altitude",
+            "z_factor": "z_factor",
+            "band_index": "band_index",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Shaded relief (0-255) from a DEM raster; azimuth/altitude set the "
+            "sun position. Use for terrain visualisation."
+        ),
+    ),
+
+    "contours": OpDescriptor(
+        op_name="contours",
+        capability_name="generate_contours",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "interval": "interval",
+            "levels": "levels",
+            "base": "base",
+            "band_index": "band_index",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Contour lines from a surface raster at a fixed interval or "
+            "explicit levels (adds level). Give interval OR levels."
+        ),
+    ),
+
+    "focal_statistics": OpDescriptor(
+        op_name="focal_statistics",
+        capability_name="calculate_focal_statistics",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "statistic": "statistic",
+            "radius": "radius",
+            "shape": "shape",
+            "band_index": "band_index",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Moving-window statistic (mean, median, min, max, sum, std, range) "
+            "over a radius in cells; smooths a raster or measures local "
+            "variation."
+        ),
+    ),
+
+    "raster_change": OpDescriptor(
+        op_name="raster_change",
+        capability_name="detect_raster_change",
+        input_map={
+            "before": "before",
+            "after": "after",
+        },
+        input_types={
+            "before": "raster",
+            "after": "raster",
+        },
+        param_map={
+            "method": "method",
+            "threshold": "threshold",
+            "band_index": "band_index",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Change between two co-registered rasters: difference, ratio or "
+            "percent_change; with threshold also a -1/0/+1 class raster."
+        ),
+    ),
+
+    "raster_to_points": OpDescriptor(
+        op_name="raster_to_points",
+        capability_name="raster_to_points",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "band_index": "band_index",
+            "min_value": "min_value",
+            "max_value": "max_value",
+            "step": "step",
+            "value_field": "value_field",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Pixel centres as points carrying the pixel value; filter by value "
+            "or thin with step. Refused above the point limit."
+        ),
+    ),
+
     "attribute_statistics": OpDescriptor(
         op_name="attribute_statistics",
         capability_name="calculate_attribute_statistics",

@@ -65,17 +65,29 @@ def to_jsonable(value: Any, _depth: int = 0) -> Any:
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return to_jsonable(dataclasses.asdict(value), _depth + 1)
     if hasattr(value, "__dict__"):
+        attrs = vars(value)
+        primary = attrs.get("data")
         return {
             k: to_jsonable(v, _depth + 1)
-            for k, v in vars(value).items()
+            for k, v in attrs.items()
             if not k.startswith("_")
+            # SDK RasterOut keeps the same array under data/array/payload; send it once.
+            and not (primary is not None and k in {"array", "payload"} and v is primary)
         }
     return str(value)
 
 
+def as_feature_collection(data: Any) -> Any:
+    """SDK VectorOut serializes without a GeoJSON ``type``; add it so the output of
+    one tool is a valid input of the next."""
+    if isinstance(data, dict) and isinstance(data.get("features"), list) and "type" not in data:
+        return {"type": "FeatureCollection", **data}
+    return data
+
+
 def encode_result(value: Any, *, max_bytes: int) -> tuple[Any, int]:
     """JSON-ify a result and enforce the response size limit. Returns (data, size)."""
-    data = to_jsonable(value)
+    data = as_feature_collection(to_jsonable(value))
     size = len(json.dumps(data, separators=(",", ":")).encode("utf-8"))
     if size > max_bytes:
         raise PolicyViolation(

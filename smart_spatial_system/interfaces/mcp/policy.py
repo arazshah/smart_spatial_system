@@ -42,6 +42,11 @@ EXPLICIT_RISKS: dict[str, frozenset[str]] = {
     "fetch_postgis_sql_layer": frozenset({RISK_DATABASE, RISK_SQL}),
 }
 
+# Capabilities that cannot work (or cannot be made safe) over MCP: never exposed.
+#   ndvi_processor: async, takes SDK RasterIn objects, writes output_ndvi.tif to the
+#   server's working directory; calculate_ndvi is the supported equivalent.
+UNSUPPORTED_TOOLS = frozenset({"ndvi_processor"})
+
 # Parameter-name heuristics so a future plugin that takes a path/URL/DSN is
 # classified automatically (fail closed) instead of silently exposed.
 FS_PARAMS = frozenset(
@@ -93,6 +98,8 @@ def classify(name: str, params: Iterable[str], output_kind: str | None = None) -
 
 
 def is_tool_allowed(name: str, risks: frozenset[str], settings: McpSettings) -> bool:
+    if name in UNSUPPORTED_TOOLS:
+        return False
     if name in settings.deny_tools:
         return False
     if settings.allow_tools and name not in settings.allow_tools:

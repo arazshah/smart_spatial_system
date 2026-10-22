@@ -43,18 +43,31 @@ VECTOR_PARAM_NAMES = frozenset(
         "stations",
     }
 )
-RASTER_PARAM_NAMES = frozenset({"raster", "red_band", "nir_band"})
+RASTER_PARAM_NAMES = frozenset({"raster"})
 
+ARTIFACT_REF_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"artifact_id": {"type": "string", "pattern": "^art_[A-Za-z0-9_-]{32}$"}},
+    "required": ["artifact_id"],
+    "additionalProperties": False,
+}
 _VECTOR_SCHEMA: dict[str, Any] = {
     "description": (
-        "GeoJSON FeatureCollection, a single Feature, or an array of Features "
-        "(for example the output of another tool)."
+        "GeoJSON FeatureCollection, a single Feature, or an array of Features; or an "
+        "artifact reference {\"artifact_id\": ...} returned by an earlier tool call."
     ),
-    "anyOf": [{"type": "object"}, {"type": "array", "items": {"type": "object"}}],
+    "anyOf": [
+        ARTIFACT_REF_SCHEMA,
+        {"type": "object"},
+        {"type": "array", "items": {"type": "object"}},
+    ],
 }
 _RASTER_SCHEMA: dict[str, Any] = {
-    "description": "Inline raster object (array data plus metadata such as transform and nodata).",
-    "type": "object",
+    "description": (
+        "Raster object (array data plus metadata such as transform and nodata), or an "
+        "artifact reference {\"artifact_id\": ...} returned by an earlier tool call."
+    ),
+    "anyOf": [ARTIFACT_REF_SCHEMA, {"type": "object"}],
 }
 
 
@@ -70,6 +83,8 @@ class ToolSpec:
     url_params: tuple[str, ...]
     output_kind: str
     long_running: bool
+    builtin: bool = False
+    destructive: bool = False
 
 
 def _param_schema(name: str, annotation: Any) -> dict[str, Any]:

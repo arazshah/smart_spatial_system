@@ -55,6 +55,12 @@ class McpSettings:
     max_output_bytes: int = 5_000_000
     timeout_seconds: int = 60
     max_concurrency: int = 4
+    artifacts_enabled: bool = True
+    artifacts_dir: str | None = None
+    artifact_ttl_seconds: int = 3600
+    max_artifact_bytes: int = 50_000_000
+    max_artifact_total_bytes: int = 1_000_000_000
+    inline_output_bytes: int = 262_144
     api_key: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
@@ -87,5 +93,12 @@ class McpSettings:
             max_output_bytes=_int(env, "MAX_OUTPUT_BYTES", 5_000_000),
             timeout_seconds=_int(env, "TIMEOUT_SECONDS", 60),
             max_concurrency=_int(env, "MAX_CONCURRENCY", 4),
+            artifacts_enabled=env.get(ENV_PREFIX + "ARTIFACTS", "on").strip().lower()
+            not in {"off", "0", "false", "no"},
+            artifacts_dir=env.get(ENV_PREFIX + "ARTIFACTS_DIR") or None,
+            artifact_ttl_seconds=_int(env, "ARTIFACT_TTL_SECONDS", 3600),
+            max_artifact_bytes=_int(env, "MAX_ARTIFACT_BYTES", 50_000_000),
+            max_artifact_total_bytes=_int(env, "MAX_ARTIFACT_TOTAL_BYTES", 1_000_000_000),
+            inline_output_bytes=_int(env, "INLINE_OUTPUT_BYTES", 262_144),
             api_key=env.get(ENV_PREFIX + "API_KEY") or env.get("SMART_SPATIAL_API_KEY") or None,
         )

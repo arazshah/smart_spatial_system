@@ -36,6 +36,11 @@ SENSITIVE = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _isolated_runtime_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("SMART_SPATIAL_RUNTIME_DIR", str(tmp_path / "rt"))
+
+
 @pytest.fixture(scope="module")
 def registry():
     return CapabilityRegistry.from_plugin_modules(tolerant=True)
@@ -49,7 +54,10 @@ def test_default_policy_hides_every_sensitive_capability(registry):
     runtime = ToolRuntime(registry, McpSettings())
     assert SENSITIVE.isdisjoint(runtime.specs)
     assert SENSITIVE <= set(runtime.hidden)
-    assert len(runtime.specs) == len(registry.registered_capability_names()) - len(SENSITIVE)
+    assert "ndvi_processor" in runtime.hidden  # unsupported over MCP, even when risks are enabled
+    registered = len(registry.registered_capability_names())
+    # everything except sensitive tools and ndvi_processor, plus the 2 artifact built-ins
+    assert len(runtime.specs) == registered - len(SENSITIVE) - 1 + 2
 
 
 def test_hidden_tool_is_indistinguishable_from_unknown(registry):
@@ -100,9 +108,17 @@ def test_input_and_output_limits(registry):
     runtime = ToolRuntime(registry, McpSettings(max_input_bytes=50))
     with pytest.raises(PolicyViolation):
         call(runtime, "buffer_vector_features", {"features": POINTS, "distance": 1})
-    runtime = ToolRuntime(registry, McpSettings(max_output_bytes=50))
+    runtime = ToolRuntime(registry, McpSettings(max_output_bytes=50, artifacts_enabled=False))
     with pytest.raises(PolicyViolation):
         call(runtime, "buffer_vector_features", {"features": POINTS, "distance": 1})
+
+
+def test_tool_output_is_valid_input_of_the_next_tool(registry):
+    runtime = ToolRuntime(registry, McpSettings(artifacts_enabled=False))
+    buffered = call(runtime, "buffer_vector_features", {"features": POINTS, "distance": 1})
+    assert buffered["type"] == "FeatureCollection"
+    inspected = call(runtime, "inspect_vector", {"vector": buffered})
+    assert inspected["feature_count"] == 1
 
 
 def test_plugin_errors_are_reported_without_leaking_paths(registry, tmp_path):

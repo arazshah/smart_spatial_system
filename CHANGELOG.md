@@ -12,7 +12,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   capability becomes an MCP tool, with the JSON schema derived from the capability itself. Secure
   by default: capabilities that touch the filesystem, network or databases are hidden until the
   operator enables their risk class; HTTP transport requires an API key and DNS-rebinding
-  protection. See `docs/MCP_SERVER.md`.
+  protection. Rasters and large results are passed by artifact handle (`artifact_get`,
+  `artifact_delete`). See `docs/MCP_SERVER.md`.
+
+### Fixed
+
+- MCP: vector tool results now carry `type: FeatureCollection`, so one tool's output is valid
+  input for the next; `ndvi_processor` is no longer exposed (it cannot work over MCP).
 
 ### Changed
 

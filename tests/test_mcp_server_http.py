@@ -30,9 +30,10 @@ POINTS = {
 
 
 @pytest.fixture(scope="module")
-def server():
+def server(tmp_path_factory):
     registry = CapabilityRegistry.from_plugin_modules(tolerant=True)
-    return build_server(ToolRuntime(registry, McpSettings()))
+    settings = McpSettings(artifacts_dir=str(tmp_path_factory.mktemp("artifacts")))
+    return build_server(ToolRuntime(registry, settings))
 
 
 def rpc(client, method, params=None, key="secret"):
@@ -105,19 +106,23 @@ def _payload(response):
     return response.json()
 
 
-def test_stdio_end_to_end():
+def test_stdio_end_to_end(tmp_path):
     import asyncio
+    import os
     import sys
     from pathlib import Path
 
     from mcp import ClientSession
     from mcp.client.stdio import StdioServerParameters, stdio_client
 
+    tmp_runtime = str(tmp_path)
+
     async def main():
         params = StdioServerParameters(
             command=sys.executable,
             args=["-m", "smart_spatial_system", "mcp"],
             cwd=str(Path(__file__).resolve().parents[1]),
+            env={**os.environ, "SMART_SPATIAL_RUNTIME_DIR": tmp_runtime},
         )
         async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
             await session.initialize()

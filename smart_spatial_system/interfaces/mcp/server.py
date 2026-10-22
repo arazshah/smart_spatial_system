@@ -38,8 +38,8 @@ def build_server(runtime: ToolRuntime, *, version: str = "") -> Server:
                 description=spec.description,
                 input_schema=spec.input_schema,
                 annotations=types.ToolAnnotations(
-                    read_only_hint="filesystem" not in spec.risks,
-                    destructive_hint=False,
+                    read_only_hint="filesystem" not in spec.risks and not spec.destructive,
+                    destructive_hint=spec.destructive,
                     open_world_hint="network" in spec.risks,
                 ),
             )

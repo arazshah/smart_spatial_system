@@ -35,6 +35,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     serve_parser.add_argument("--log-level", default="info")
 
+    mcp_parser = subparsers.add_parser(
+        "mcp",
+        help="Run the MCP server (requires the 'mcp' extra; secure by default).",
+    )
+    mcp_parser.add_argument("--transport", choices=["stdio", "http"], default="stdio")
+    mcp_parser.add_argument("--host", default="127.0.0.1")
+    mcp_parser.add_argument("--port", type=int, default=8765)
+    mcp_parser.add_argument(
+        "--allow-unauthenticated",
+        action="store_true",
+        help="HTTP only: allow serving without an API key on loopback (local testing).",
+    )
+
     return parser
 
 
@@ -54,6 +67,17 @@ def main(argv: Sequence[str] | None = None) -> None:
             port=args.port,
             reload=args.reload,
             log_level=args.log_level,
+        )
+        return
+
+    if args.command == "mcp":
+        from smart_spatial_system.interfaces.mcp.cli import run
+
+        run(
+            transport=args.transport,
+            host=args.host,
+            port=args.port,
+            allow_unauthenticated=args.allow_unauthenticated,
         )
         return
 

@@ -82,6 +82,8 @@ postgis = ["psycopg[binary]"]
 raster = ["rasterio"]
 pdf = ["weasyprint"]
 llm = []
+# MCP server (smart_spatial_system.interfaces.mcp); see docs/MCP_SERVER.md.
+mcp = ["mcp>=2.3,<3"]
 dev = ["pytest", "ruff"]
 
 [project.urls]

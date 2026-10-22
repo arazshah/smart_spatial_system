@@ -6,6 +6,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- MCP server (`smart-spatial-api mcp`, extra `smart_spatial_system[mcp]`): every registered
+  capability becomes an MCP tool, with the JSON schema derived from the capability itself. Secure
+  by default: capabilities that touch the filesystem, network or databases are hidden until the
+  operator enables their risk class; HTTP transport requires an API key and DNS-rebinding
+  protection. See `docs/MCP_SERVER.md`.
+
+### Changed
+
+- `local_raster_loader` and `geocoding_resolver` are now in `DEFAULT_SAFE_PLUGIN_MODULES`.
+- `OP_CATALOG` gains `dissolve`, `centroids`, `validate_geometries` and `repair_geometries`, so
+  the planner can reach those four existing capabilities.
+
 ## [0.5.9] - 2026-10-22
 
 ### Added

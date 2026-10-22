@@ -75,6 +75,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `OP_CATALOG` gains `dissolve`, `centroids`, `validate_geometries` and `repair_geometries`, so
   the planner can reach those four existing capabilities.
 
+## [0.5.10] - 2026-10-22
+
+### Fixed
+
+- `connect_nearest_lines` plans no longer fail with "missing required input role(s) ['vector']":
+  an LLM that leaves `inputs` empty (or uses `source`/`nearest`/`neighbors`) now gets the previous
+  step's output wired in during spec normalization, and the planner prompt shows the `inputs` JSON
+  form explicitly.
+
 ## [0.5.9] - 2026-10-22
 
 ### Added

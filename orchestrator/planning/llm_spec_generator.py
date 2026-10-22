@@ -365,7 +365,13 @@ _VECTOR_INPUT_ALIAS_OPS = {
     "summarize_vector",
     "export_geojson",
     "build_report",
+    "connect_nearest_lines",
 }
+
+# Ops that consume exactly one vector, the result of the step right before
+# them in a chain: an LLM that leaves "inputs" empty for one of these means
+# "the previous output", so wire it instead of failing the whole plan.
+_CHAIN_PREVIOUS_OUTPUT_OPS = {"connect_nearest_lines"}
 
 
 def _is_database_entity(item: Any) -> bool:
@@ -474,7 +480,7 @@ def _repair_vector_input_aliases(op_item: dict[str, Any]) -> dict[str, Any]:
         return op_copy
 
     if "vector" not in inputs:
-        for alias in ("source", "features", "input", "layer"):
+        for alias in ("source", "features", "input", "layer", "nearest", "neighbors"):
             if alias in inputs and inputs.get(alias) not in (None, ""):
                 new_inputs = dict(inputs)
                 new_inputs["vector"] = new_inputs.get(alias)
@@ -861,6 +867,7 @@ def _pre_normalize_query_spec_json(data: dict[str, Any], *, context: dict[str, A
     operations = normalized.get("operations")
     if isinstance(operations, list):
         new_operations: list[Any] = []
+        previous_output: str | None = None
 
         for op_item in operations:
             if not isinstance(op_item, dict):
@@ -882,6 +889,16 @@ def _pre_normalize_query_spec_json(data: dict[str, Any], *, context: dict[str, A
             op_copy = _repair_query_database_operation_shape(op_copy)
             op_copy = _repair_query_database_from_semantic_context(op_copy, context)
             op_copy = _repair_vector_input_aliases(op_copy)
+
+            if (
+                op_copy.get("op") in _CHAIN_PREVIOUS_OUTPUT_OPS
+                and previous_output
+                and not (isinstance(op_copy.get("inputs"), dict) and op_copy["inputs"].get("vector"))
+            ):
+                op_copy["inputs"] = {**(op_copy.get("inputs") or {}), "vector": previous_output}
+
+            if op_copy.get("output"):
+                previous_output = str(op_copy["output"])
 
             new_operations.append(op_copy)
 
@@ -1177,7 +1194,7 @@ Important mappings:
     spatial_nearest(source=<a_metric>, target=<b_metric>,
       params={{"k": 1, "include_target_geometry": true,
                "source_crs": "<PROJECTED_CRS>", "target_crs": "<PROJECTED_CRS>"}})
-    connect_nearest_lines(vector=<nearest output>,
+    connect_nearest_lines(inputs={{"vector": "<ref of the spatial_nearest output>"}},
       params={{"source_name_field": "<source name column>",
                "target_name_field": "<target name column>",
                "source_crs": "<PROJECTED_CRS>", "output_crs": "EPSG:4326"}})

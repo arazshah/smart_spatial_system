@@ -118,3 +118,32 @@ def test_nearest_branch_lines_pipeline_executes_with_real_plugins():
         # distance is metres, comparable to the real great-circle length
         approx_m = math.hypot((x2 - x1) * 91000, (y2 - y1) * 111000)
         assert math.isclose(feature["properties"]["distance_m"], approx_m, rel_tol=0.05)
+
+
+def _normalize(ops):
+    from orchestrator.planning.llm_spec_generator import _validated_query_spec
+
+    return _validated_query_spec(
+        {"raw_query": "q", "goal": "g",
+         "entities": [{"ref": "a", "kind": "vector"}, {"ref": "b", "kind": "vector"}],
+         "operations": ops,
+         "outputs": [{"kind": "vector", "source": "lines_output", "format": "geojson", "config": {}}]},
+        raw_query="q", context=None, input_data_extent=None,
+    )
+
+
+_NEAREST = {"op": "spatial_nearest", "inputs": {"source": "a", "target": "b"},
+            "params": {"k": 1, "include_target_geometry": True}, "output": "nearest"}
+
+
+def test_connect_nearest_lines_empty_inputs_wired_to_previous_output():
+    spec = _normalize([_NEAREST, {"op": "connect_nearest_lines", "inputs": {},
+                                  "params": {}, "output": "lines_output"}])
+    assert spec.operations[1].inputs == {"vector": "nearest"}
+    DeterministicPlanner(PlannerConfig(strict_params=True)).build(spec)
+
+
+def test_connect_nearest_lines_source_alias_repaired():
+    spec = _normalize([_NEAREST, {"op": "connect_nearest_lines", "inputs": {"source": "nearest"},
+                                  "params": {}, "output": "lines_output"}])
+    assert spec.operations[1].inputs["vector"] == "nearest"

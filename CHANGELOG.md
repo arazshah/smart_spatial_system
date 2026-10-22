@@ -8,6 +8,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `connection_lines` plugin (`build_connection_lines`) and the `connect_nearest_lines` op: straight
+  LineString from each feature to its nearest target with `source_name`, `target_name`, `distance_m`.
+  Fixes "draw a line to the nearest X" queries, where the LLM planner misused `raster_to_vector`
+  (`Unsupported mode 'first'`) because no op could build lines.
+
 - `examples/istanbul_health_access/`: the completed Istanbul
   hospital/clinic accessibility case study, imported from
   `arazshah/smart-spatial-istanbul-health-access`. It contains the notebooks

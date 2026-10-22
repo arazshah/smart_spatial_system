@@ -1171,6 +1171,21 @@ Important mappings:
   inputs={{"vector": "<source>", "reference": "<poi>"}}
   params={{"max_distance_m": X, "k": 1, "drop_unmatched": true}}
 
+- "draw/make a straight line between each feature and its nearest X" /
+  "connect each site to the nearest branch" (output = lines + names +
+  distance in metres): reproject BOTH layers to the projected CRS, then
+    spatial_nearest(source=<a_metric>, target=<b_metric>,
+      params={{"k": 1, "include_target_geometry": true,
+               "source_crs": "<PROJECTED_CRS>", "target_crs": "<PROJECTED_CRS>"}})
+    connect_nearest_lines(vector=<nearest output>,
+      params={{"source_name_field": "<source name column>",
+               "target_name_field": "<target name column>",
+               "source_crs": "<PROJECTED_CRS>", "output_crs": "EPSG:4326"}})
+  connect_nearest_lines already outputs only the line geometry plus
+  source_name, target_name and distance_m - do NOT add join_feature_properties
+  or raster_to_vector afterwards. NEVER use raster_to_vector for lines: it
+  only polygonizes raster pixels.
+
 - "farther than X meters from the nearest POI" / "no POI within X" /
   "underserved because the nearest POI is too far" - the OPPOSITE case:
   find the nearest POI for EVERY feature with NO max_distance/

@@ -1,0 +1,7 @@
+# Example config for connection_lines.
+# distance_field: _nearest_distance
+# target_geometry_field: _target_geometry
+# source_output_field: source_name
+# target_output_field: target_name
+# distance_output_field: distance_m
+# keep_source_properties: false

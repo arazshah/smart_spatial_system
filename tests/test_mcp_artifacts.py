@@ -219,3 +219,24 @@ def test_output_limit_applies_to_inline_results_but_oversize_goes_to_artifact(re
     runtime = make_runtime(registry, tmp_path, max_output_bytes=50)
     result = call(runtime, "buffer_vector_features", {"features": point_collection(), "distance": 1})
     assert result["type"] == "artifact"  # not inlined past max_output_bytes
+
+
+def test_list_of_raster_handles_feeds_mosaic_and_overlay(registry, tmp_path):
+    runtime = make_runtime(registry, tmp_path)
+
+    def tile(x0):
+        return {"data": [[1, 2], [3, 4]],
+                "metadata": {"crs": "EPSG:3857", "transform": [1, 0, x0, 0, -1, 2], "nodata": None}}
+
+    handles = [
+        call(runtime, "threshold_raster", {"raster": tile(0), "operator": "gt", "threshold": 0}),
+        call(runtime, "threshold_raster", {"raster": tile(2), "operator": "gt", "threshold": 0}),
+    ]
+    mosaic = call(runtime, "mosaic_rasters",
+                  {"rasters": [{"artifact_id": h["artifact_id"]} for h in handles]})
+    assert mosaic["type"] == "artifact" and mosaic["summary"]["shape"] == [2, 4]
+    vector = runtime.store.put("vector", point_collection())
+    with pytest.raises(PolicyViolation):  # the kind is checked for every list item
+        call(runtime, "mosaic_rasters", {"rasters": [
+            {"artifact_id": handles[0]["artifact_id"]}, {"artifact_id": vector.artifact_id},
+        ]})

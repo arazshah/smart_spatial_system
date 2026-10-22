@@ -154,6 +154,17 @@ PARAM_SHAPES: dict[tuple[str, str], ParamShape] = {
 
     # --- vector analysis ----------------------------------------------
     ("generate_grid", "bbox"): _BBOX,
+    ("weighted_overlay", "weights"): ParamShape(
+        "REQUIRED list with one non-negative number per input raster, in the same order "
+        "(relative importance; they are normalised)",
+        ([3, 2, 1],),
+    ),
+    ("weighted_overlay", "directions"): ParamShape(
+        "list with one entry per input raster: \"benefit\" (higher is better) or "
+        "\"cost\" (lower is better); omit for all benefit",
+        (["cost", "benefit", "benefit"],),
+    ),
+    ("calculate_kernel_density", "bbox"): _BBOX,
     ("aggregate_points_to_polygons", "stats"): ParamShape(
         "a list of statistics of value_field to add per polygon: sum, mean, min, max",
         (["sum", "mean"], ["max"]),

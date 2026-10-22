@@ -44,6 +44,7 @@ VECTOR_PARAM_NAMES = frozenset(
     }
 )
 RASTER_PARAM_NAMES = frozenset({"raster"})
+RASTER_LIST_PARAM_NAMES = frozenset({"rasters"})
 
 ARTIFACT_REF_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -69,6 +70,11 @@ _RASTER_SCHEMA: dict[str, Any] = {
     ),
     "anyOf": [ARTIFACT_REF_SCHEMA, {"type": "object"}],
 }
+_RASTER_LIST_SCHEMA: dict[str, Any] = {
+    "description": "List of rasters; each item is a raster object or an artifact reference.",
+    "type": "array",
+    "items": _RASTER_SCHEMA,
+}
 
 
 @dataclass(frozen=True)
@@ -92,6 +98,8 @@ def _param_schema(name: str, annotation: Any) -> dict[str, Any]:
         return dict(_VECTOR_SCHEMA)
     if name in RASTER_PARAM_NAMES:
         return dict(_RASTER_SCHEMA)
+    if name in RASTER_LIST_PARAM_NAMES:
+        return dict(_RASTER_LIST_SCHEMA)
     if annotation is inspect.Parameter.empty or annotation is Any:
         return {}
     try:

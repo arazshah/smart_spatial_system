@@ -23,6 +23,7 @@ from .artifacts import (
     summarize_vector,
 )
 from .catalog import (
+    RASTER_LIST_PARAM_NAMES,
     RASTER_PARAM_NAMES,
     VECTOR_PARAM_NAMES,
     ToolSpec,
@@ -194,17 +195,9 @@ class ToolRuntime:
         if spec.builtin:
             return kwargs
         resolved = dict(kwargs)
-        for param, value in kwargs.items():
-            if not _is_ref(value):
-                continue
-            wanted = (
-                "raster"
-                if param in RASTER_PARAM_NAMES
-                else "vector"
-                if param in VECTOR_PARAM_NAMES
-                else None
-            )
-            if wanted is None or self.store is None:
+
+        def fetch(param: str, value: dict[str, Any], wanted: str) -> Any:
+            if self.store is None:
                 raise PolicyViolation(f"'{param}' does not accept an artifact reference.")
             try:
                 item = self.store.get(value["artifact_id"])
@@ -214,7 +207,26 @@ class ToolRuntime:
                 raise PolicyViolation(
                     f"'{param}' needs a {wanted} artifact but got a {item.kind} artifact."
                 )
-            resolved[param] = item.data
+            return item.data
+
+        for param, value in kwargs.items():
+            if param in RASTER_LIST_PARAM_NAMES and isinstance(value, list):
+                resolved[param] = [
+                    fetch(param, v, "raster") if _is_ref(v) else v for v in value
+                ]
+                continue
+            if not _is_ref(value):
+                continue
+            wanted = (
+                "raster"
+                if param in RASTER_PARAM_NAMES
+                else "vector"
+                if param in VECTOR_PARAM_NAMES
+                else None
+            )
+            if wanted is None:
+                raise PolicyViolation(f"'{param}' does not accept an artifact reference.")
+            resolved[param] = fetch(param, value, wanted)
         return resolved
 
     def _finish(self, spec: ToolSpec, result: Any) -> Any:

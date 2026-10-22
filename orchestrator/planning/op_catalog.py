@@ -1168,6 +1168,151 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         ),
     ),
 
+    "kernel_density": OpDescriptor(
+        op_name="kernel_density",
+        capability_name="calculate_kernel_density",
+        input_map={
+            "points": "points",
+        },
+        input_types={
+            "points": "vector",
+        },
+        param_map={
+            "cell_size": "cell_size",
+            "bandwidth": "bandwidth",
+            "weight_field": "weight_field",
+            "kernel": "kernel",
+            "bbox": "bbox",
+            "crs": "crs",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Kernel density / heat map raster from points (optionally weighted "
+            "by a numeric field). cell_size and bandwidth are in layer units - "
+            "use a metric CRS."
+        ),
+    ),
+
+    "cluster": OpDescriptor(
+        op_name="cluster",
+        capability_name="cluster_features",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "method": "method",
+            "eps": "eps",
+            "min_samples": "min_samples",
+            "k": "k",
+            "max_iterations": "max_iterations",
+            "seed": "seed",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Spatial clustering: dbscan (needs eps, finds clusters and "
+            "noise=-1) or kmeans (needs k). Adds cluster_id and cluster_size. "
+            "eps is in layer units."
+        ),
+    ),
+
+    "sample_raster": OpDescriptor(
+        op_name="sample_raster",
+        capability_name="sample_raster_at_points",
+        input_map={
+            "raster": "raster",
+            "points": "points",
+        },
+        input_types={
+            "raster": "raster",
+            "points": "vector",
+        },
+        param_map={
+            "band_index": "band_index",
+            "field_name": "field_name",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Read the raster value under each point and store it as a property "
+            "(elevation/NDVI/density at locations). Points must be in the "
+            "raster CRS."
+        ),
+    ),
+
+    "mosaic": OpDescriptor(
+        op_name="mosaic",
+        capability_name="mosaic_rasters",
+        input_map={
+            "rasters": "rasters",
+        },
+        input_types={
+            "rasters": "raster",
+        },
+        param_map={
+            "method": "method",
+            "band_index": "band_index",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Merge several same-CRS, same-pixel-size rasters into one mosaic "
+            "(first/last/mean/min/max on overlaps)."
+        ),
+    ),
+
+    "reproject_raster": OpDescriptor(
+        op_name="reproject_raster",
+        capability_name="reproject_raster",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "target_crs": "target_crs",
+            "resolution": "resolution",
+            "resampling": "resampling",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Reproject a raster to another CRS and/or resample to a new pixel "
+            "size (needs rasterio). Use before combining rasters of different "
+            "grids."
+        ),
+    ),
+
+    "weighted_overlay": OpDescriptor(
+        op_name="weighted_overlay",
+        capability_name="weighted_overlay",
+        input_map={
+            "rasters": "rasters",
+        },
+        input_types={
+            "rasters": "raster",
+        },
+        param_map={
+            "weights": "weights",
+            "directions": "directions",
+            "band_index": "band_index",
+            "scale_max": "scale_max",
+            "missing": "missing",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Multi-criteria suitability: normalise rasters to 0-1 "
+            "(benefit/cost), weight and sum. weights has one number per raster; "
+            "rasters must share one grid."
+        ),
+    ),
+
     "attribute_statistics": OpDescriptor(
         op_name="attribute_statistics",
         capability_name="calculate_attribute_statistics",

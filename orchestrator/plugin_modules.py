@@ -49,6 +49,8 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.grid_generator",
     "plugins.field_calculator",
     "plugins.vector_aggregation",
+    "plugins.spatial_statistics",
+    "plugins.raster_tools",
     "plugins.local_raster_loader",
     "plugins.geocoding_resolver",
     "plugins.postgis_connector",

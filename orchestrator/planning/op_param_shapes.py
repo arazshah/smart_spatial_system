@@ -154,6 +154,22 @@ PARAM_SHAPES: dict[tuple[str, str], ParamShape] = {
 
     # --- vector analysis ----------------------------------------------
     ("generate_grid", "bbox"): _BBOX,
+    ("fetch_dem", "bbox"): ParamShape(
+        "REQUIRED WGS84 [min_lon, min_lat, max_lon, max_lat] (or the same as an object); each side at most 2 degrees",
+        ([51.3, 35.6, 51.45, 35.75],),
+    ),
+    ("search_stac", "bbox"): ParamShape(
+        "REQUIRED WGS84 [min_lon, min_lat, max_lon, max_lat] (or the same as an object); each side at most 5 degrees",
+        ([51.0, 35.0, 52.0, 36.0],),
+    ),
+    ("search_stac", "collections"): ParamShape(
+        "REQUIRED collection id or list of ids, e.g. sentinel-2-l2a, landsat-c2-l2",
+        ("sentinel-2-l2a", ["sentinel-2-l2a", "landsat-c2-l2"],),
+    ),
+    ("search_stac", "include_assets"): ParamShape(
+        "list of asset keys whose links to return, e.g. visual, thumbnail",
+        (["visual", "thumbnail"],),
+    ),
     ("calculate_ahp_weights", "criteria"): ParamShape(
         "REQUIRED list of 2-10 unique criterion names",
         (["price", "distance", "quality"],),

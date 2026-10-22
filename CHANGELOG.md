@@ -38,6 +38,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `net_policy`, and planner ops `load_url`, `load_wfs`, `geocode`, `load_csv`, `load_osm` (see
   `docs/CONNECTOR_REGISTRY_DESIGN.md`).
 
+- P1 plugins (26 capabilities): `simplify_geometries`, `explode_multipart`, `voronoi_thiessen`,
+  `deduplicate_features`, `map_schema`, `normalize_persian_text`, `classify_breaks`,
+  `calculate_hillshade`, `generate_contours`, `calculate_focal_statistics`, `detect_raster_change`,
+  `raster_to_points`, `calculate_hotspots`, `calculate_spatial_autocorrelation`, `interpolate_idw`,
+  `aggregate_to_h3` (extra `h3`), `calculate_od_cost_matrix`, `calculate_accessibility_2sfca`,
+  `calculate_ahp_weights`, `rank_topsis`, `render_static_map`, `export_vector_file`,
+  `export_raster_geotiff`, `fetch_dem`, `search_stac`, `write_postgis_layer` (disabled by default).
+  96 capabilities in total.
+
 ### Security
 
 - **Breaking:** `POST /data-sources/postgis` no longer accepts `dsn`/`host`/`port`/`database`/
@@ -50,6 +59,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   non-public addresses, redirects and oversized responses, accepts GeoJSON only, and no longer
   accepts request `headers` (use a `profile`).
 - Filesystem and raw-SQL connectors cannot be driven through the HTTP connector endpoints.
+- `write_postgis_layer` is the only capability that writes to a database: it refuses to run unless
+  `allow_writes: true`, uses server profiles only, allows listed schemas/prefix only, and never drops tables.
 - **Breaking:** `POST /query` no longer accepts database connection details
   (`user_context.postgis_connection` with host/user/password/dsn, or the same keys in `inputs`/
   `metadata`) unless `allow_client_connection: true` is set in

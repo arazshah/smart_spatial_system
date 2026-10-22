@@ -41,6 +41,8 @@ EXPLICIT_RISKS: dict[str, frozenset[str]] = {
     "fetch_postgis_layer": frozenset({RISK_DATABASE}),
     "query_database_postgis": frozenset({RISK_DATABASE}),
     "fetch_postgis_sql_layer": frozenset({RISK_DATABASE, RISK_SQL}),
+    # the only capability that writes to a database: needs both classes enabled on purpose
+    "write_postgis_layer": frozenset({RISK_DATABASE, RISK_SQL}),
 }
 
 # Capabilities that cannot work (or cannot be made safe) over MCP: never exposed.

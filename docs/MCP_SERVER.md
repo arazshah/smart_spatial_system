@@ -21,10 +21,11 @@ The MCP layer enforces its own policy and fails closed:
 
 | Risk class | Capabilities (today) | Needs |
 |---|---|---|
-| (none) | pure computation on inline data or artifact handles (53 tools + 2 artifact tools) | nothing, enabled by default |
-| `filesystem` | `load_local_vector/raster`, `export_*` (incl. `export_table`), `render_pdf` | `SMART_SPATIAL_MCP_ALLOWED_ROOTS` |
-| `network` | `fetch_wfs_features`, `fetch_wms_map`, geocoding | `SMART_SPATIAL_MCP_ALLOWED_HOSTS` |
+| (none) | pure computation on inline data or artifact handles (74 tools + 2 artifact tools) | nothing, enabled by default |
+| `filesystem` | `load_local_vector/raster`, `load_csv_points`, `export_*` (`export_table`, `export_vector_file`, `export_raster_geotiff`), `render_pdf` | `SMART_SPATIAL_MCP_ALLOWED_ROOTS` |
+| `network` | `fetch_wfs_features`, `fetch_wms_map`, geocoding, `load_geojson_url`, `fetch_osm_features`, `fetch_dem`, `search_stac` | `SMART_SPATIAL_MCP_ALLOWED_HOSTS` |
 | `database` | `fetch_postgis_layer`, `query_database_postgis` | server-side `profile` only |
+| `database` + `sql` | `write_postgis_layer` (the only DB writer; also needs `allow_writes` in its config) | enable both on purpose |
 | `sql` | `fetch_postgis_sql_layer` | enable explicitly, with `database` |
 
 - Enable classes with `SMART_SPATIAL_MCP_ENABLE=filesystem,network,...`. A class

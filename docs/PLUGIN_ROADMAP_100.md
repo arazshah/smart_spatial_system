@@ -3,7 +3,7 @@
 Unit of count: **capabilities** (`@capability` functions), because that is what the planner
 (`OP_CATALOG`) and the MCP server (one tool each) work with. A plugin file may hold several.
 
-Status 2026-10: **70 capabilities in 52 plugin modules** (50 at the start of this roadmap).
+Status 2026-10: **96 capabilities in 63 plugin modules** (50 at the start of this roadmap). Four more reach the 100-capability goal.
 
 ## Definition of done for a new capability
 
@@ -38,26 +38,28 @@ Status 2026-10: **70 capabilities in 52 plugin modules** (50 at the start of thi
 `csv_xy_loader`, `geojson_url_loader` and `osm_overpass_fetcher` are built on the connector
 contract (`docs/CONNECTOR_REGISTRY_DESIGN.md`). All P0 items are complete.
 
-## P1 (20) and later
+## Done: P1 batch (26 capabilities)
 
-Vector/prep: `simplify_geometries`, `voronoi_thiessen`, `explode_multipart`, `deduplicate_features`,
-`schema_mapper`, `persian_text_normalizer`, `classification_breaks`.
-Raster: `hillshade`, `contour_generator`, `raster_change_detection`, `focal_statistics`, `raster_to_points`.
-Statistics: `hotspot_getis_ord`, `spatial_autocorrelation_moran`, `idw_interpolation`, `h3_hex_aggregator`.
-Network: `od_cost_matrix`, `accessibility_2sfca`.
-Sources: `dem_fetcher`, `stac_search`, `postgis_writer`.
-Decision/output: `ahp_weights`, `topsis_ranking`, `static_map_renderer`, `geopackage_shapefile_exporter`,
-`geotiff_cog_exporter`.
+| Plugin | Capabilities |
+|---|---|
+| `vector_geometry_tools` | `simplify_geometries`, `explode_multipart`, `voronoi_thiessen` |
+| `attribute_prep` | `deduplicate_features`, `map_schema`, `normalize_persian_text`, `classify_breaks` (Jenks, quantile, equal, std dev, manual) |
+| `raster_surface` | `calculate_hillshade`, `generate_contours`, `calculate_focal_statistics`, `detect_raster_change`, `raster_to_points` |
+| `spatial_pattern_analysis` | `calculate_hotspots` (Gi*), `calculate_spatial_autocorrelation` (Moran's I), `interpolate_idw`, `aggregate_to_h3` (extra `h3`) |
+| `network_accessibility` | `calculate_od_cost_matrix`, `calculate_accessibility_2sfca` (binary / enhanced decay) |
+| `decision_analysis` | `calculate_ahp_weights`, `rank_topsis` |
+| `static_map_renderer` | `render_static_map` (SVG, attribute colouring, legend) |
+| `geo_exporter` | `export_vector_file` (GeoPackage / zipped Shapefile), `export_raster_geotiff` (GeoTIFF / COG) |
+| `dem_fetcher` | `fetch_dem` (connector; open Terrarium tiles, built-in PNG decoder) |
+| `stac_search` | `search_stac` (connector; finds scenes, does not download imagery) |
+| `postgis_writer` | `write_postgis_layer` (off by default; profile only; never drops tables; **not run against a live PostGIS in this repo's tests**) |
 
-P2/P3: `convex_hull_envelope`, `line_operations`, `random_sampling`, `topology_checker`,
-`outlier_detection`, `viewshed`, `flow_accumulation_watershed`, `unsupervised_classification`,
-`supervised_classification`, `cost_distance`, `ogc_api_arcgis_fetcher`, `fuzzy_suitability`,
-`kriging`, `map_matching`, `weather_climate_fetcher`, `kml_exporter`.
+`write_postgis_layer` has no planner op on purpose (a natural-language prompt must not be able to
+trigger database writes); it is available to library callers and, when explicitly enabled, MCP.
 
-## Known limits of the P0 batch
+## Remaining candidates (P2/P3) - pick any 4 to reach 100
 
-- All geometry work is planar (no geodesic distances); inputs should be in a projected CRS.
-- `network_routing`: undirected edges, nodes snap to the nearest vertex (not mid-edge).
-- `raster_tools`: north-up transforms only; mosaics need identical pixel size and alignment
-  (use `reproject_raster` first); `reproject_raster` needs rasterio.
-- Raster data travels as nested lists; a binary raster format would be faster.
+`convex_hull_envelope`, `line_operations`, `random_sampling`, `topology_checker`, `outlier_detection`,
+`viewshed`, `flow_accumulation_watershed`, `unsupervised_classification`, `supervised_classification`,
+`cost_distance`, `ogc_api_arcgis_fetcher`, `fuzzy_suitability`, `kriging`, `map_matching`,
+`weather_climate_fetcher`, `kml_exporter`.

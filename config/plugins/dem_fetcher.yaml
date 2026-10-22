@@ -1,0 +1,15 @@
+# Terrarium-encoded elevation tiles (open data). Point this at your own tile server if you prefer.
+tile_url: https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png
+max_zoom: 14
+max_tiles: 36
+max_tile_bytes: 2000000
+timeout_seconds: 20
+# Seconds to wait between tile requests (be polite to shared servers).
+min_interval_seconds: 0.0
+max_bbox_degrees: 2.0
+# Optional host allow-list for the tile server (exact or *.suffix); empty = any public host.
+allowed_hosts: []
+# Deployer-trusted only: allow a private/internal tile server.
+allow_private_network: false
+
+metadata: {}

@@ -2090,6 +2090,44 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         ),
     ),
 
+    "load_dem": OpDescriptor(
+        op_name="load_dem",
+        capability_name="fetch_dem",
+        param_map={
+            "bbox": "bbox",
+            "zoom": "zoom",
+            "target_crs": "target_crs",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Download an elevation model (metres) for a small WGS84 bbox "
+            "[min_lon, min_lat, max_lon, max_lat] from open terrain tiles. Pass "
+            "target_crs (e.g. a UTM zone) before slope/hillshade analysis."
+        ),
+    ),
+
+    "search_scenes": OpDescriptor(
+        op_name="search_scenes",
+        capability_name="search_stac",
+        param_map={
+            "bbox": "bbox",
+            "collections": "collections",
+            "datetime": "datetime",
+            "max_cloud_cover": "max_cloud_cover",
+            "limit": "limit",
+            "include_assets": "include_assets",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Search a STAC catalogue for satellite scenes (e.g. sentinel-2-l2a) "
+            "over a bbox and date range; returns footprints with date, cloud "
+            "cover and asset links. It finds scenes, it does not download "
+            "imagery."
+        ),
+    ),
+
     "attribute_statistics": OpDescriptor(
         op_name="attribute_statistics",
         capability_name="calculate_attribute_statistics",

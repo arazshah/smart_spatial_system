@@ -1,0 +1,4 @@
+# Copy to vector_aggregation.yaml to override.
+max_features: 500000
+
+metadata: {}

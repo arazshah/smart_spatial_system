@@ -153,6 +153,21 @@ PARAM_SHAPES: dict[tuple[str, str], ParamShape] = {
     ),
 
     # --- vector analysis ----------------------------------------------
+    ("generate_grid", "bbox"): _BBOX,
+    ("aggregate_points_to_polygons", "stats"): ParamShape(
+        "a list of statistics of value_field to add per polygon: sum, mean, min, max",
+        (["sum", "mean"], ["max"]),
+    ),
+    ("aggregate_table", "group_by"): ParamShape(
+        "a property name or a list of property names to group by; omit for one overall row",
+        ("district", ["district", "type"]),
+    ),
+    ("aggregate_table", "aggregations"): ParamShape(
+        "REQUIRED object mapping a property to one operation or a list of them "
+        "(count, non_null_count, sum, mean, median, min, max, std, first, last, unique_count); "
+        "output columns are <property>_<operation>",
+        ({"population": "sum"}, {"price": ["mean", "max"], "id": "count"}),
+    ),
     ("dissolve_features", "group_by"): ParamShape(
         "a property name or a list of property names to group by; omit to dissolve "
         "everything into one feature",

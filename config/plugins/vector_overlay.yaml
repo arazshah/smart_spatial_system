@@ -1,0 +1,5 @@
+# Hard limits protect the server from oversized inputs/outputs (also reachable via MCP).
+max_features: 100000
+max_output_features: 200000
+
+metadata: {}

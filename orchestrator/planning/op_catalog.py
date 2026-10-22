@@ -995,6 +995,179 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         notes="Repair invalid geometries (requires shapely); run before overlay ops.",
     ),
 
+    "clip": OpDescriptor(
+        op_name="clip",
+        capability_name="clip_features",
+        input_map={
+            "vector": "features",
+            "mask": "mask",
+        },
+        input_types={
+            "vector": "vector",
+            "mask": "vector",
+        },
+        param_map={
+            "keep_geom_type": "keep_geom_type",
+            "repair_invalid": "repair_invalid",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Clip features to the area of a mask layer (cut at the boundary, "
+            "keep attributes). Use for 'only the part inside <area>' / 'clip X "
+            "by Y'."
+        ),
+    ),
+
+    "erase": OpDescriptor(
+        op_name="erase",
+        capability_name="erase_features",
+        input_map={
+            "vector": "features",
+            "erase": "erase",
+        },
+        input_types={
+            "vector": "vector",
+            "erase": "vector",
+        },
+        param_map={
+            "keep_geom_type": "keep_geom_type",
+            "repair_invalid": "repair_invalid",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Remove the area covered by the erase layer from the features "
+            "(difference). Use for 'excluding / outside / minus <area>'."
+        ),
+    ),
+
+    "union": OpDescriptor(
+        op_name="union",
+        capability_name="union_features",
+        input_map={
+            "source": "source_features",
+            "target": "target_features",
+        },
+        input_types={
+            "source": "vector",
+            "target": "vector",
+        },
+        param_map={
+            "source_prefix": "source_prefix",
+            "target_prefix": "target_prefix",
+            "repair_invalid": "repair_invalid",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Union overlay of two polygon layers; pieces keep the attributes of "
+            "the covering source and/or target polygon (overlay_origin = "
+            "both/source/target)."
+        ),
+    ),
+
+    "generate_grid": OpDescriptor(
+        op_name="generate_grid",
+        capability_name="generate_grid",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "cell_size": "cell_size",
+            "bbox": "bbox",
+            "grid_type": "grid_type",
+            "clip_to_features": "clip_to_features",
+            "max_cells": "max_cells",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Create a square or hex polygon grid over bbox or over the extent "
+            "of the input layer (cell_size in layer units - use a metric CRS). "
+            "Base for binning/density by cell."
+        ),
+    ),
+
+    "calculate_field": OpDescriptor(
+        op_name="calculate_field",
+        capability_name="calculate_field",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "field": "field",
+            "expression": "expression",
+            "on_error": "on_error",
+            "overwrite": "overwrite",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Add/overwrite an attribute from a safe expression over properties "
+            "and geom_area/geom_length/geom_x/geom_y, e.g. 'population / "
+            "geom_area'. Use for ratios, densities, flags, renamed/derived "
+            "columns."
+        ),
+    ),
+
+    "aggregate_points": OpDescriptor(
+        op_name="aggregate_points",
+        capability_name="aggregate_points_to_polygons",
+        input_map={
+            "points": "points",
+            "polygons": "polygons",
+        },
+        input_types={
+            "points": "vector",
+            "polygons": "vector",
+        },
+        param_map={
+            "value_field": "value_field",
+            "stats": "stats",
+            "density": "density",
+            "count_field": "count_field",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Count points per polygon (and optionally sum/mean/min/max of a "
+            "point attribute, density per area). Use for 'how many X in each "
+            "district'."
+        ),
+    ),
+
+    "aggregate_table": OpDescriptor(
+        op_name="aggregate_table",
+        capability_name="aggregate_table",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "aggregations": "aggregations",
+            "group_by": "group_by",
+            "sort_by": "sort_by",
+            "descending": "descending",
+            "limit": "limit",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Group by attribute(s) and summarise numeric fields "
+            "(count/sum/mean/median/min/max/std...); output is a table without "
+            "geometry. Use for 'total X per Y' summaries."
+        ),
+    ),
+
     "attribute_statistics": OpDescriptor(
         op_name="attribute_statistics",
         capability_name="calculate_attribute_statistics",

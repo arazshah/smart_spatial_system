@@ -1,0 +1,5 @@
+# Copy to vector_overlay.yaml to override.
+max_features: 100000
+max_output_features: 200000
+
+metadata: {}

@@ -65,7 +65,7 @@ class FakeBytesResponse:
 def install_fake_requests_json(monkeypatch, data, call_store=None):
     fake_module = types.ModuleType("requests")
 
-    def get(url, params=None, timeout=None, allow_redirects=True):
+    def get(url, params=None, timeout=None, allow_redirects=True, stream=False):
         if call_store is not None:
             call_store["url"] = url
             call_store["params"] = params
@@ -79,7 +79,7 @@ def install_fake_requests_json(monkeypatch, data, call_store=None):
 def install_fake_requests_bytes(monkeypatch, content=b"FAKE_TIFF_BYTES", call_store=None):
     fake_module = types.ModuleType("requests")
 
-    def get(url, params=None, timeout=None, allow_redirects=True):
+    def get(url, params=None, timeout=None, allow_redirects=True, stream=False):
         if call_store is not None:
             call_store["url"] = url
             call_store["params"] = params
@@ -617,3 +617,27 @@ def test_wms_capability_descriptor_content() -> None:
     assert "filesystem" in descriptor.requires_permissions
     assert descriptor.metadata["artifact_kind"] == "raster_ref"
     assert descriptor.metadata["config_aware"] is True
+
+
+def test_read_capped_rejects_oversized_streams():
+    import pytest
+
+    from plugins.wms_wfs_fetcher import _read_capped
+
+    class Big:
+        headers = {}
+
+        def iter_content(self, n):
+            for _ in range(4):
+                yield b"x" * 100
+
+    assert len(_read_capped(Big(), max_bytes=400)) == 400
+    with pytest.raises(RuntimeError):
+        _read_capped(Big(), max_bytes=399)
+
+    class Declared:
+        headers = {"Content-Length": "999"}
+        content = b""
+
+    with pytest.raises(RuntimeError):
+        _read_capped(Declared(), max_bytes=10)

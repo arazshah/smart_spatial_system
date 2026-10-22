@@ -21,6 +21,9 @@ from smart_spatial_system.shared.net_policy import (
     ("127.0.0.1", True), ("10.1.2.3", True), ("192.168.0.9", True), ("169.254.169.254", True),
     ("172.16.0.1", True), ("0.0.0.0", True), ("::1", True), ("fe80::1", True), ("224.0.0.1", True),
     ("93.184.216.34", False), ("8.8.8.8", False), ("not-an-ip", True),
+    ("100.64.0.1", True), ("100.127.255.254", True), ("198.18.0.1", True), ("192.0.2.1", True),
+    ("::ffff:127.0.0.1", True), ("::ffff:8.8.8.8", False), ("2002:7f00:0001::1", True),
+    ("2002:0808:0808::1", True), ("64:ff9b::7f00:1", True), ("2001:db8::1", True), ("fd00::1", True),
 ])
 def test_is_blocked_ip(ip, blocked):
     assert is_blocked_ip(ip) is blocked

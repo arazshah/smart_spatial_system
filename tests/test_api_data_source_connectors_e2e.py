@@ -90,7 +90,7 @@ def _install_fake_requests_geojson(monkeypatch: pytest.MonkeyPatch, feature_coll
         def json(self) -> dict:
             return feature_collection
 
-    def get(url, params=None, timeout=None, allow_redirects=True):
+    def get(url, params=None, timeout=None, allow_redirects=True, stream=False):
         return _FakeResponse()
 
     fake_module.get = get

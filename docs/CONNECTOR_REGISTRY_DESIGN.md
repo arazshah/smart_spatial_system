@@ -153,7 +153,7 @@ an HTTP caller (uploads are the file route).
   `planning_error` (key names only, never values).
 - Uploaded CSV files are not yet auto-loaded by `csv_xy_loader` in the planner path (the
   `input_reference_resolver` knows the vector and raster loaders only).
-- WFS/WMS responses are not size-capped (`requests.get` without streaming); `net_policy.fetch_limited`
-  does this for the new connectors and should replace `_http_get_json` / `_http_get_bytes`.
+- **Closed:** WFS/WMS responses are now streamed and capped at 50 MiB (`_read_capped` in
+  `plugins/wms_wfs_fetcher.py`, also checks `Content-Length`).
 - `fetch_wms_map` writes to a caller-chosen `output_path`; it is excluded from HTTP and MCP
   exposure by its `filesystem` access class.

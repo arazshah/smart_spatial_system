@@ -29,6 +29,7 @@ Example:
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -421,6 +422,29 @@ def _normalize_geojson_response(
     return features, metadata
 
 
+MAX_RESPONSE_BYTES = 50 * 1024 * 1024
+
+
+def _read_capped(response: Any, max_bytes: int = MAX_RESPONSE_BYTES) -> bytes:
+    """Read a response body, refusing anything larger than max_bytes (memory-exhaustion guard)."""
+    declared = (getattr(response, "headers", None) or {}).get("Content-Length")
+    if declared and str(declared).isdigit() and int(declared) > max_bytes:
+        raise RuntimeError(f"Service response is larger than the {max_bytes} byte limit.")
+    iterator = getattr(response, "iter_content", None)
+    if not callable(iterator):
+        content = response.content
+        if len(content) > max_bytes:
+            raise RuntimeError(f"Service response is larger than the {max_bytes} byte limit.")
+        return bytes(content)
+    chunks, total = [], 0
+    for chunk in iterator(65536):
+        total += len(chunk)
+        if total > max_bytes:
+            raise RuntimeError(f"Service response is larger than the {max_bytes} byte limit.")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 def _http_get_json(base_url: str, params: dict[str, Any], timeout: int) -> Any:
     """
     HTTP GET and parse JSON.
@@ -431,12 +455,14 @@ def _http_get_json(base_url: str, params: dict[str, Any], timeout: int) -> Any:
         # allow_redirects=False: a redirect could point at an internal address
         # that bypassed _validate_url's SSRF check on the original base_url.
         response = requests.get(
-            base_url, params=params, timeout=timeout, allow_redirects=False
+            base_url, params=params, timeout=timeout, allow_redirects=False, stream=True
         )
         if response.is_redirect or response.is_permanent_redirect:
             raise RuntimeError("Service returned a redirect, which is not followed for security reasons.")
         response.raise_for_status()
-        return response.json()
+        if not callable(getattr(response, "iter_content", None)):
+            return response.json()
+        return json.loads(_read_capped(response).decode("utf-8"))
     except Exception as exc:
         message = redact_provider_error_message(
             f"Failed to fetch JSON from WFS service. Error: {exc}"
@@ -454,13 +480,13 @@ def _http_get_bytes(base_url: str, params: dict[str, Any], timeout: int) -> tupl
         # allow_redirects=False: a redirect could point at an internal address
         # that bypassed _validate_url's SSRF check on the original base_url.
         response = requests.get(
-            base_url, params=params, timeout=timeout, allow_redirects=False
+            base_url, params=params, timeout=timeout, allow_redirects=False, stream=True
         )
         if response.is_redirect or response.is_permanent_redirect:
             raise RuntimeError("Service returned a redirect, which is not followed for security reasons.")
         response.raise_for_status()
 
-        content = response.content
+        content = _read_capped(response)
         if not isinstance(content, (bytes, bytearray)) or len(content) == 0:
             raise RuntimeError("Empty binary response from WMS service.")
 

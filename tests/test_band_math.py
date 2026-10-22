@@ -426,3 +426,16 @@ def test_capability_descriptor_content() -> None:
     assert descriptor.metadata["operation"] == "band_math"
     assert descriptor.metadata["spectral_index_supported"] is True
     assert descriptor.metadata["safe_expression_eval"] is True
+
+
+def test_expression_work_guards():
+    import ast
+
+    import pytest
+
+    from plugins.band_math import _validate_ast
+
+    for bad in ("9**9**9", "b1**b2", "b1**1000", "10**10**10", "((b1**64)**64)**64**2", "99999999999999999999 + b1", "b1**2*b1**2*b1**2*b1**2"):
+        with pytest.raises(ValueError):
+            _validate_ast(ast.parse(bad, mode="eval"))
+    _validate_ast(ast.parse("b1**2 + b2**0.5 + 2**-1", mode="eval"))

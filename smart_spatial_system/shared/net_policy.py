@@ -27,13 +27,24 @@ class NetworkPolicyError(ValueError):
 
 
 def is_blocked_ip(ip_text: str) -> bool:
-    """True if an address is not a safe public-internet target."""
+    """True if an address is not a safe public-internet target.
+
+    Anything that is not globally routable is refused (private, loopback, link-local incl. the
+    169.254.169.254 metadata address, carrier-grade NAT 100.64/10, documentation and benchmark
+    ranges, multicast, reserved, unspecified). IPv6 forms that embed an IPv4 address (IPv4-mapped,
+    6to4, Teredo) are judged by the embedded IPv4 address.
+    """
     try:
         ip = ipaddress.ip_address(ip_text)
     except ValueError:
         return True
+    if isinstance(ip, ipaddress.IPv6Address):
+        embedded = [ip.ipv4_mapped, ip.sixtofour, ip.teredo[1] if ip.teredo else None]
+        if any(v4 is not None and is_blocked_ip(str(v4)) for v4 in embedded):
+            return True
     return (
-        ip.is_private
+        not ip.is_global
+        or ip.is_private
         or ip.is_loopback
         or ip.is_link_local
         or ip.is_reserved

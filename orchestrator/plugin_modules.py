@@ -37,6 +37,7 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.spatial_intersection",
     "plugins.spatial_join",
     "plugins.nearest_neighbor",
+    "plugins.connection_lines",
     "plugins.distance_calculator",
     "plugins.area_perimeter_calc",
     "plugins.dissolve_aggregator",

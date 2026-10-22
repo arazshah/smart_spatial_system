@@ -317,6 +317,39 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         ),
     ),
 
+    "connect_nearest_lines": OpDescriptor(
+        op_name="connect_nearest_lines",
+        capability_name="build_connection_lines",
+        input_map={"vector": "features"},
+        input_types={"vector": "vector"},
+        param_map={
+            "source_name_field": "source_name_field",
+            "target_name_field": "target_name_field",
+            "distance_field": "distance_field",
+            "source_output_field": "source_output_field",
+            "target_output_field": "target_output_field",
+            "distance_output_field": "distance_output_field",
+            "keep_source_properties": "keep_source_properties",
+            "source_crs": "source_crs",
+            "output_crs": "output_crs",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Draw a straight LineString from each source feature to its nearest "
+            "target. Input MUST be the output of spatial_nearest run with "
+            "include_target_geometry=true (and k=1). Output has only the line "
+            "geometry plus source_name, target_name and distance_m columns "
+            "(taken from _nearest_distance, so project to a metric CRS BEFORE "
+            "spatial_nearest). Set source_name_field to the source name "
+            "property and target_name_field to the target name property. If "
+            "the data was reprojected to a metric CRS, set source_crs to that "
+            "CRS and output_crs='EPSG:4326' so the lines can be drawn on a "
+            "map. Use this for 'connect/draw a line between X and its nearest "
+            "Y'; do NOT use raster_to_vector for lines."
+        ),
+    ),
+
     "filter_by_distance": OpDescriptor(
         op_name="filter_by_distance",
         capability_name="find_nearest_neighbors",

@@ -278,6 +278,11 @@ def render_pdf(
 
     template_path = TEMPLATES_DIR / template_name
 
+    # template_name is a file name inside templates/reports/, never a path: refuse
+    # anything that resolves outside it (e.g. "../../etc/passwd").
+    if TEMPLATES_DIR.resolve() not in template_path.resolve().parents:
+        raise ValueError("template_name must be a file inside the report templates directory.")
+
     if not template_path.exists():
         return PDFOut(
             pdf_bytes=b"",

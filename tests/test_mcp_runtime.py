@@ -25,6 +25,7 @@ SENSITIVE = {
     "load_local_raster",
     "export_vector_geojson",
     "export_raster_copy",
+    "export_table",
     "render_pdf",
     "fetch_wfs_features",
     "fetch_wms_map",
@@ -159,3 +160,23 @@ def test_allowed_file_loads(registry, tmp_path):
     )
     result = call(runtime, "load_local_vector", {"path": str(tmp_path / "pts.geojson")})
     assert len(result["features"]) == 1
+
+
+def test_file_names_and_template_names_must_be_bare(registry, tmp_path):
+    runtime = ToolRuntime(
+        registry,
+        McpSettings(enabled_risks=frozenset({"filesystem"}), allowed_roots=(str(tmp_path),),
+                    artifacts_enabled=False),
+    )
+    for bad in ("../../etc/passwd", "/etc/passwd", "a/b.csv", ".hidden", "x\x00.csv", ""):
+        with pytest.raises(PolicyViolation):
+            call(runtime, "export_table",
+                 {"features": POINTS, "output_dir": str(tmp_path), "filename": bad})
+    for bad in ("../../etc/passwd", "../report.html", "/etc/hosts"):
+        with pytest.raises(PolicyViolation):
+            call(runtime, "render_pdf", {"report": {"title": "t"}, "template_name": bad})
+    with pytest.raises(PolicyViolation):  # output_dir must stay inside the allowed roots
+        call(runtime, "export_table", {"features": POINTS, "output_dir": "/tmp/elsewhere"})
+    result = call(runtime, "export_table",
+                  {"features": POINTS, "output_dir": str(tmp_path), "filename": "ok"})
+    assert result["file_name"] == "ok.csv" and (tmp_path / "ok.csv").exists()

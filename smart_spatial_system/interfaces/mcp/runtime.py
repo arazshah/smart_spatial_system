@@ -31,7 +31,14 @@ from .catalog import (
 )
 from .codec import as_feature_collection, check_input_limits, encode_result, to_jsonable
 from .config import McpSettings
-from .policy import PolicyViolation, check_path, check_url, is_tool_allowed, safe_error_text
+from .policy import (
+    PolicyViolation,
+    check_filename,
+    check_path,
+    check_url,
+    is_tool_allowed,
+    safe_error_text,
+)
 
 logger = logging.getLogger("smart_spatial_system.mcp")
 
@@ -183,8 +190,14 @@ class ToolRuntime:
             raise PolicyViolation(f"Missing required argument(s): {missing}.")
         kwargs = dict(arguments)
         for param in spec.path_params:
+            value = kwargs.get(param)
+            if isinstance(value, list):
+                kwargs[param] = [check_path(v, self.settings, param=param) for v in value]
+            elif value is not None:
+                kwargs[param] = check_path(value, self.settings, param=param)
+        for param in spec.name_params:
             if kwargs.get(param) is not None:
-                kwargs[param] = check_path(kwargs[param], self.settings, param=param)
+                kwargs[param] = check_filename(kwargs[param], param=param)
         for param in spec.url_params:
             if kwargs.get(param) is not None:
                 kwargs[param] = check_url(kwargs[param], self.settings, param=param)

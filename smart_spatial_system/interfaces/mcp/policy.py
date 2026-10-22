@@ -13,6 +13,7 @@ validates every path/URL argument itself before the plugin runs.
 from __future__ import annotations
 
 import ipaddress
+import re
 import socket
 from collections.abc import Iterable
 from pathlib import Path
@@ -52,6 +53,10 @@ UNSUPPORTED_TOOLS = frozenset({"ndvi_processor"})
 FS_PARAMS = frozenset(
     {"path", "paths", "file_path", "output_path", "output_dir", "filename", "template_name"}
 )
+# Subset of FS_PARAMS that hold real filesystem paths (validated against the allowed
+# roots); NAME_PARAMS hold a bare file name that the plugin joins to a directory.
+PATH_PARAMS = frozenset({"path", "paths", "file_path", "output_path", "output_dir"})
+NAME_PARAMS = frozenset({"filename", "template_name"})
 URL_PARAMS = frozenset({"url", "base_url", "endpoint"})
 DB_PARAMS = frozenset({"dsn", "profile", "connection", "connection_string"})
 SQL_PARAMS = frozenset({"sql", "query_sql"})
@@ -119,6 +124,20 @@ def check_path(value: object, settings: McpSettings, *, param: str) -> str:
     raise PolicyViolation(f"'{param}' is outside the allowed roots of this server.")
 
 
+_BARE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,119}$")
+
+
+def check_filename(value: object, *, param: str) -> str:
+    """A bare file name: no directory part, no traversal, no hidden/odd characters."""
+    if (
+        not isinstance(value, str)
+        or not _BARE_NAME_RE.fullmatch(value)
+        or ".." in value
+    ):
+        raise PolicyViolation(f"'{param}' must be a plain file name (no directories).")
+    return value
+
+
 def _host_allowed(host: str, patterns: Iterable[str]) -> bool:
     host = host.lower()
     for pattern in patterns:
@@ -172,8 +191,6 @@ def check_url(value: object, settings: McpSettings, *, param: str, resolve: bool
 
 def safe_error_text(exc: BaseException, limit: int = 400) -> str:
     """Exception text for clients: absolute paths reduced to base names, truncated."""
-    import re
-
     text = f"{type(exc).__name__}: {exc}"
     text = re.sub(r"(?<![\w.])/(?:[^\s'\"():,]+/)+([^\s'\"():,]+)", r"<path>/\1", text)
     return text[:limit]
@@ -191,6 +208,7 @@ def loopback_host(host: str) -> bool:
 __all__ = [
     "NEVER_EXPOSED",
     "PolicyViolation",
+    "check_filename",
     "check_path",
     "check_url",
     "classify",

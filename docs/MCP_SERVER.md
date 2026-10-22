@@ -21,8 +21,8 @@ The MCP layer enforces its own policy and fails closed:
 
 | Risk class | Capabilities (today) | Needs |
 |---|---|---|
-| (none) | pure computation on inline data or artifact handles (37 tools + 2 artifact tools) | nothing, enabled by default |
-| `filesystem` | `load_local_vector/raster`, `export_*`, `render_pdf` | `SMART_SPATIAL_MCP_ALLOWED_ROOTS` |
+| (none) | pure computation on inline data or artifact handles (53 tools + 2 artifact tools) | nothing, enabled by default |
+| `filesystem` | `load_local_vector/raster`, `export_*` (incl. `export_table`), `render_pdf` | `SMART_SPATIAL_MCP_ALLOWED_ROOTS` |
 | `network` | `fetch_wfs_features`, `fetch_wms_map`, geocoding | `SMART_SPATIAL_MCP_ALLOWED_HOSTS` |
 | `database` | `fetch_postgis_layer`, `query_database_postgis` | server-side `profile` only |
 | `sql` | `fetch_postgis_sql_layer` | enable explicitly, with `database` |

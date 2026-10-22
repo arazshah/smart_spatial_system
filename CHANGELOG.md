@@ -17,8 +17,18 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `render_pdf`: `template_name` could point outside `templates/reports/` (path traversal); it is
+  now confined to that directory. MCP additionally accepts only bare file names for
+  `filename`/`template_name`.
 - MCP: vector tool results now carry `type: FeatureCollection`, so one tool's output is valid
   input for the next; `ndvi_processor` is no longer exposed (it cannot work over MCP).
+
+- 17 new capabilities in 9 plugins (roadmap: `docs/PLUGIN_ROADMAP_100.md`): `clip_features`,
+  `erase_features`, `union_features`, `generate_grid`, `calculate_field`,
+  `aggregate_points_to_polygons`, `aggregate_table`, `calculate_kernel_density`, `cluster_features`,
+  `sample_raster_at_points`, `mosaic_rasters`, `reproject_raster`, `weighted_overlay`,
+  `find_shortest_path`, `calculate_service_area`, `build_chart`, `export_table`. Each has hard
+  size/work limits in its config, OP_CATALOG entries and tests.
 
 ### Changed
 

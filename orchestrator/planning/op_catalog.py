@@ -1313,6 +1313,116 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         ),
     ),
 
+    "shortest_path": OpDescriptor(
+        op_name="shortest_path",
+        capability_name="find_shortest_path",
+        input_map={
+            "network": "network",
+            "origin": "origin",
+            "destination": "destination",
+        },
+        input_types={
+            "network": "vector",
+            "origin": "vector",
+            "destination": "vector",
+        },
+        param_map={
+            "weight_field": "weight_field",
+            "snap_tolerance": "snap_tolerance",
+            "node_crossings": "node_crossings",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Least-cost route over a line network (roads) between two points; "
+            "cost = length x optional per-length weight_field. Network must be "
+            "a loaded line layer. Output: one route LineString with cost and "
+            "length."
+        ),
+    ),
+
+    "service_area": OpDescriptor(
+        op_name="service_area",
+        capability_name="calculate_service_area",
+        input_map={
+            "network": "network",
+            "origins": "origins",
+        },
+        input_types={
+            "network": "vector",
+            "origins": "vector",
+        },
+        param_map={
+            "max_cost": "max_cost",
+            "weight_field": "weight_field",
+            "output": "output",
+            "buffer_distance": "buffer_distance",
+            "snap_tolerance": "snap_tolerance",
+            "node_crossings": "node_crossings",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Service area / isochrone: network part reachable from each origin "
+            "within max_cost (number or list of bands), as polygons, lines or "
+            "both. Cost units = layer length units unless weight_field converts "
+            "them (e.g. 1/speed for travel time)."
+        ),
+    ),
+
+    "build_chart": OpDescriptor(
+        op_name="build_chart",
+        capability_name="build_chart",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "chart_type": "chart_type",
+            "x": "x",
+            "y": "y",
+            "aggregate": "aggregate",
+            "title": "title",
+            "sort": "sort",
+            "top_n": "top_n",
+            "bins": "bins",
+            "metadata": "metadata",
+        },
+        output_type="json",
+        notes=(
+            "Chart from attributes: bar/line/pie (x = category field, y = "
+            "numeric field summarised per x, or omit y to count), scatter (x,y "
+            "numeric), histogram (x numeric, bins). Returns a Vega-Lite spec "
+            "plus SVG."
+        ),
+    ),
+
+    "export_table": OpDescriptor(
+        op_name="export_table",
+        capability_name="export_table",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "format": "format",
+            "filename": "filename",
+            "include_geometry": "include_geometry",
+            "overwrite": "overwrite",
+            "metadata": "metadata",
+        },
+        output_type="json",
+        notes=(
+            "Save the attribute table as csv/tsv/json (optionally with wkt or "
+            "centroid columns). Use when the user asks for a CSV/spreadsheet "
+            "export."
+        ),
+    ),
+
     "attribute_statistics": OpDescriptor(
         op_name="attribute_statistics",
         capability_name="calculate_attribute_statistics",

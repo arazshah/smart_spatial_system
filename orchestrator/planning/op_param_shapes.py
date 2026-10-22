@@ -154,6 +154,11 @@ PARAM_SHAPES: dict[tuple[str, str], ParamShape] = {
 
     # --- vector analysis ----------------------------------------------
     ("generate_grid", "bbox"): _BBOX,
+    ("calculate_service_area", "max_cost"): ParamShape(
+        "REQUIRED positive number, or a list of positive numbers for several bands, in cost "
+        "units (layer length units, or weight_field-scaled cost such as minutes)",
+        (1000, [300, 600, 900]),
+    ),
     ("weighted_overlay", "weights"): ParamShape(
         "REQUIRED list with one non-negative number per input raster, in the same order "
         "(relative importance; they are normalised)",

@@ -19,8 +19,9 @@ from typing import Any
 from pydantic import TypeAdapter
 
 from .policy import (
-    FS_PARAMS,
+    NAME_PARAMS,
     NEVER_EXPOSED,
+    PATH_PARAMS,
     URL_PARAMS,
     classify,
 )
@@ -91,6 +92,7 @@ class ToolSpec:
     long_running: bool
     builtin: bool = False
     destructive: bool = False
+    name_params: tuple[str, ...] = ()
 
 
 def _param_schema(name: str, annotation: Any) -> dict[str, Any]:
@@ -149,7 +151,8 @@ def build_spec(name: str, descriptor: Any, handler: Callable[..., Any]) -> ToolS
         risks=risks,
         handler=handler,
         params=exposed,
-        path_params=tuple(p for p in exposed if p in FS_PARAMS),
+        path_params=tuple(p for p in exposed if p in PATH_PARAMS),
+        name_params=tuple(p for p in exposed if p in NAME_PARAMS),
         url_params=tuple(p for p in exposed if p in URL_PARAMS),
         output_kind=output_kind,
         long_running=bool(getattr(descriptor, "long_running", False)),

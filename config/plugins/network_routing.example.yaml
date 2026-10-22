@@ -1,0 +1,5 @@
+max_edges: 200000
+max_origins: 50
+max_bands: 10
+
+metadata: {}

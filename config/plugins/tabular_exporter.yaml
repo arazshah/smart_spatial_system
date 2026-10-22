@@ -1,0 +1,9 @@
+default_output_dir: output/plugins/tabular_exporter
+# Empty list = unrestricted (like data_writer_exporter). Set it on any shared deployment.
+allowed_output_roots: []
+max_rows: 1000000
+# utf-8-sig lets Excel open Persian text correctly; use utf-8 for pipelines.
+encoding: utf-8-sig
+escape_formulas: true
+
+metadata: {}

@@ -153,6 +153,16 @@ PARAM_SHAPES: dict[tuple[str, str], ParamShape] = {
     ),
 
     # --- vector analysis ----------------------------------------------
+    ("dissolve_features", "group_by"): ParamShape(
+        "a property name or a list of property names to group by; omit to dissolve "
+        "everything into one feature",
+        ("district", ["district", "type"]),
+    ),
+    ("dissolve_features", "aggregate_fields"): ParamShape(
+        "an object mapping a property to one aggregation or a list of them "
+        "(sum, mean, min, max, count, first, unique_count)",
+        ({"population": "sum"}, {"population": ["sum", "mean"], "name": "first"}),
+    ),
     ("generate_ring_buffers", "distances"): ParamShape(
         "list of ring radii (numbers, in `units`), ascending",
         ([200, 500, 800],),

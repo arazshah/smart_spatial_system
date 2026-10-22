@@ -43,7 +43,7 @@ def _stub_dns_for_example_com(monkeypatch):
 def _install_fake_requests_that_raises(monkeypatch, exc: Exception) -> None:
     fake_module = types.ModuleType("requests")
 
-    def get(url, params=None, timeout=None, allow_redirects=True):
+    def get(url, params=None, timeout=None, allow_redirects=True, stream=False):
         raise exc
 
     fake_module.get = get

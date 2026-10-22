@@ -6,6 +6,77 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-22
+
+### Added
+
+- MCP server (`smart-spatial-api mcp`, extra `smart_spatial_system[mcp]`): every registered
+  capability becomes an MCP tool, with the JSON schema derived from the capability itself. Secure
+  by default: capabilities that touch the filesystem, network or databases are hidden until the
+  operator enables their risk class; HTTP transport requires an API key and DNS-rebinding
+  protection. Rasters and large results are passed by artifact handle (`artifact_get`,
+  `artifact_delete`). See `docs/MCP_SERVER.md`.
+
+### Fixed
+
+- `render_pdf`: `template_name` could point outside `templates/reports/` (path traversal); it is
+  now confined to that directory. MCP additionally accepts only bare file names for
+  `filename`/`template_name`.
+- MCP: vector tool results now carry `type: FeatureCollection`, so one tool's output is valid
+  input for the next; `ndvi_processor` is no longer exposed (it cannot work over MCP).
+
+- 17 new capabilities in 9 plugins (roadmap: `docs/PLUGIN_ROADMAP_100.md`): `clip_features`,
+  `erase_features`, `union_features`, `generate_grid`, `calculate_field`,
+  `aggregate_points_to_polygons`, `aggregate_table`, `calculate_kernel_density`, `cluster_features`,
+  `sample_raster_at_points`, `mosaic_rasters`, `reproject_raster`, `weighted_overlay`,
+  `find_shortest_path`, `calculate_service_area`, `build_chart`, `export_table`. Each has hard
+  size/work limits in its config, OP_CATALOG entries and tests.
+
+- Connector registry (`smart_spatial_system.application.connectors`): sources declare a
+  `connector` block; normalized `ConnectorResult`, redacted provenance and errors, preview.
+  New endpoints `GET /connectors`, `POST /connectors/preview`, `POST /data-sources/connect`.
+  New connectors `load_geojson_url`, `load_csv_points` (utf-8/windows-1256, Persian digits,
+  rejected-row report) and `fetch_osm_features` (structured tag filters, bounded bbox), shared
+  `net_policy`, and planner ops `load_url`, `load_wfs`, `geocode`, `load_csv`, `load_osm` (see
+  `docs/CONNECTOR_REGISTRY_DESIGN.md`).
+
+- P1 plugins (26 capabilities): `simplify_geometries`, `explode_multipart`, `voronoi_thiessen`,
+  `deduplicate_features`, `map_schema`, `normalize_persian_text`, `classify_breaks`,
+  `calculate_hillshade`, `generate_contours`, `calculate_focal_statistics`, `detect_raster_change`,
+  `raster_to_points`, `calculate_hotspots`, `calculate_spatial_autocorrelation`, `interpolate_idw`,
+  `aggregate_to_h3` (extra `h3`), `calculate_od_cost_matrix`, `calculate_accessibility_2sfca`,
+  `calculate_ahp_weights`, `rank_topsis`, `render_static_map`, `export_vector_file`,
+  `export_raster_geotiff`, `fetch_dem`, `search_stac`, `write_postgis_layer` (disabled by default).
+  Plus `calculate_convex_hull`, `check_topology`, `sample_features`, `detect_outliers`:
+  100 capabilities in total (the goal of `docs/PLUGIN_ROADMAP_100.md`).
+
+### Security
+
+- **Breaking:** `POST /data-sources/postgis` no longer accepts `dsn`/`host`/`port`/`database`/
+  `user`/`password` from the request body by default (it let any caller make the server connect
+  to arbitrary hosts). Name a server-side `profile` instead, or set
+  `allow_client_connection: true` in `config/plugins/postgis_connector.yaml` to keep the old
+  behaviour. The UI form has a "Server profile" field.
+- **Breaking:** `POST /data-sources/url` now goes through the shared network policy: it was
+  fetching any URL with redirects followed (SSRF, including cloud metadata endpoints). It refuses
+  non-public addresses, redirects and oversized responses, accepts GeoJSON only, and no longer
+  accepts request `headers` (use a `profile`).
+- Filesystem and raw-SQL connectors cannot be driven through the HTTP connector endpoints.
+- `write_postgis_layer` is the only capability that writes to a database: it refuses to run unless
+  `allow_writes: true`, uses server profiles only, allows listed schemas/prefix only, and never drops tables.
+- **Breaking:** `POST /query` no longer accepts database connection details
+  (`user_context.postgis_connection` with host/user/password/dsn, or the same keys in `inputs`/
+  `metadata`) unless `allow_client_connection: true` is set in
+  `config/plugins/postgis_connector.yaml`. Use `{"postgis_connection": {"profile": "<name>"}}`
+  to select a server-side profile. The LLM planner can no longer set connection parameters or a
+  profile in a `query_database` step.
+
+### Changed
+
+- `local_raster_loader` and `geocoding_resolver` are now in `DEFAULT_SAFE_PLUGIN_MODULES`.
+- `OP_CATALOG` gains `dissolve`, `centroids`, `validate_geometries` and `repair_geometries`, so
+  the planner can reach those four existing capabilities.
+
 ## [0.5.10] - 2026-10-22
 
 ### Fixed

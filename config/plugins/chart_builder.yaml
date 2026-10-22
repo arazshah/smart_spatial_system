@@ -1,0 +1,5 @@
+max_rows: 20000
+max_categories: 50
+max_bins: 100
+
+metadata: {}

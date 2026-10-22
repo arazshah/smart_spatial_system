@@ -1,0 +1,7 @@
+default_output_dir: output/plugins/geo_exporter
+# Empty list = unrestricted (like data_writer_exporter). Set it on any shared deployment.
+allowed_output_roots: []
+max_features: 500000
+max_cells: 25000000
+
+metadata: {}

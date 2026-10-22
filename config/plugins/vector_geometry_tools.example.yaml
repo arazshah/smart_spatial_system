@@ -1,0 +1,5 @@
+max_features: 200000
+max_output_features: 500000
+max_points: 50000
+
+metadata: {}

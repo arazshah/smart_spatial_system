@@ -914,6 +914,1319 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         ),
     ),
 
+    "dissolve": OpDescriptor(
+        op_name="dissolve",
+        capability_name="dissolve_features",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "group_by": "group_by",
+            "aggregate_fields": "aggregate_fields",
+            "engine": "engine",
+            "precision": "precision",
+            "drop_failed": "drop_failed",
+            "source_crs": "source_crs",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Merge features into one geometry per group_by value (or a single "
+            "geometry when group_by is omitted) with optional attribute "
+            "aggregation, e.g. aggregate_fields={'population': 'sum'}."
+        ),
+    ),
+
+    "centroids": OpDescriptor(
+        op_name="centroids",
+        capability_name="extract_centroids",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "engine": "engine",
+            "precision": "precision",
+            "drop_failed": "drop_failed",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes="Replace each feature geometry with its centroid Point.",
+    ),
+
+    "validate_geometries": OpDescriptor(
+        op_name="validate_geometries",
+        capability_name="validate_geometries",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "engine": "engine",
+            "drop_invalid": "drop_invalid",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes="Flag (or drop) features with invalid geometries.",
+    ),
+
+    "repair_geometries": OpDescriptor(
+        op_name="repair_geometries",
+        capability_name="repair_geometries",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "engine": "engine",
+            "drop_invalid": "drop_invalid",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes="Repair invalid geometries (requires shapely); run before overlay ops.",
+    ),
+
+    "clip": OpDescriptor(
+        op_name="clip",
+        capability_name="clip_features",
+        input_map={
+            "vector": "features",
+            "mask": "mask",
+        },
+        input_types={
+            "vector": "vector",
+            "mask": "vector",
+        },
+        param_map={
+            "keep_geom_type": "keep_geom_type",
+            "repair_invalid": "repair_invalid",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Clip features to the area of a mask layer (cut at the boundary, "
+            "keep attributes). Use for 'only the part inside <area>' / 'clip X "
+            "by Y'."
+        ),
+    ),
+
+    "erase": OpDescriptor(
+        op_name="erase",
+        capability_name="erase_features",
+        input_map={
+            "vector": "features",
+            "erase": "erase",
+        },
+        input_types={
+            "vector": "vector",
+            "erase": "vector",
+        },
+        param_map={
+            "keep_geom_type": "keep_geom_type",
+            "repair_invalid": "repair_invalid",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Remove the area covered by the erase layer from the features "
+            "(difference). Use for 'excluding / outside / minus <area>'."
+        ),
+    ),
+
+    "union": OpDescriptor(
+        op_name="union",
+        capability_name="union_features",
+        input_map={
+            "source": "source_features",
+            "target": "target_features",
+        },
+        input_types={
+            "source": "vector",
+            "target": "vector",
+        },
+        param_map={
+            "source_prefix": "source_prefix",
+            "target_prefix": "target_prefix",
+            "repair_invalid": "repair_invalid",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Union overlay of two polygon layers; pieces keep the attributes of "
+            "the covering source and/or target polygon (overlay_origin = "
+            "both/source/target)."
+        ),
+    ),
+
+    "generate_grid": OpDescriptor(
+        op_name="generate_grid",
+        capability_name="generate_grid",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "cell_size": "cell_size",
+            "bbox": "bbox",
+            "grid_type": "grid_type",
+            "clip_to_features": "clip_to_features",
+            "max_cells": "max_cells",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Create a square or hex polygon grid over bbox or over the extent "
+            "of the input layer (cell_size in layer units - use a metric CRS). "
+            "Base for binning/density by cell."
+        ),
+    ),
+
+    "calculate_field": OpDescriptor(
+        op_name="calculate_field",
+        capability_name="calculate_field",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "field": "field",
+            "expression": "expression",
+            "on_error": "on_error",
+            "overwrite": "overwrite",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Add/overwrite an attribute from a safe expression over properties "
+            "and geom_area/geom_length/geom_x/geom_y, e.g. 'population / "
+            "geom_area'. Use for ratios, densities, flags, renamed/derived "
+            "columns."
+        ),
+    ),
+
+    "aggregate_points": OpDescriptor(
+        op_name="aggregate_points",
+        capability_name="aggregate_points_to_polygons",
+        input_map={
+            "points": "points",
+            "polygons": "polygons",
+        },
+        input_types={
+            "points": "vector",
+            "polygons": "vector",
+        },
+        param_map={
+            "value_field": "value_field",
+            "stats": "stats",
+            "density": "density",
+            "count_field": "count_field",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Count points per polygon (and optionally sum/mean/min/max of a "
+            "point attribute, density per area). Use for 'how many X in each "
+            "district'."
+        ),
+    ),
+
+    "aggregate_table": OpDescriptor(
+        op_name="aggregate_table",
+        capability_name="aggregate_table",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "aggregations": "aggregations",
+            "group_by": "group_by",
+            "sort_by": "sort_by",
+            "descending": "descending",
+            "limit": "limit",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Group by attribute(s) and summarise numeric fields "
+            "(count/sum/mean/median/min/max/std...); output is a table without "
+            "geometry. Use for 'total X per Y' summaries."
+        ),
+    ),
+
+    "kernel_density": OpDescriptor(
+        op_name="kernel_density",
+        capability_name="calculate_kernel_density",
+        input_map={
+            "points": "points",
+        },
+        input_types={
+            "points": "vector",
+        },
+        param_map={
+            "cell_size": "cell_size",
+            "bandwidth": "bandwidth",
+            "weight_field": "weight_field",
+            "kernel": "kernel",
+            "bbox": "bbox",
+            "crs": "crs",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Kernel density / heat map raster from points (optionally weighted "
+            "by a numeric field). cell_size and bandwidth are in layer units - "
+            "use a metric CRS."
+        ),
+    ),
+
+    "cluster": OpDescriptor(
+        op_name="cluster",
+        capability_name="cluster_features",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "method": "method",
+            "eps": "eps",
+            "min_samples": "min_samples",
+            "k": "k",
+            "max_iterations": "max_iterations",
+            "seed": "seed",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Spatial clustering: dbscan (needs eps, finds clusters and "
+            "noise=-1) or kmeans (needs k). Adds cluster_id and cluster_size. "
+            "eps is in layer units."
+        ),
+    ),
+
+    "sample_raster": OpDescriptor(
+        op_name="sample_raster",
+        capability_name="sample_raster_at_points",
+        input_map={
+            "raster": "raster",
+            "points": "points",
+        },
+        input_types={
+            "raster": "raster",
+            "points": "vector",
+        },
+        param_map={
+            "band_index": "band_index",
+            "field_name": "field_name",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Read the raster value under each point and store it as a property "
+            "(elevation/NDVI/density at locations). Points must be in the "
+            "raster CRS."
+        ),
+    ),
+
+    "mosaic": OpDescriptor(
+        op_name="mosaic",
+        capability_name="mosaic_rasters",
+        input_map={
+            "rasters": "rasters",
+        },
+        input_types={
+            "rasters": "raster",
+        },
+        param_map={
+            "method": "method",
+            "band_index": "band_index",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Merge several same-CRS, same-pixel-size rasters into one mosaic "
+            "(first/last/mean/min/max on overlaps)."
+        ),
+    ),
+
+    "reproject_raster": OpDescriptor(
+        op_name="reproject_raster",
+        capability_name="reproject_raster",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "target_crs": "target_crs",
+            "resolution": "resolution",
+            "resampling": "resampling",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Reproject a raster to another CRS and/or resample to a new pixel "
+            "size (needs rasterio). Use before combining rasters of different "
+            "grids."
+        ),
+    ),
+
+    "weighted_overlay": OpDescriptor(
+        op_name="weighted_overlay",
+        capability_name="weighted_overlay",
+        input_map={
+            "rasters": "rasters",
+        },
+        input_types={
+            "rasters": "raster",
+        },
+        param_map={
+            "weights": "weights",
+            "directions": "directions",
+            "band_index": "band_index",
+            "scale_max": "scale_max",
+            "missing": "missing",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Multi-criteria suitability: normalise rasters to 0-1 "
+            "(benefit/cost), weight and sum. weights has one number per raster; "
+            "rasters must share one grid."
+        ),
+    ),
+
+    "shortest_path": OpDescriptor(
+        op_name="shortest_path",
+        capability_name="find_shortest_path",
+        input_map={
+            "network": "network",
+            "origin": "origin",
+            "destination": "destination",
+        },
+        input_types={
+            "network": "vector",
+            "origin": "vector",
+            "destination": "vector",
+        },
+        param_map={
+            "weight_field": "weight_field",
+            "snap_tolerance": "snap_tolerance",
+            "node_crossings": "node_crossings",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Least-cost route over a line network (roads) between two points; "
+            "cost = length x optional per-length weight_field. Network must be "
+            "a loaded line layer. Output: one route LineString with cost and "
+            "length."
+        ),
+    ),
+
+    "service_area": OpDescriptor(
+        op_name="service_area",
+        capability_name="calculate_service_area",
+        input_map={
+            "network": "network",
+            "origins": "origins",
+        },
+        input_types={
+            "network": "vector",
+            "origins": "vector",
+        },
+        param_map={
+            "max_cost": "max_cost",
+            "weight_field": "weight_field",
+            "output": "output",
+            "buffer_distance": "buffer_distance",
+            "snap_tolerance": "snap_tolerance",
+            "node_crossings": "node_crossings",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Service area / isochrone: network part reachable from each origin "
+            "within max_cost (number or list of bands), as polygons, lines or "
+            "both. Cost units = layer length units unless weight_field converts "
+            "them (e.g. 1/speed for travel time)."
+        ),
+    ),
+
+    "build_chart": OpDescriptor(
+        op_name="build_chart",
+        capability_name="build_chart",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "chart_type": "chart_type",
+            "x": "x",
+            "y": "y",
+            "aggregate": "aggregate",
+            "title": "title",
+            "sort": "sort",
+            "top_n": "top_n",
+            "bins": "bins",
+            "metadata": "metadata",
+        },
+        output_type="json",
+        notes=(
+            "Chart from attributes: bar/line/pie (x = category field, y = "
+            "numeric field summarised per x, or omit y to count), scatter (x,y "
+            "numeric), histogram (x numeric, bins). Returns a Vega-Lite spec "
+            "plus SVG."
+        ),
+    ),
+
+    "export_table": OpDescriptor(
+        op_name="export_table",
+        capability_name="export_table",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "format": "format",
+            "filename": "filename",
+            "include_geometry": "include_geometry",
+            "overwrite": "overwrite",
+            "metadata": "metadata",
+        },
+        output_type="json",
+        notes=(
+            "Save the attribute table as csv/tsv/json (optionally with wkt or "
+            "centroid columns). Use when the user asks for a CSV/spreadsheet "
+            "export."
+        ),
+    ),
+
+    "load_url": OpDescriptor(
+        op_name="load_url",
+        capability_name="load_geojson_url",
+        param_map={
+            "url": "url",
+            "profile": "profile",
+            "timeout": "timeout",
+            "max_features": "max_features",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Load a GeoJSON document from a public http(s) URL (no redirects, "
+            "size limited). Use only when the user gives an explicit URL."
+        ),
+    ),
+
+    "load_wfs": OpDescriptor(
+        op_name="load_wfs",
+        capability_name="fetch_wfs_features",
+        param_map={
+            "service": "service",
+            "base_url": "base_url",
+            "type_name": "type_name",
+            "layer": "layer",
+            "version": "version",
+            "output_format": "output_format",
+            "srs_name": "srs_name",
+            "bbox": "bbox",
+            "max_features": "max_features",
+            "property_name": "property_name",
+            "timeout": "timeout",
+        },
+        output_type="vector",
+        notes=(
+            "Fetch features from an OGC WFS service: a configured service name, "
+            "or base_url plus type_name. Public hosts only."
+        ),
+    ),
+
+    "geocode": OpDescriptor(
+        op_name="geocode",
+        capability_name="geocode_place",
+        param_map={
+            "query": "query",
+            "provider": "provider",
+            "limit": "limit",
+            "language": "language",
+            "country_codes": "country_codes",
+            "timeout_seconds": "timeout_seconds",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Resolve a place name or address to point locations (WGS84) with "
+            "the configured geocoding provider."
+        ),
+    ),
+
+    "load_csv": OpDescriptor(
+        op_name="load_csv",
+        capability_name="load_csv_points",
+        param_map={
+            "path": "path",
+            "x_field": "x_field",
+            "y_field": "y_field",
+            "wkt_field": "wkt_field",
+            "crs": "crs",
+            "delimiter": "delimiter",
+            "encoding": "encoding",
+            "max_rows": "max_rows",
+            "on_invalid": "on_invalid",
+            "infer_types": "infer_types",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Load a CSV/TSV file with longitude/latitude (or x/y, or WKT) "
+            "columns as points; handles Persian digits and windows-1256. "
+            "Reports rejected rows."
+        ),
+    ),
+
+    "load_osm": OpDescriptor(
+        op_name="load_osm",
+        capability_name="fetch_osm_features",
+        param_map={
+            "bbox": "bbox",
+            "tags": "tags",
+            "element_types": "element_types",
+            "max_features": "max_features",
+            "timeout": "timeout",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Download OpenStreetMap features in a required WGS84 bbox [min_lon, "
+            "min_lat, max_lon, max_lat] filtered by tags such as "
+            "{'amenity': 'hospital'}; small areas only. Never pass raw Overpass QL."
+        ),
+    ),
+
+    "simplify": OpDescriptor(
+        op_name="simplify",
+        capability_name="simplify_geometries",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "tolerance": "tolerance",
+            "preserve_topology": "preserve_topology",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Reduce vertices (Douglas-Peucker); tolerance is in layer units. "
+            "Use before heavy overlays or to lighten map layers."
+        ),
+    ),
+
+    "explode": OpDescriptor(
+        op_name="explode",
+        capability_name="explode_multipart",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Split multipart geometries into one feature per part (adds "
+            "source_feature_index, part_index)."
+        ),
+    ),
+
+    "voronoi": OpDescriptor(
+        op_name="voronoi",
+        capability_name="voronoi_thiessen",
+        input_map={
+            "points": "points",
+            "clip_to": "clip_to",
+        },
+        input_types={
+            "points": "vector",
+            "clip_to": "vector",
+        },
+        param_map={
+            "bbox": "bbox",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Thiessen/Voronoi polygons: the area closest to each point "
+            "(optionally clipped to a boundary layer or bbox)."
+        ),
+    ),
+
+    "deduplicate": OpDescriptor(
+        op_name="deduplicate",
+        capability_name="deduplicate_features",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "by": "by",
+            "fields": "fields",
+            "keep": "keep",
+            "mark_only": "mark_only",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Remove or flag duplicate features by attributes, geometry or both."
+        ),
+    ),
+
+    "map_schema": OpDescriptor(
+        op_name="map_schema",
+        capability_name="map_schema",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "mapping": "mapping",
+            "cast": "cast",
+            "defaults": "defaults",
+            "drop": "drop",
+            "keep_only": "keep_only",
+            "on_error": "on_error",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Rename/cast/drop/keep/default attribute columns in one step (cast "
+            "types: int, float, str, bool)."
+        ),
+    ),
+
+    "normalize_persian_text": OpDescriptor(
+        op_name="normalize_persian_text",
+        capability_name="normalize_persian_text",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "fields": "fields",
+            "digits": "digits",
+            "arabic_to_persian": "arabic_to_persian",
+            "remove_diacritics": "remove_diacritics",
+            "clean_spaces": "clean_spaces",
+            "remove_zero_width": "remove_zero_width",
+            "suffix": "suffix",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Clean Persian/Arabic text attributes (yeh/kaf, digits, diacritics, "
+            "spaces); use before matching names or joining tables."
+        ),
+    ),
+
+    "classify": OpDescriptor(
+        op_name="classify",
+        capability_name="classify_breaks",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "field": "field",
+            "method": "method",
+            "classes": "classes",
+            "breaks": "breaks",
+            "class_field": "class_field",
+            "label_field": "label_field",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Class breaks for a numeric field (equal_interval, quantile, "
+            "natural_breaks, std_dev, manual) and a class number and label per "
+            "feature; for choropleth maps."
+        ),
+    ),
+
+    "hillshade": OpDescriptor(
+        op_name="hillshade",
+        capability_name="calculate_hillshade",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "azimuth": "azimuth",
+            "altitude": "altitude",
+            "z_factor": "z_factor",
+            "band_index": "band_index",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Shaded relief (0-255) from a DEM raster; azimuth/altitude set the "
+            "sun position. Use for terrain visualisation."
+        ),
+    ),
+
+    "contours": OpDescriptor(
+        op_name="contours",
+        capability_name="generate_contours",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "interval": "interval",
+            "levels": "levels",
+            "base": "base",
+            "band_index": "band_index",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Contour lines from a surface raster at a fixed interval or "
+            "explicit levels (adds level). Give interval OR levels."
+        ),
+    ),
+
+    "focal_statistics": OpDescriptor(
+        op_name="focal_statistics",
+        capability_name="calculate_focal_statistics",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "statistic": "statistic",
+            "radius": "radius",
+            "shape": "shape",
+            "band_index": "band_index",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Moving-window statistic (mean, median, min, max, sum, std, range) "
+            "over a radius in cells; smooths a raster or measures local "
+            "variation."
+        ),
+    ),
+
+    "raster_change": OpDescriptor(
+        op_name="raster_change",
+        capability_name="detect_raster_change",
+        input_map={
+            "before": "before",
+            "after": "after",
+        },
+        input_types={
+            "before": "raster",
+            "after": "raster",
+        },
+        param_map={
+            "method": "method",
+            "threshold": "threshold",
+            "band_index": "band_index",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Change between two co-registered rasters: difference, ratio or "
+            "percent_change; with threshold also a -1/0/+1 class raster."
+        ),
+    ),
+
+    "raster_to_points": OpDescriptor(
+        op_name="raster_to_points",
+        capability_name="raster_to_points",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "band_index": "band_index",
+            "min_value": "min_value",
+            "max_value": "max_value",
+            "step": "step",
+            "value_field": "value_field",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Pixel centres as points carrying the pixel value; filter by value "
+            "or thin with step. Refused above the point limit."
+        ),
+    ),
+
+    "hotspots": OpDescriptor(
+        op_name="hotspots",
+        capability_name="calculate_hotspots",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "field": "field",
+            "weights": "weights",
+            "k": "k",
+            "distance": "distance",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Getis-Ord Gi* hot/cold spot analysis of a numeric field (needs >= "
+            "8 features); adds gi_z, gi_p, gi_bin (-3..+3) and gi_label. "
+            "weights = knn (k) or distance_band (distance in layer units)."
+        ),
+    ),
+
+    "spatial_autocorrelation": OpDescriptor(
+        op_name="spatial_autocorrelation",
+        capability_name="calculate_spatial_autocorrelation",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "field": "field",
+            "weights": "weights",
+            "k": "k",
+            "distance": "distance",
+            "row_standardize": "row_standardize",
+            "metadata": "metadata",
+        },
+        output_type="json",
+        notes=(
+            "Global Moran's I of a numeric field: is it clustered, dispersed or "
+            "random? Returns moran_i, z_score, p_value and an interpretation (a "
+            "table/summary, not a layer)."
+        ),
+    ),
+
+    "idw": OpDescriptor(
+        op_name="idw",
+        capability_name="interpolate_idw",
+        input_map={
+            "points": "points",
+        },
+        input_types={
+            "points": "vector",
+        },
+        param_map={
+            "value_field": "value_field",
+            "cell_size": "cell_size",
+            "power": "power",
+            "neighbors": "neighbors",
+            "search_radius": "search_radius",
+            "bbox": "bbox",
+            "crs": "crs",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Inverse-distance-weighted interpolation of a numeric point "
+            "attribute into a raster surface (cell_size in layer units)."
+        ),
+    ),
+
+    "h3_aggregate": OpDescriptor(
+        op_name="h3_aggregate",
+        capability_name="aggregate_to_h3",
+        input_map={
+            "points": "points",
+        },
+        input_types={
+            "points": "vector",
+        },
+        param_map={
+            "resolution": "resolution",
+            "value_field": "value_field",
+            "stats": "stats",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Aggregate WGS84 points into H3 hexagons (resolution 0-12; 8-9 is "
+            "neighbourhood scale): count plus optional sum/mean/min/max of "
+            "value_field. Needs the h3 package."
+        ),
+    ),
+
+    "od_matrix": OpDescriptor(
+        op_name="od_matrix",
+        capability_name="calculate_od_cost_matrix",
+        input_map={
+            "network": "network",
+            "origins": "origins",
+            "destinations": "destinations",
+        },
+        input_types={
+            "network": "vector",
+            "origins": "vector",
+            "destinations": "vector",
+        },
+        param_map={
+            "weight_field": "weight_field",
+            "max_cost": "max_cost",
+            "origin_name_field": "origin_name_field",
+            "destination_name_field": "destination_name_field",
+            "include_lines": "include_lines",
+            "snap_tolerance": "snap_tolerance",
+            "node_crossings": "node_crossings",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Network cost between every origin and destination (a table; null "
+            "cost = unreachable). Needs a loaded line network layer."
+        ),
+    ),
+
+    "accessibility_2sfca": OpDescriptor(
+        op_name="accessibility_2sfca",
+        capability_name="calculate_accessibility_2sfca",
+        input_map={
+            "network": "network",
+            "supply": "supply",
+            "demand": "demand",
+        },
+        input_types={
+            "network": "vector",
+            "supply": "vector",
+            "demand": "vector",
+        },
+        param_map={
+            "catchment_cost": "catchment_cost",
+            "supply_field": "supply_field",
+            "demand_field": "demand_field",
+            "decay": "decay",
+            "weight_field": "weight_field",
+            "output": "output",
+            "per": "per",
+            "snap_tolerance": "snap_tolerance",
+            "node_crossings": "node_crossings",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "2SFCA / enhanced 2SFCA accessibility: capacity of supply points "
+            "(supply_field) reachable per `per` people from each demand "
+            "location (demand_field) within catchment_cost along the network; "
+            "decay = binary, gaussian or linear."
+        ),
+    ),
+
+    "ahp_weights": OpDescriptor(
+        op_name="ahp_weights",
+        capability_name="calculate_ahp_weights",
+        param_map={
+            "criteria": "criteria",
+            "comparisons": "comparisons",
+            "metadata": "metadata",
+        },
+        output_type="json",
+        notes=(
+            "Criteria weights from pairwise comparisons (AHP, Saaty 1-9 scale) "
+            "with a consistency ratio. comparisons is an n x n reciprocal "
+            "matrix or a list of {a, b, value} judgements for every pair."
+        ),
+    ),
+
+    "topsis": OpDescriptor(
+        op_name="topsis",
+        capability_name="rank_topsis",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "criteria": "criteria",
+            "score_field": "score_field",
+            "rank_field": "rank_field",
+            "missing": "missing",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Multi-criteria ranking (TOPSIS) of features: criteria = [{field, "
+            "weight, direction benefit|cost}]; adds topsis_score (0-1) and "
+            "topsis_rank (1 = best)."
+        ),
+    ),
+
+    "render_map": OpDescriptor(
+        op_name="render_map",
+        capability_name="render_static_map",
+        input_map={
+            "vector": "features",
+            "overlays": "overlays",
+        },
+        input_types={
+            "vector": "vector",
+            "overlays": "vector",
+        },
+        param_map={
+            "color_field": "color_field",
+            "palette": "palette",
+            "classes": "classes",
+            "fill": "fill",
+            "stroke": "stroke",
+            "stroke_width": "stroke_width",
+            "point_radius": "point_radius",
+            "opacity": "opacity",
+            "title": "title",
+            "width": "width",
+            "height": "height",
+            "legend": "legend",
+            "background": "background",
+            "metadata": "metadata",
+        },
+        output_type="json",
+        notes=(
+            "Render layers as an SVG map image (for reports): optionally colour "
+            "by color_field (numeric ramp or categories) with a legend; "
+            "overlays are background layers."
+        ),
+    ),
+
+    "export_gis_file": OpDescriptor(
+        op_name="export_gis_file",
+        capability_name="export_vector_file",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "format": "format",
+            "layer_name": "layer_name",
+            "crs": "crs",
+            "filename": "filename",
+            "overwrite": "overwrite",
+            "metadata": "metadata",
+        },
+        output_type="json",
+        notes=(
+            "Save a layer as a GeoPackage (gpkg) or zipped Shapefile (shp). Use "
+            "when the user asks for a GIS file download."
+        ),
+    ),
+
+    "export_geotiff": OpDescriptor(
+        op_name="export_geotiff",
+        capability_name="export_raster_geotiff",
+        input_map={
+            "raster": "raster",
+        },
+        input_types={
+            "raster": "raster",
+        },
+        param_map={
+            "cog": "cog",
+            "dtype": "dtype",
+            "compress": "compress",
+            "filename": "filename",
+            "overwrite": "overwrite",
+            "metadata": "metadata",
+        },
+        output_type="json",
+        notes=(
+            "Save a raster as GeoTIFF or Cloud-Optimized GeoTIFF with CRS, "
+            "transform and nodata. Use when the user asks for a raster file "
+            "download."
+        ),
+    ),
+
+    "load_dem": OpDescriptor(
+        op_name="load_dem",
+        capability_name="fetch_dem",
+        param_map={
+            "bbox": "bbox",
+            "zoom": "zoom",
+            "target_crs": "target_crs",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Download an elevation model (metres) for a small WGS84 bbox "
+            "[min_lon, min_lat, max_lon, max_lat] from open terrain tiles. Pass "
+            "target_crs (e.g. a UTM zone) before slope/hillshade analysis."
+        ),
+    ),
+
+    "search_scenes": OpDescriptor(
+        op_name="search_scenes",
+        capability_name="search_stac",
+        param_map={
+            "bbox": "bbox",
+            "collections": "collections",
+            "datetime": "datetime",
+            "max_cloud_cover": "max_cloud_cover",
+            "limit": "limit",
+            "include_assets": "include_assets",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Search a STAC catalogue for satellite scenes (e.g. sentinel-2-l2a) "
+            "over a bbox and date range; returns footprints with date, cloud "
+            "cover and asset links. It finds scenes, it does not download "
+            "imagery."
+        ),
+    ),
+
+    "convex_hull": OpDescriptor(
+        op_name="convex_hull",
+        capability_name="calculate_convex_hull",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "shape": "shape",
+            "group_by": "group_by",
+            "buffer": "buffer",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Convex hull, bounding box (envelope) or minimum rotated rectangle "
+            "around all features or around each group_by value, optionally "
+            "buffered. Use for 'the area covered by these points'."
+        ),
+    ),
+
+    "check_topology": OpDescriptor(
+        op_name="check_topology",
+        capability_name="check_topology",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "checks": "checks",
+            "min_area": "min_area",
+            "sliver_ratio": "sliver_ratio",
+            "overlap_tolerance": "overlap_tolerance",
+            "max_issues": "max_issues",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Quality report for a layer: invalid, empty, duplicate, "
+            "overlapping, sliver and tiny geometries, one point per issue. Use "
+            "before overlays or when the user asks whether the data is clean."
+        ),
+    ),
+
+    "sample": OpDescriptor(
+        op_name="sample",
+        capability_name="sample_features",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "size": "size",
+            "fraction": "fraction",
+            "method": "method",
+            "stratify_by": "stratify_by",
+            "per_stratum": "per_stratum",
+            "seed": "seed",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Reproducible random, stratified or systematic sample of features "
+            "(size or fraction, optional seed)."
+        ),
+    ),
+
+    "outliers": OpDescriptor(
+        op_name="outliers",
+        capability_name="detect_outliers",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "field": "field",
+            "method": "method",
+            "threshold": "threshold",
+            "group_by": "group_by",
+            "outlier_field": "outlier_field",
+            "score_field": "score_field",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Flag unusual values of a numeric field (iqr, zscore or "
+            "modified_zscore), optionally per group; adds is_outlier and "
+            "outlier_score."
+        ),
+    ),
+
     "attribute_statistics": OpDescriptor(
         op_name="attribute_statistics",
         capability_name="calculate_attribute_statistics",

@@ -1,0 +1,7 @@
+max_cells: 1000000
+max_points: 200000
+max_work: 200000000
+max_dbscan_points: 20000
+max_clusters: 1000
+
+metadata: {}

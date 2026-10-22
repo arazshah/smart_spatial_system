@@ -1,0 +1,4 @@
+# Copy to grid_generator.yaml to override. Hard ceiling is 1,000,000 cells.
+max_cells: 100000
+
+metadata: {}

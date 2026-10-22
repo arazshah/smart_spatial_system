@@ -29,12 +29,10 @@ Example:
 
 from __future__ import annotations
 
-import ipaddress
+import json
 import re
-import socket
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 from geochat_sdk.decorators import capability
 from geochat_sdk.exceptions import SDKDependencyError
@@ -49,6 +47,7 @@ from plugins._shared.plugin_config import (
     pick_first,
     resolve_env_refs,
 )
+from smart_spatial_system.shared.net_policy import is_blocked_ip, validate_http_url
 
 PLUGIN_ID = "wms_wfs_fetcher"
 
@@ -137,26 +136,8 @@ def _get_layer_config(service_config: dict[str, Any], layer: str | None) -> dict
 
 
 def _is_blocked_ip(ip_text: str) -> bool:
-    """
-    True if an IP address is not a safe public-internet target.
-
-    Blocks loopback, link-local (including the 169.254.169.254 cloud
-    metadata endpoint), private/internal ranges, and other reserved
-    address space, to prevent SSRF against internal services.
-    """
-    try:
-        ip = ipaddress.ip_address(ip_text)
-    except ValueError:
-        return True
-
-    return (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_reserved
-        or ip.is_multicast
-        or ip.is_unspecified
-    )
+    """True if an IP address is not a safe public-internet target (shared policy)."""
+    return is_blocked_ip(ip_text)
 
 
 def _validate_url(
@@ -166,7 +147,7 @@ def _validate_url(
     allow_private_network: bool = False,
 ) -> str:
     """
-    Validate HTTP/HTTPS service URL.
+    Validate an HTTP/HTTPS service URL with the shared network policy.
 
     By default, rejects URLs whose host resolves to a private, loopback,
     link-local (cloud metadata), or otherwise non-public address, to
@@ -177,33 +158,9 @@ def _validate_url(
     wms_wfs_fetcher.yaml) rather than directly from a caller/API request -
     e.g. a locally-hosted GeoServer used in development.
     """
-    if not isinstance(url, str) or not url.strip():
-        raise ValueError(f"{field_name} must be a non-empty string.")
-
-    url = url.strip()
-    parsed = urlparse(url)
-
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError(f"{field_name} must be a valid http/https URL.")
-
-    if allow_private_network:
-        return url
-
-    hostname = parsed.hostname
-    if not hostname:
-        raise ValueError(f"{field_name} must include a host.")
-
-    try:
-        resolved_ips = {info[4][0] for info in socket.getaddrinfo(hostname, None)}
-    except OSError as exc:
-        raise ValueError(f"{field_name} host could not be resolved: {hostname!r}") from exc
-
-    if not resolved_ips or any(_is_blocked_ip(ip) for ip in resolved_ips):
-        raise ValueError(
-            f"{field_name} resolves to a disallowed network address: {hostname!r}."
-        )
-
-    return url
+    return validate_http_url(
+        url, field_name, allow_private_network=allow_private_network, resolve=True
+    )
 
 
 def _validate_non_empty_string(value: str, field_name: str) -> str:
@@ -465,6 +422,29 @@ def _normalize_geojson_response(
     return features, metadata
 
 
+MAX_RESPONSE_BYTES = 50 * 1024 * 1024
+
+
+def _read_capped(response: Any, max_bytes: int = MAX_RESPONSE_BYTES) -> bytes:
+    """Read a response body, refusing anything larger than max_bytes (memory-exhaustion guard)."""
+    declared = (getattr(response, "headers", None) or {}).get("Content-Length")
+    if declared and str(declared).isdigit() and int(declared) > max_bytes:
+        raise RuntimeError(f"Service response is larger than the {max_bytes} byte limit.")
+    iterator = getattr(response, "iter_content", None)
+    if not callable(iterator):
+        content = response.content
+        if len(content) > max_bytes:
+            raise RuntimeError(f"Service response is larger than the {max_bytes} byte limit.")
+        return bytes(content)
+    chunks, total = [], 0
+    for chunk in iterator(65536):
+        total += len(chunk)
+        if total > max_bytes:
+            raise RuntimeError(f"Service response is larger than the {max_bytes} byte limit.")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 def _http_get_json(base_url: str, params: dict[str, Any], timeout: int) -> Any:
     """
     HTTP GET and parse JSON.
@@ -475,12 +455,14 @@ def _http_get_json(base_url: str, params: dict[str, Any], timeout: int) -> Any:
         # allow_redirects=False: a redirect could point at an internal address
         # that bypassed _validate_url's SSRF check on the original base_url.
         response = requests.get(
-            base_url, params=params, timeout=timeout, allow_redirects=False
+            base_url, params=params, timeout=timeout, allow_redirects=False, stream=True
         )
         if response.is_redirect or response.is_permanent_redirect:
             raise RuntimeError("Service returned a redirect, which is not followed for security reasons.")
         response.raise_for_status()
-        return response.json()
+        if not callable(getattr(response, "iter_content", None)):
+            return response.json()
+        return json.loads(_read_capped(response).decode("utf-8"))
     except Exception as exc:
         message = redact_provider_error_message(
             f"Failed to fetch JSON from WFS service. Error: {exc}"
@@ -498,13 +480,13 @@ def _http_get_bytes(base_url: str, params: dict[str, Any], timeout: int) -> tupl
         # allow_redirects=False: a redirect could point at an internal address
         # that bypassed _validate_url's SSRF check on the original base_url.
         response = requests.get(
-            base_url, params=params, timeout=timeout, allow_redirects=False
+            base_url, params=params, timeout=timeout, allow_redirects=False, stream=True
         )
         if response.is_redirect or response.is_permanent_redirect:
             raise RuntimeError("Service returned a redirect, which is not followed for security reasons.")
         response.raise_for_status()
 
-        content = response.content
+        content = _read_capped(response)
         if not isinstance(content, (bytes, bytearray)) or len(content) == 0:
             raise RuntimeError("Empty binary response from WMS service.")
 
@@ -684,6 +666,13 @@ def _safe_filename_part(value: str) -> str:
     output_kind="vector",
     permissions=["network"],
     metadata={
+        "connector": {
+            "source_type": "wfs",
+            "kind": "vector",
+            "access": ["network"],
+            "credentials": "profile",
+            "limit_param": "max_features",
+        },
         "category": "data_io",
         "data_type": "vector",
         "source_type": "wfs",
@@ -847,6 +836,12 @@ def fetch_wfs_features(
     output_kind="raster",
     permissions=["network", "filesystem"],
     metadata={
+        "connector": {
+            "source_type": "wms",
+            "kind": "raster",
+            "access": ["network", "filesystem"],  # writes the fetched image to disk
+            "credentials": "profile",
+        },
         "category": "data_io",
         "data_type": "raster",
         "source_type": "wms",

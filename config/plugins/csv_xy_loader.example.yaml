@@ -1,0 +1,10 @@
+# Directories CSV files may be read from. Empty = unrestricted (trusted local use only);
+# set it on any shared deployment.
+allowed_roots: []
+# .txt is deliberately not allowed by default (it would let any text file on the server be read as a table).
+allowed_extensions: [".csv", ".tsv"]
+max_bytes: 100000000
+max_rows: 500000
+sample_rejected: 20
+
+metadata: {}

@@ -728,6 +728,13 @@ def _to_int_or_none(value: Any) -> int | None:
     output_kind="vector",
     permissions=["database"],
     metadata={
+        "connector": {
+            "source_type": "postgis",
+            "kind": "vector",
+            "access": ["database"],
+            "credentials": "profile",
+            "limit_param": "limit",
+        },
         "category": "data_io",
         "data_type": "vector",
         "source_type": "postgis",
@@ -1050,6 +1057,13 @@ LIMIT {int(limit)}
     output_kind="vector",
     permissions=["database"],
     metadata={
+        "connector": {
+            "source_type": "postgis",
+            "kind": "vector",
+            "access": ["database", "sql"],
+            "credentials": "profile",
+            "limit_param": "limit",
+        },
         "category": "data_io",
         "data_type": "vector",
         "source_type": "postgis",
@@ -1322,6 +1336,13 @@ def _build_safe_sql_from_select_parts(
     output_kind="vector",
     permissions=["database"],
     metadata={
+        "connector": {
+            "source_type": "postgis",
+            "kind": "vector",
+            "access": ["database"],
+            "credentials": "profile",
+            "limit_param": "limit",
+        },
         "category": "data_io",
         "data_type": "vector",
         "source_type": "postgis",

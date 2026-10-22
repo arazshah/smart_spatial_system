@@ -1,0 +1,24 @@
+default_timeout_seconds: 30
+max_response_bytes: 50000000
+# Hard ceiling; a call may ask for fewer with max_features.
+max_features: 200000
+# Restrict to these hosts (exact or *.suffix). Empty = any publicly routable host.
+allowed_hosts: []
+# Deployer-trusted only: allows private/loopback targets (e.g. an internal open-data server).
+allow_private_network: false
+# Never accept request headers from callers; put them in a profile.
+# Set allow_client_connection: true only if you accept caller-supplied connection details.
+allow_client_connection: false
+accepted_content_types:
+  - application/json
+  - application/geo+json
+  - application/vnd.geo+json
+  - text/json
+  - text/plain
+
+profiles: {}
+#  my_portal:
+#    headers:
+#      Authorization: "Bearer ${PORTAL_TOKEN}"
+
+metadata: {}

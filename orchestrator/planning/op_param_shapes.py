@@ -153,6 +153,136 @@ PARAM_SHAPES: dict[tuple[str, str], ParamShape] = {
     ),
 
     # --- vector analysis ----------------------------------------------
+    ("generate_grid", "bbox"): _BBOX,
+    ("check_topology", "checks"): ParamShape(
+        "list chosen from invalid, empty, duplicate, overlap, sliver, small (default: all of them)",
+        (["invalid", "overlap"], ["duplicate"],),
+    ),
+    ("fetch_dem", "bbox"): ParamShape(
+        "REQUIRED WGS84 [min_lon, min_lat, max_lon, max_lat] (or the same as an object); each side at most 2 degrees",
+        ([51.3, 35.6, 51.45, 35.75],),
+    ),
+    ("search_stac", "bbox"): ParamShape(
+        "REQUIRED WGS84 [min_lon, min_lat, max_lon, max_lat] (or the same as an object); each side at most 5 degrees",
+        ([51.0, 35.0, 52.0, 36.0],),
+    ),
+    ("search_stac", "collections"): ParamShape(
+        "REQUIRED collection id or list of ids, e.g. sentinel-2-l2a, landsat-c2-l2",
+        ("sentinel-2-l2a", ["sentinel-2-l2a", "landsat-c2-l2"],),
+    ),
+    ("search_stac", "include_assets"): ParamShape(
+        "list of asset keys whose links to return, e.g. visual, thumbnail",
+        (["visual", "thumbnail"],),
+    ),
+    ("calculate_ahp_weights", "criteria"): ParamShape(
+        "REQUIRED list of 2-10 unique criterion names",
+        (["price", "distance", "quality"],),
+    ),
+    ("calculate_ahp_weights", "comparisons"): ParamShape(
+        "REQUIRED either an n x n reciprocal matrix (list of rows, diagonal 1, a[j][i] = 1/a[i][j]) or a list with one {\"a\", \"b\", \"value\"} judgement per pair, meaning a is `value` times as important as b (1/9..9)",
+        ([[1, 3], [0.3333333333, 1]], [{"a": "price", "b": "distance", "value": 3}],),
+    ),
+    ("rank_topsis", "criteria"): ParamShape(
+        "REQUIRED list of 1-10 objects {\"field\": <numeric property>, \"weight\": <relative number>, \"direction\": \"benefit\" (higher is better, default) or \"cost\"}",
+        ([{"field": "price", "weight": 3, "direction": "cost"}, {"field": "area", "weight": 1}],),
+    ),
+    ("interpolate_idw", "bbox"): _BBOX,
+    ("aggregate_to_h3", "stats"): ParamShape(
+        "list of statistics of value_field per hexagon: sum, mean, min, max",
+        (["sum", "mean"], ["max"],),
+    ),
+    ("generate_contours", "levels"): ParamShape(
+        "list of explicit contour levels (numbers) in raster value units; use instead of interval",
+        ([100, 500, 1000],),
+    ),
+    ("voronoi_thiessen", "bbox"): _BBOX,
+    ("deduplicate_features", "fields"): ParamShape(
+        "a property name or a list of property names to compare (default: all properties)",
+        ("id", ["name", "type"],),
+    ),
+    ("map_schema", "mapping"): ParamShape(
+        "object {old_name: new_name} of columns to rename",
+        ({"nm": "name", "pop": "population"},),
+    ),
+    ("map_schema", "cast"): ParamShape(
+        "object {column: type} with type one of int, float, str, bool",
+        ({"population": "int", "price": "float"},),
+    ),
+    ("map_schema", "defaults"): ParamShape(
+        "object {column: value} used where the column is missing or null",
+        ({"status": "unknown"},),
+    ),
+    ("map_schema", "drop"): ParamShape(
+        "a column name or list of column names to remove",
+        ("tmp", ["tmp", "note"],),
+    ),
+    ("map_schema", "keep_only"): ParamShape(
+        "a column name or list of column names; all others are removed",
+        (["name", "population"],),
+    ),
+    ("normalize_persian_text", "fields"): ParamShape(
+        "a text property name or list of names (default: every text property)",
+        ("name", ["name", "address"],),
+    ),
+    ("classify_breaks", "breaks"): ParamShape(
+        "for method=manual only: ascending list including the minimum and maximum; N+1 numbers make N classes",
+        ([0, 10, 50, 200],),
+    ),
+    ("fetch_osm_features", "bbox"): ParamShape(
+        "REQUIRED WGS84 [min_lon, min_lat, max_lon, max_lat] (or the same as an object); each "
+        "side at most about 0.5 degrees",
+        ([51.30, 35.68, 51.40, 35.75], {"minx": 51.3, "miny": 35.68, "maxx": 51.4, "maxy": 35.75}),
+    ),
+    ("fetch_osm_features", "tags"): ParamShape(
+        "REQUIRED object of OSM tag filters: key -> value, list of plain values, or true for any "
+        "value; never Overpass QL",
+        ({"amenity": "hospital"}, {"highway": ["primary", "secondary"]}, {"building": True}),
+    ),
+    ("fetch_osm_features", "element_types"): ParamShape(
+        "list containing node and/or way (default both)",
+        (["node"], ["node", "way"]),
+    ),
+    ("fetch_wfs_features", "bbox"): _BBOX,
+    ("calculate_service_area", "max_cost"): ParamShape(
+        "REQUIRED positive number, or a list of positive numbers for several bands, in cost "
+        "units (layer length units, or weight_field-scaled cost such as minutes)",
+        (1000, [300, 600, 900]),
+    ),
+    ("weighted_overlay", "weights"): ParamShape(
+        "REQUIRED list with one non-negative number per input raster, in the same order "
+        "(relative importance; they are normalised)",
+        ([3, 2, 1],),
+    ),
+    ("weighted_overlay", "directions"): ParamShape(
+        "list with one entry per input raster: \"benefit\" (higher is better) or "
+        "\"cost\" (lower is better); omit for all benefit",
+        (["cost", "benefit", "benefit"],),
+    ),
+    ("calculate_kernel_density", "bbox"): _BBOX,
+    ("aggregate_points_to_polygons", "stats"): ParamShape(
+        "a list of statistics of value_field to add per polygon: sum, mean, min, max",
+        (["sum", "mean"], ["max"]),
+    ),
+    ("aggregate_table", "group_by"): ParamShape(
+        "a property name or a list of property names to group by; omit for one overall row",
+        ("district", ["district", "type"]),
+    ),
+    ("aggregate_table", "aggregations"): ParamShape(
+        "REQUIRED object mapping a property to one operation or a list of them "
+        "(count, non_null_count, sum, mean, median, min, max, std, first, last, unique_count); "
+        "output columns are <property>_<operation>",
+        ({"population": "sum"}, {"price": ["mean", "max"], "id": "count"}),
+    ),
+    ("dissolve_features", "group_by"): ParamShape(
+        "a property name or a list of property names to group by; omit to dissolve "
+        "everything into one feature",
+        ("district", ["district", "type"]),
+    ),
+    ("dissolve_features", "aggregate_fields"): ParamShape(
+        "an object mapping a property to one aggregation or a list of them "
+        "(sum, mean, min, max, count, first, unique_count)",
+        ({"population": "sum"}, {"population": ["sum", "mean"], "name": "first"}),
+    ),
     ("generate_ring_buffers", "distances"): ParamShape(
         "list of ring radii (numbers, in `units`), ascending",
         ([200, 500, 800],),

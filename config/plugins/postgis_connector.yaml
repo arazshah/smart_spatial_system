@@ -1,3 +1,8 @@
+# Connection details (dsn/host/port/database/user/password) in an API or MCP request are
+# refused unless this is true; callers should name a profile below instead. Leave false on any
+# shared deployment: true lets the server open connections to hosts chosen by the caller.
+allow_client_connection: false
+
 default_profile: local
 
 profiles:

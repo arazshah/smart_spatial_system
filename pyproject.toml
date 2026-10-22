@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"
 # "Open design questions" for why a namespace migration was deliberately
 # not done here.
 name = "smart_spatial_system"
-version = "0.5.10"
+version = "0.6.0"
 description = "Plugin-based GeoAI backend: natural-language questions become QuerySpecs, DAG plans, and map/table/report outputs."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -82,6 +82,10 @@ postgis = ["psycopg[binary]"]
 raster = ["rasterio"]
 pdf = ["weasyprint"]
 llm = []
+# MCP server (smart_spatial_system.interfaces.mcp); see docs/MCP_SERVER.md.
+mcp = ["mcp>=2.3,<3"]
+# H3 hexagon aggregation (plugins/spatial_pattern_analysis.py: aggregate_to_h3)
+h3 = ["h3>=4"]
 dev = ["pytest", "ruff"]
 
 [project.urls]

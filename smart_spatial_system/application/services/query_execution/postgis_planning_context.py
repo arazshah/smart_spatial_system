@@ -11,6 +11,14 @@ import importlib
 import sys
 from typing import TYPE_CHECKING, Any
 
+from .connection_policy import (
+    CONNECTION_KEYS,
+    check_client_connection,
+    client_connection_allowed,
+    resolve_profile_connection,
+    scrub_connection_inputs,
+)
+
 if TYPE_CHECKING:
     from orchestrator.planning.postgis_semantic_resolver import PostGISSchemaContext
 
@@ -224,6 +232,22 @@ def _normalize_postgis_connection_config(value: Any) -> dict[str, Any] | None:
 
     It intentionally ignores arbitrary extra fields.
     """
+    if (
+        isinstance(value, dict)
+        and isinstance(value.get("profile"), str)
+        and value["profile"].strip()
+        and not any(value.get(k) for k in CONNECTION_KEYS)
+        and not any(value.get(k) for k in ("hostname", "dbname", "db_name", "username", "url", "uri"))
+    ):
+        # A named server-side profile: the server resolves host/credentials itself.
+        profile_config: dict[str, Any] = {"profile": value["profile"].strip()}
+        schemas = value.get("schemas") or value.get("schema")
+        if isinstance(schemas, str):
+            profile_config["schemas"] = [schemas]
+        elif isinstance(schemas, (list, tuple, set)):
+            profile_config["schemas"] = [str(x) for x in schemas if str(x).strip()]
+        return profile_config
+
     if not _looks_like_postgis_connection(value):
         return None
 
@@ -311,12 +335,14 @@ def _extract_postgis_connection_config_from_sources(
             candidate = source.get(key)
             normalized = _normalize_postgis_connection_config(candidate)
             if normalized is not None:
+                check_client_connection(normalized)
                 return normalized
 
     # Then allow the source object itself to be a connection config.
     for source in sources:
         normalized = _normalize_postgis_connection_config(source)
         if normalized is not None:
+            check_client_connection(normalized)
             return normalized
 
     return None
@@ -333,6 +359,14 @@ def _discover_postgis_schema_context_from_connection_config(
     """
 
     import psycopg2
+
+    if connection_config.get("profile") and not (
+        connection_config.get("dsn") or connection_config.get("database")
+    ):
+        connection_config = {
+            **resolve_profile_connection(connection_config["profile"]),
+            "schemas": connection_config.get("schemas"),
+        }
 
     schemas = connection_config.get("schemas") or None
 
@@ -395,7 +429,11 @@ def _build_query_spec_runtime_inputs(
     Password is included only in runtime inputs for execution; response metadata
     must continue using redaction helpers.
     """
-    runtime_inputs: dict[str, Any] = dict(resolved_inputs or {})
+    runtime_inputs: dict[str, Any] = (
+        dict(resolved_inputs or {})
+        if client_connection_allowed()
+        else scrub_connection_inputs(resolved_inputs)
+    )
 
     connection_config = _extract_postgis_connection_config_from_sources(
         resolved_inputs=resolved_inputs,

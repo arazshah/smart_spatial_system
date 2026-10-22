@@ -1,0 +1,6 @@
+max_features: 50000
+max_vertices: 300000
+max_size: 2000
+max_layers: 6
+
+metadata: {}

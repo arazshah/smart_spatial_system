@@ -76,6 +76,9 @@ SAFE_FUNCTIONS = {
     "where",
 }
 
+MAX_POW_EXPONENT = 64
+MAX_INT_CONSTANT = 10**15
+
 SAFE_CONSTS = {
     "pi": math.pi,
     "e": math.e,
@@ -349,9 +352,27 @@ def _validate_ast(node: ast.AST) -> None:
         ast.GtE,
     )
 
+    if sum(isinstance(n, ast.Pow) for n in ast.walk(node)) > 3:
+        raise ValueError("At most 3 ** operators are allowed in an expression.")
+
     for child in ast.walk(node):
         if not isinstance(child, allowed_nodes):
             raise ValueError(f"Unsupported expression element: {type(child).__name__}")
+
+        # Work guard: unbounded integer powers (9**9**9, b1**b2 on int bands) would hang the server.
+        if isinstance(child, ast.BinOp) and isinstance(child.op, ast.Pow):
+            exp = child.right
+            if isinstance(exp, ast.UnaryOp) and isinstance(exp.op, (ast.USub, ast.UAdd)):
+                exp = exp.operand
+            if not (
+                isinstance(exp, ast.Constant)
+                and isinstance(exp.value, (int, float))
+                and not isinstance(exp.value, bool)
+                and abs(exp.value) <= MAX_POW_EXPONENT
+            ):
+                raise ValueError(f"The exponent of ** must be a number literal no larger than {MAX_POW_EXPONENT}.")
+        if isinstance(child, ast.Constant) and isinstance(child.value, int) and abs(child.value) > MAX_INT_CONSTANT:
+            raise ValueError("Integer constants in expressions are limited to 10**15.")
 
         if isinstance(child, ast.Call):
             if not isinstance(child.func, ast.Name):

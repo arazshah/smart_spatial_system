@@ -1,0 +1,7 @@
+max_cells: 4000000
+max_work: 300000000
+max_points: 200000
+max_contour_lines: 50000
+max_contour_levels: 100
+
+metadata: {}

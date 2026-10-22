@@ -1,0 +1,21 @@
+# Writing to a database is OFF by default. To enable it:
+#   1. create a dedicated least-privilege role that can only create/insert in one schema,
+#   2. list that schema below, and
+#   3. set allow_writes: true.
+allow_writes: false
+allowed_write_schemas: []
+# Optional: only tables whose name starts with this prefix may be written (e.g. "ssys_").
+table_prefix: ""
+max_rows: 100000
+default_profile: writer
+
+profiles: {}
+#  writer:
+#    host: localhost
+#    port: 5432
+#    database: gis
+#    user: ssys_writer
+#    password_env: POSTGIS_WRITER_PASSWORD
+#    connect_timeout: 10
+
+metadata: {}

@@ -1,0 +1,4 @@
+# Copy to field_calculator.yaml to override.
+max_features: 200000
+
+metadata: {}

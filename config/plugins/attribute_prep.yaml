@@ -1,0 +1,4 @@
+max_features: 500000
+max_jenks_values: 1000
+
+metadata: {}

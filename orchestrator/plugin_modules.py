@@ -45,6 +45,8 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.crs_transformer",
     "plugins.data_writer_exporter",
     "plugins.local_vector_loader",
+    "plugins.local_raster_loader",
+    "plugins.geocoding_resolver",
     "plugins.postgis_connector",
     "plugins.wms_wfs_fetcher",
     "plugins.real_estate_scoring",

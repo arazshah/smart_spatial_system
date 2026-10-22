@@ -914,6 +914,87 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         ),
     ),
 
+    "dissolve": OpDescriptor(
+        op_name="dissolve",
+        capability_name="dissolve_features",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "group_by": "group_by",
+            "aggregate_fields": "aggregate_fields",
+            "engine": "engine",
+            "precision": "precision",
+            "drop_failed": "drop_failed",
+            "source_crs": "source_crs",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Merge features into one geometry per group_by value (or a single "
+            "geometry when group_by is omitted) with optional attribute "
+            "aggregation, e.g. aggregate_fields={'population': 'sum'}."
+        ),
+    ),
+
+    "centroids": OpDescriptor(
+        op_name="centroids",
+        capability_name="extract_centroids",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "engine": "engine",
+            "precision": "precision",
+            "drop_failed": "drop_failed",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes="Replace each feature geometry with its centroid Point.",
+    ),
+
+    "validate_geometries": OpDescriptor(
+        op_name="validate_geometries",
+        capability_name="validate_geometries",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "engine": "engine",
+            "drop_invalid": "drop_invalid",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes="Flag (or drop) features with invalid geometries.",
+    ),
+
+    "repair_geometries": OpDescriptor(
+        op_name="repair_geometries",
+        capability_name="repair_geometries",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "engine": "engine",
+            "drop_invalid": "drop_invalid",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes="Repair invalid geometries (requires shapely); run before overlay ops.",
+    ),
+
     "attribute_statistics": OpDescriptor(
         op_name="attribute_statistics",
         capability_name="calculate_attribute_statistics",

@@ -684,6 +684,13 @@ def _safe_filename_part(value: str) -> str:
     output_kind="vector",
     permissions=["network"],
     metadata={
+        "connector": {
+            "source_type": "wfs",
+            "kind": "vector",
+            "access": ["network"],
+            "credentials": "profile",
+            "limit_param": "max_features",
+        },
         "category": "data_io",
         "data_type": "vector",
         "source_type": "wfs",
@@ -847,6 +854,12 @@ def fetch_wfs_features(
     output_kind="raster",
     permissions=["network", "filesystem"],
     metadata={
+        "connector": {
+            "source_type": "wms",
+            "kind": "raster",
+            "access": ["network", "filesystem"],  # writes the fetched image to disk
+            "credentials": "profile",
+        },
         "category": "data_io",
         "data_type": "raster",
         "source_type": "wms",

@@ -291,6 +291,12 @@ def _try_load_inline_json_raster(path: str) -> "dict | None":
     output_kind="raster",
     permissions=["filesystem"],
     metadata={
+        "connector": {
+            "source_type": "local_raster",
+            "kind": "raster",
+            "access": ["filesystem"],
+            "credentials": "none",
+        },
         "category": "data_io",
         "data_type": "raster",
         "source_type": "local_file",

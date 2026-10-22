@@ -437,6 +437,13 @@ def _load_with_geopandas(
     output_kind="vector",
     permissions=["filesystem"],
     metadata={
+        "connector": {
+            "source_type": "local_vector",
+            "kind": "vector",
+            "access": ["filesystem"],
+            "credentials": "none",
+            "limit_param": "max_features",
+        },
         "category": "data_io",
         "data_type": "vector",
         "source_type": "local_file",

@@ -1045,6 +1045,13 @@ def _build_vector_metadata(features: list[dict[str, Any]]) -> dict[str, Any]:
     output_kind="vector",
     permissions=["network"],
     metadata={
+        "connector": {
+            "source_type": "geocoder",
+            "kind": "vector",
+            "access": ["network"],
+            "credentials": "profile",
+            "limit_param": "limit",
+        },
         "category": "data_source",
         "data_type": "vector",
         "operation": "geocode",
@@ -1201,6 +1208,12 @@ def geocode_place(
     output_kind="vector",
     permissions=["network"],
     metadata={
+        "connector": {
+            "source_type": "geocoder",
+            "kind": "vector",
+            "access": ["network"],
+            "credentials": "profile",
+        },
         "category": "data_source",
         "data_type": "vector",
         "operation": "reverse_geocode",

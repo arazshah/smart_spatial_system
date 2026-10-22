@@ -50,6 +50,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   non-public addresses, redirects and oversized responses, accepts GeoJSON only, and no longer
   accepts request `headers` (use a `profile`).
 - Filesystem and raw-SQL connectors cannot be driven through the HTTP connector endpoints.
+- **Breaking:** `POST /query` no longer accepts database connection details
+  (`user_context.postgis_connection` with host/user/password/dsn, or the same keys in `inputs`/
+  `metadata`) unless `allow_client_connection: true` is set in
+  `config/plugins/postgis_connector.yaml`. Use `{"postgis_connection": {"profile": "<name>"}}`
+  to select a server-side profile. The LLM planner can no longer set connection parameters or a
+  profile in a `query_database` step.
 
 ### Changed
 

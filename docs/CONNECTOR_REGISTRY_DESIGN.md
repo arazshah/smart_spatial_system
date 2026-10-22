@@ -141,12 +141,16 @@ an HTTP caller (uploads are the file route).
 
 ## 8. Open items found while implementing
 
-- `POST /query` accepts `user_context.postgis_connection` (host/user/password) and the planner ops
-  `query_database` / `load_postgis_layer` still list `dsn`/`host`/`port`/`database`/`user`/
-  `password` in their `param_map`. That is the same caller-chosen-connection exposure that
-  `/data-sources/postgis` had; it is intentionally **not** changed here because it is the main
-  PostGIS workflow of `/query`. Recommended follow-up: gate it with the same
-  `allow_client_connection` flag (server profile by default).
+- **Closed:** `POST /query` accepted `user_context.postgis_connection` (host/user/password) and the
+  LLM could write `host`/`dsn`/`password` into a `query_database` step, so the server opened
+  connections to hosts chosen by a caller or a prompt-injected model (including schema discovery
+  for the semantic context). `query_execution/connection_policy.py` now applies the same
+  `allow_client_connection` flag as the connector API: connection details in a request are refused
+  by default (a `{"profile": "<name>"}` container is always accepted and resolved server-side,
+  including for schema discovery), stray `host`/`password` inputs are scrubbed, and connection
+  parameters/`profile` written by the model are removed from the QuerySpec before trusted inputs
+  are injected. A refused request falls back like any planning error, with the reason in
+  `planning_error` (key names only, never values).
 - Uploaded CSV files are not yet auto-loaded by `csv_xy_loader` in the planner path (the
   `input_reference_resolver` knows the vector and raster loaders only).
 - WFS/WMS responses are not size-capped (`requests.get` without streaming); `net_policy.fetch_limited`

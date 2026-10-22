@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from .connection_policy import strip_llm_connection_params
+
 
 def execute_query_spec_planning(
     *,
@@ -28,6 +30,12 @@ def execute_query_spec_planning(
         query,
         context=planning_context,
     )
+
+    # The model describes what to query, never where: drop any connection parameters or profile
+    # it wrote; trusted request inputs are injected below (see connection_policy).
+    stripped = strip_llm_connection_params(query_spec)
+    if stripped:
+        final_metadata["llm_connection_params_removed"] = stripped
 
     planning_runtime_inputs, postgis_runtime_connection_injected = (
         build_runtime_inputs(

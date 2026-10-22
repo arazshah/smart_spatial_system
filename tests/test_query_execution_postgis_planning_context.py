@@ -112,3 +112,16 @@ def test_build_query_spec_runtime_inputs_without_connection_is_noop() -> None:
     assert runtime_inputs == {
         "table": "parcels",
     }
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _client_connection_opt_in(monkeypatch):
+    """These tests cover the deployer opt-in (allow_client_connection: true);
+    the default-deny behaviour is tested in tests/test_query_connection_policy.py."""
+    monkeypatch.setattr(
+        "smart_spatial_system.application.services.query_execution.connection_policy._plugin_config",
+        lambda: {"allow_client_connection": True},
+    )

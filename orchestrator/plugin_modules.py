@@ -60,6 +60,8 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.vector_geometry_tools",
     "plugins.attribute_prep",
     "plugins.raster_surface",
+    "plugins.spatial_pattern_analysis",
+    "plugins.network_accessibility",
     "plugins.local_raster_loader",
     "plugins.geocoding_resolver",
     "plugins.postgis_connector",

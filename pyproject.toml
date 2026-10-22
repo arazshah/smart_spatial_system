@@ -84,6 +84,8 @@ pdf = ["weasyprint"]
 llm = []
 # MCP server (smart_spatial_system.interfaces.mcp); see docs/MCP_SERVER.md.
 mcp = ["mcp>=2.3,<3"]
+# H3 hexagon aggregation (plugins/spatial_pattern_analysis.py: aggregate_to_h3)
+h3 = ["h3>=4"]
 dev = ["pytest", "ruff"]
 
 [project.urls]

@@ -154,6 +154,11 @@ PARAM_SHAPES: dict[tuple[str, str], ParamShape] = {
 
     # --- vector analysis ----------------------------------------------
     ("generate_grid", "bbox"): _BBOX,
+    ("interpolate_idw", "bbox"): _BBOX,
+    ("aggregate_to_h3", "stats"): ParamShape(
+        "list of statistics of value_field per hexagon: sum, mean, min, max",
+        (["sum", "mean"], ["max"],),
+    ),
     ("generate_contours", "levels"): ParamShape(
         "list of explicit contour levels (numbers) in raster value units; use instead of interval",
         ([100, 500, 1000],),

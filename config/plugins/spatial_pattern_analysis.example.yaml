@@ -1,0 +1,7 @@
+max_features: 20000
+max_links: 5000000
+max_work: 200000000
+max_cells: 1000000
+max_h3_points: 500000
+
+metadata: {}

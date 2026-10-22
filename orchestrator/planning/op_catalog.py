@@ -1804,6 +1804,168 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         ),
     ),
 
+    "hotspots": OpDescriptor(
+        op_name="hotspots",
+        capability_name="calculate_hotspots",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "field": "field",
+            "weights": "weights",
+            "k": "k",
+            "distance": "distance",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Getis-Ord Gi* hot/cold spot analysis of a numeric field (needs >= "
+            "8 features); adds gi_z, gi_p, gi_bin (-3..+3) and gi_label. "
+            "weights = knn (k) or distance_band (distance in layer units)."
+        ),
+    ),
+
+    "spatial_autocorrelation": OpDescriptor(
+        op_name="spatial_autocorrelation",
+        capability_name="calculate_spatial_autocorrelation",
+        input_map={
+            "vector": "features",
+        },
+        input_types={
+            "vector": "vector",
+        },
+        param_map={
+            "field": "field",
+            "weights": "weights",
+            "k": "k",
+            "distance": "distance",
+            "row_standardize": "row_standardize",
+            "metadata": "metadata",
+        },
+        output_type="json",
+        notes=(
+            "Global Moran's I of a numeric field: is it clustered, dispersed or "
+            "random? Returns moran_i, z_score, p_value and an interpretation (a "
+            "table/summary, not a layer)."
+        ),
+    ),
+
+    "idw": OpDescriptor(
+        op_name="idw",
+        capability_name="interpolate_idw",
+        input_map={
+            "points": "points",
+        },
+        input_types={
+            "points": "vector",
+        },
+        param_map={
+            "value_field": "value_field",
+            "cell_size": "cell_size",
+            "power": "power",
+            "neighbors": "neighbors",
+            "search_radius": "search_radius",
+            "bbox": "bbox",
+            "crs": "crs",
+            "metadata": "metadata",
+        },
+        output_type="raster",
+        notes=(
+            "Inverse-distance-weighted interpolation of a numeric point "
+            "attribute into a raster surface (cell_size in layer units)."
+        ),
+    ),
+
+    "h3_aggregate": OpDescriptor(
+        op_name="h3_aggregate",
+        capability_name="aggregate_to_h3",
+        input_map={
+            "points": "points",
+        },
+        input_types={
+            "points": "vector",
+        },
+        param_map={
+            "resolution": "resolution",
+            "value_field": "value_field",
+            "stats": "stats",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Aggregate WGS84 points into H3 hexagons (resolution 0-12; 8-9 is "
+            "neighbourhood scale): count plus optional sum/mean/min/max of "
+            "value_field. Needs the h3 package."
+        ),
+    ),
+
+    "od_matrix": OpDescriptor(
+        op_name="od_matrix",
+        capability_name="calculate_od_cost_matrix",
+        input_map={
+            "network": "network",
+            "origins": "origins",
+            "destinations": "destinations",
+        },
+        input_types={
+            "network": "vector",
+            "origins": "vector",
+            "destinations": "vector",
+        },
+        param_map={
+            "weight_field": "weight_field",
+            "max_cost": "max_cost",
+            "origin_name_field": "origin_name_field",
+            "destination_name_field": "destination_name_field",
+            "include_lines": "include_lines",
+            "snap_tolerance": "snap_tolerance",
+            "node_crossings": "node_crossings",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Network cost between every origin and destination (a table; null "
+            "cost = unreachable). Needs a loaded line network layer."
+        ),
+    ),
+
+    "accessibility_2sfca": OpDescriptor(
+        op_name="accessibility_2sfca",
+        capability_name="calculate_accessibility_2sfca",
+        input_map={
+            "network": "network",
+            "supply": "supply",
+            "demand": "demand",
+        },
+        input_types={
+            "network": "vector",
+            "supply": "vector",
+            "demand": "vector",
+        },
+        param_map={
+            "catchment_cost": "catchment_cost",
+            "supply_field": "supply_field",
+            "demand_field": "demand_field",
+            "decay": "decay",
+            "weight_field": "weight_field",
+            "output": "output",
+            "per": "per",
+            "snap_tolerance": "snap_tolerance",
+            "node_crossings": "node_crossings",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "2SFCA / enhanced 2SFCA accessibility: capacity of supply points "
+            "(supply_field) reachable per `per` people from each demand "
+            "location (demand_field) within catchment_cost along the network; "
+            "decay = binary, gaussian or linear."
+        ),
+    ),
+
     "attribute_statistics": OpDescriptor(
         op_name="attribute_statistics",
         capability_name="calculate_attribute_statistics",

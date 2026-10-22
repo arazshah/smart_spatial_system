@@ -1,0 +1,7 @@
+max_origins: 200
+max_destinations: 2000
+max_pairs: 100000
+max_facilities: 300
+max_demand: 20000
+
+metadata: {}

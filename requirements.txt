@@ -28,6 +28,8 @@ requests            # WMS/WFS fetcher
 
 # Optional
 weasyprint          # PDF reports (pdf_renderer plugin)
+mcp>=2.3,<3         # MCP server (smart-spatial-api mcp)
+h3>=4               # aggregate_to_h3 (spatial_pattern_analysis)
 
 # Development
 pytest

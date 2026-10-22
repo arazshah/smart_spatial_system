@@ -154,6 +154,21 @@ PARAM_SHAPES: dict[tuple[str, str], ParamShape] = {
 
     # --- vector analysis ----------------------------------------------
     ("generate_grid", "bbox"): _BBOX,
+    ("fetch_osm_features", "bbox"): ParamShape(
+        "REQUIRED WGS84 [min_lon, min_lat, max_lon, max_lat] (or the same as an object); each "
+        "side at most about 0.5 degrees",
+        ([51.30, 35.68, 51.40, 35.75], {"minx": 51.3, "miny": 35.68, "maxx": 51.4, "maxy": 35.75}),
+    ),
+    ("fetch_osm_features", "tags"): ParamShape(
+        "REQUIRED object of OSM tag filters: key -> value, list of plain values, or true for any "
+        "value; never Overpass QL",
+        ({"amenity": "hospital"}, {"highway": ["primary", "secondary"]}, {"building": True}),
+    ),
+    ("fetch_osm_features", "element_types"): ParamShape(
+        "list containing node and/or way (default both)",
+        (["node"], ["node", "way"]),
+    ),
+    ("fetch_wfs_features", "bbox"): _BBOX,
     ("calculate_service_area", "max_cost"): ParamShape(
         "REQUIRED positive number, or a list of positive numbers for several bands, in cost "
         "units (layer length units, or weight_field-scaled cost such as minutes)",

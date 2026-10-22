@@ -55,6 +55,8 @@ DEFAULT_SAFE_PLUGIN_MODULES = [
     "plugins.chart_builder",
     "plugins.tabular_exporter",
     "plugins.geojson_url_loader",
+    "plugins.csv_xy_loader",
+    "plugins.osm_overpass_fetcher",
     "plugins.local_raster_loader",
     "plugins.geocoding_resolver",
     "plugins.postgis_connector",

@@ -20,6 +20,7 @@ EXPECTED_CONNECTORS = {
     "fetch_postgis_layer", "fetch_postgis_sql_layer", "query_database_postgis",
     "load_local_vector", "load_local_raster", "fetch_wfs_features", "fetch_wms_map",
     "geocode_place", "reverse_geocode_point", "load_geojson_url",
+    "load_csv_points", "fetch_osm_features",
 }
 
 

@@ -1,6 +1,6 @@
 # Connector registry: design proposal
 
-Status: **decisions taken 2026-10 (section 7); migration steps 1-3 and the `geojson_url` connector are implemented**. Implements ADR-004 phase 7
+Status: **decisions taken 2026-10 (section 7); all five migration steps are implemented**. Implements ADR-004 phase 7
 ("Data Connector Service: connector registry, normalized connector results, source metadata
 and preview") and unblocks the three P0 sources of `docs/PLUGIN_ROADMAP_100.md`
 (`csv_xy_loader`, `geojson_url_loader`, `osm_overpass_fetcher`).
@@ -120,8 +120,8 @@ DSN today; it needs a CHANGELOG entry.
 | 1 contract: `application/connectors/` (registry, `ConnectorResult`, contract tests) | done |
 | 2 `shared/net_policy.py` (WFS and MCP use it) | done; PostGIS host policy is the `allow_client_connection` gate |
 | 3 `/connectors`, `/connectors/preview`, `/data-sources/connect`, legacy wrappers, credential gate | done |
-| 4 planner ops for connectors | pending |
-| 5 `geojson_url_loader` | done (it also replaced the unprotected `/data-sources/url` fetch); `csv_xy_loader`, `osm_overpass_fetcher` pending |
+| 4 planner ops (`load_url`, `load_wfs`, `geocode`, `load_csv`, `load_osm`) | done; WMS stays metadata-only |
+| 5 `geojson_url_loader` (also replaced the unprotected `/data-sources/url` fetch), `csv_xy_loader`, `osm_overpass_fetcher` | done |
 
 HTTP exposure: connectors reachable through the API are limited to `network` and `database`
 access (`SMART_SPATIAL_CONNECTOR_ACCESS`); filesystem and raw-SQL connectors are never driven by
@@ -138,3 +138,18 @@ an HTTP caller (uploads are the file route).
 4. **Overpass**: accept only structured tag filters (recommended) or also raw Overpass QL?
    Raw QL widens the attack and cost surface.
 5. **Persian CSV encodings**: auto-detect cp1256/windows-1256 in addition to utf-8 (recommended)?
+
+## 8. Open items found while implementing
+
+- `POST /query` accepts `user_context.postgis_connection` (host/user/password) and the planner ops
+  `query_database` / `load_postgis_layer` still list `dsn`/`host`/`port`/`database`/`user`/
+  `password` in their `param_map`. That is the same caller-chosen-connection exposure that
+  `/data-sources/postgis` had; it is intentionally **not** changed here because it is the main
+  PostGIS workflow of `/query`. Recommended follow-up: gate it with the same
+  `allow_client_connection` flag (server profile by default).
+- Uploaded CSV files are not yet auto-loaded by `csv_xy_loader` in the planner path (the
+  `input_reference_resolver` knows the vector and raster loaders only).
+- WFS/WMS responses are not size-capped (`requests.get` without streaming); `net_policy.fetch_limited`
+  does this for the new connectors and should replace `_http_get_json` / `_http_get_bytes`.
+- `fetch_wms_map` writes to a caller-chosen `output_path`; it is excluded from HTTP and MCP
+  exposure by its `filesystem` access class.

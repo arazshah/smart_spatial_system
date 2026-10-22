@@ -31,6 +31,8 @@ SENSITIVE = {
     "fetch_wms_map",
     "geocode_place",
     "load_geojson_url",
+    "load_csv_points",
+    "fetch_osm_features",
     "reverse_geocode_point",
     "fetch_postgis_layer",
     "query_database_postgis",

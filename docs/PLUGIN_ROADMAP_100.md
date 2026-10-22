@@ -3,7 +3,7 @@
 Unit of count: **capabilities** (`@capability` functions), because that is what the planner
 (`OP_CATALOG`) and the MCP server (one tool each) work with. A plugin file may hold several.
 
-Status 2026-10: **67 capabilities in 49 plugin modules** (50 at the start of this roadmap).
+Status 2026-10: **70 capabilities in 52 plugin modules** (50 at the start of this roadmap).
 
 ## Definition of done for a new capability
 
@@ -16,7 +16,7 @@ Status 2026-10: **67 capabilities in 49 plugin modules** (50 at the start of thi
 5. Anything that touches files, URLs or databases is classified by
    `smart_spatial_system/interfaces/mcp/policy.py` (hidden over MCP until the operator opts in).
 
-## Done: P0 batch (17 capabilities)
+## Done: P0 batch (20 capabilities)
 
 | Plugin | Capabilities |
 |---|---|
@@ -29,11 +29,14 @@ Status 2026-10: **67 capabilities in 49 plugin modules** (50 at the start of thi
 | `network_routing` | `find_shortest_path`, `calculate_service_area` |
 | `chart_builder` | `build_chart` (Vega-Lite + SVG) |
 | `tabular_exporter` | `export_table` (CSV/TSV/JSON, formula-injection safe) |
+| `geojson_url_loader` | `load_geojson_url` (connector; shared network policy) |
+| `csv_xy_loader` | `load_csv_points` (connector; utf-8 / windows-1256, Persian digits, rejected-row report) |
+| `osm_overpass_fetcher` | `fetch_osm_features` (connector; structured tag filters only, bounded bbox) |
 
-## Next: P0 data sources (needs the connector registry first, ADR-004 phase 7)
+## P0 data sources: done on the connector contract
 
-`csv_xy_loader`, `geojson_url_loader`, `osm_overpass_fetcher`. They are sources with network or
-file access; build them on a shared connector contract instead of three one-off shapes.
+`csv_xy_loader`, `geojson_url_loader` and `osm_overpass_fetcher` are built on the connector
+contract (`docs/CONNECTOR_REGISTRY_DESIGN.md`). All P0 items are complete.
 
 ## P1 (20) and later
 

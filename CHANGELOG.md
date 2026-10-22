@@ -33,7 +33,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Connector registry (`smart_spatial_system.application.connectors`): sources declare a
   `connector` block; normalized `ConnectorResult`, redacted provenance and errors, preview.
   New endpoints `GET /connectors`, `POST /connectors/preview`, `POST /data-sources/connect`.
-  New `geojson_url_loader` (`load_geojson_url`) and shared `net_policy` (see
+  New connectors `load_geojson_url`, `load_csv_points` (utf-8/windows-1256, Persian digits,
+  rejected-row report) and `fetch_osm_features` (structured tag filters, bounded bbox), shared
+  `net_policy`, and planner ops `load_url`, `load_wfs`, `geocode`, `load_csv`, `load_osm` (see
   `docs/CONNECTOR_REGISTRY_DESIGN.md`).
 
 ### Security

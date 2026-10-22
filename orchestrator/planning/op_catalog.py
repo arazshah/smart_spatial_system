@@ -1423,6 +1423,108 @@ OP_CATALOG: dict[str, OpDescriptor] = {
         ),
     ),
 
+    "load_url": OpDescriptor(
+        op_name="load_url",
+        capability_name="load_geojson_url",
+        param_map={
+            "url": "url",
+            "profile": "profile",
+            "timeout": "timeout",
+            "max_features": "max_features",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Load a GeoJSON document from a public http(s) URL (no redirects, "
+            "size limited). Use only when the user gives an explicit URL."
+        ),
+    ),
+
+    "load_wfs": OpDescriptor(
+        op_name="load_wfs",
+        capability_name="fetch_wfs_features",
+        param_map={
+            "service": "service",
+            "base_url": "base_url",
+            "type_name": "type_name",
+            "layer": "layer",
+            "version": "version",
+            "output_format": "output_format",
+            "srs_name": "srs_name",
+            "bbox": "bbox",
+            "max_features": "max_features",
+            "property_name": "property_name",
+            "timeout": "timeout",
+        },
+        output_type="vector",
+        notes=(
+            "Fetch features from an OGC WFS service: a configured service name, "
+            "or base_url plus type_name. Public hosts only."
+        ),
+    ),
+
+    "geocode": OpDescriptor(
+        op_name="geocode",
+        capability_name="geocode_place",
+        param_map={
+            "query": "query",
+            "provider": "provider",
+            "limit": "limit",
+            "language": "language",
+            "country_codes": "country_codes",
+            "timeout_seconds": "timeout_seconds",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Resolve a place name or address to point locations (WGS84) with "
+            "the configured geocoding provider."
+        ),
+    ),
+
+    "load_csv": OpDescriptor(
+        op_name="load_csv",
+        capability_name="load_csv_points",
+        param_map={
+            "path": "path",
+            "x_field": "x_field",
+            "y_field": "y_field",
+            "wkt_field": "wkt_field",
+            "crs": "crs",
+            "delimiter": "delimiter",
+            "encoding": "encoding",
+            "max_rows": "max_rows",
+            "on_invalid": "on_invalid",
+            "infer_types": "infer_types",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Load a CSV/TSV file with longitude/latitude (or x/y, or WKT) "
+            "columns as points; handles Persian digits and windows-1256. "
+            "Reports rejected rows."
+        ),
+    ),
+
+    "load_osm": OpDescriptor(
+        op_name="load_osm",
+        capability_name="fetch_osm_features",
+        param_map={
+            "bbox": "bbox",
+            "tags": "tags",
+            "element_types": "element_types",
+            "max_features": "max_features",
+            "timeout": "timeout",
+            "metadata": "metadata",
+        },
+        output_type="vector",
+        notes=(
+            "Download OpenStreetMap features in a required WGS84 bbox [min_lon, "
+            "min_lat, max_lon, max_lat] filtered by tags such as "
+            "{'amenity': 'hospital'}; small areas only. Never pass raw Overpass QL."
+        ),
+    ),
+
     "attribute_statistics": OpDescriptor(
         op_name="attribute_statistics",
         capability_name="calculate_attribute_statistics",

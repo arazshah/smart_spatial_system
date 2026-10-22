@@ -1,0 +1,15 @@
+# Overpass endpoint is deployer configuration only (never a request argument). Consider a
+# self-hosted or regional instance for production; the public server has fair-use limits.
+endpoint: https://overpass-api.de/api/interpreter
+timeout_seconds: 30
+max_response_bytes: 50000000
+max_features: 20000
+# Each side of the requested bbox, and its area (square degrees). 0.5 deg ~ 50 km.
+max_bbox_degrees: 0.5
+max_bbox_area: 0.25
+# Politeness toward the public server: minimum seconds between requests in this process.
+min_interval_seconds: 1.0
+# Deployer-trusted only: allow a private/internal Overpass instance.
+allow_private_network: false
+
+metadata: {}

@@ -6,6 +6,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-22
+
 ### Added
 
 - MCP server (`smart-spatial-api mcp`, extra `smart_spatial_system[mcp]`): every registered

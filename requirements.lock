@@ -20,6 +20,8 @@ certifi==2026.10.19
 cffi==2.1.1
 charset-normalizer==3.5.2
 click==8.5.0
+click-plugins==1.1.1.2
+cligj==0.7.2
 cryptography==50.0.2
 cssselect2==0.10.1
 fastapi==0.160.0
@@ -42,8 +44,8 @@ jsonschema-specifications==2025.9.1
 MarkupSafe==3.0.4
 mcp==2.3.0
 mcp-types==2.3.0
-networkx==3.7
-numpy==2.5.4
+networkx==3.6.1
+numpy==2.4.6
 opentelemetry-api==1.45.1
 packaging==26.3
 pandas==3.1.0
@@ -60,13 +62,13 @@ PyJWT==2.15.1
 pyogrio==0.13.0
 pyparsing==3.3.3
 pyphen==0.18.1
-pyproj==3.8.0
+pyproj==3.7.2
 pytest==9.1.1
 python-dateutil==3.0.0
 python-dotenv==1.2.4
 python-multipart==0.0.32
 PyYAML==6.0.3
-rasterio==1.5.2
+rasterio==1.4.4
 referencing==0.37.0
 requests==2.34.2
 rpds-py==2026.9.1

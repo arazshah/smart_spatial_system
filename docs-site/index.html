@@ -308,6 +308,7 @@
     <div class="navlinks">
       <a href="#how-it-works">How it works</a>
       <a href="#plugins">Plugins</a>
+      <a href="#mcp">MCP</a>
       <a href="#case-studies">Case studies</a>
       <a href="#quickstart">Quickstart</a>
       <a href="https://github.com/arazshah/smart_spatial_system" target="_blank" rel="noopener">GitHub</a>
@@ -320,7 +321,7 @@
   <div class="wrap">
     <span class="eyebrow">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg>
-      Open source · MIT licensed · v0.5.10 on PyPI
+      Open source · MIT licensed · v0.6.0 on PyPI
     </span>
     <h1>Ask a geospatial question in plain language.<br>Get a <span class="accent">reproducible answer</span> back.</h1>
     <p class="lead">
@@ -349,8 +350,8 @@
       <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+"></a>
     </div>
     <div class="stat-row">
-      <div class="stat"><b>38</b><span>plugins registered by default</span></div>
-      <div class="stat"><b>1800+</b><span>automated tests in CI</span></div>
+      <div class="stat"><b>100</b><span>capabilities in 63 plugins, each also an MCP tool</span></div>
+      <div class="stat"><b>2500+</b><span>automated tests in CI</span></div>
       <div class="stat"><b>30</b><span>documented bugs and enhancements from real research use</span></div>
       <div class="stat"><b>2</b><span>planning paths — deterministic and LLM-backed</span></div>
     </div>
@@ -422,45 +423,76 @@
   <div class="wrap">
     <div class="section-head">
       <div class="kicker">What's in the box</div>
-      <h2>38 plugins, one execution model</h2>
-      <p>Every plugin is a <code>geochat_sdk</code> capability with its own config file and test suite — vector analysis, raster and remote sensing, data sources, and output. Extending the catalog means adding a plugin, not a new code path.</p>
+      <h2>100 capabilities, one execution model</h2>
+      <p>Every plugin is a <code>geochat_sdk</code> capability with its own config file and test suite — vector analysis, raster and remote sensing, data sources, and output. Extending the catalog means adding a plugin, not a new code path. Every capability is also exposed as a tool on the <a href="#mcp">MCP server</a>.</p>
     </div>
     <div class="cat-grid">
       <div class="cat-card">
-        <div class="cat-head"><h3>Vector analysis</h3><span class="count">20</span></div>
+        <div class="cat-head"><h3>Vector analysis</h3></div>
         <div class="pillrow">
-          <span class="pill">buffer</span><span class="pill">ring buffer</span><span class="pill">spatial join</span><span class="pill">intersection</span>
+          <span class="pill">buffer</span><span class="pill">spatial join</span><span class="pill">intersection</span><span class="pill">clip / erase / union</span>
           <span class="pill">predicates</span><span class="pill">dissolve</span><span class="pill">nearest neighbour</span><span class="pill">connection lines</span>
-          <span class="pill">distance</span><span class="pill">area &amp; perimeter</span><span class="pill">centroids</span>
-          <span class="pill">CRS transform</span><span class="pill">geometry validation</span><span class="pill">attribute stats</span>
-          <span class="pill">feature scoring</span><span class="pill">feature enrichment</span><span class="pill">risk enrichment</span>
-          <span class="pill">real-estate scoring</span><span class="pill">real-estate enrichment</span><span class="pill">query filter</span>
+          <span class="pill">distance</span><span class="pill">area &amp; perimeter</span><span class="pill">centroids</span><span class="pill">convex hull</span>
+          <span class="pill">simplify</span><span class="pill">explode</span><span class="pill">Voronoi</span><span class="pill">topology check</span>
+          <span class="pill">CRS transform</span><span class="pill">validation</span><span class="pill">field calculator</span><span class="pill">aggregation</span>
+          <span class="pill">grid &amp; hex grid</span><span class="pill">dedupe</span><span class="pill">outliers</span><span class="pill">sampling</span>
+          <span class="pill">classification (Jenks…)</span><span class="pill">Persian text normalisation</span><span class="pill">feature scoring</span>
         </div>
       </div>
       <div class="cat-card">
-        <div class="cat-head"><h3>Raster &amp; remote sensing</h3><span class="count">11</span></div>
+        <div class="cat-head"><h3>Spatial statistics &amp; decisions</h3></div>
+        <div class="pillrow">
+          <span class="pill">hot spots (Gi*)</span><span class="pill">Moran's I</span><span class="pill">IDW</span><span class="pill">kernel density</span>
+          <span class="pill">DBSCAN / k-means</span><span class="pill">H3 aggregation</span><span class="pill">AHP</span><span class="pill">TOPSIS</span>
+          <span class="pill">2SFCA accessibility</span><span class="pill">OD cost matrix</span>
+        </div>
+      </div>
+      <div class="cat-card">
+        <div class="cat-head"><h3>Raster &amp; remote sensing</h3></div>
         <div class="pillrow">
           <span class="pill">band math</span><span class="pill">NDVI</span><span class="pill">spectral indices</span>
-          <span class="pill">slope / aspect</span><span class="pill">raster clip</span><span class="pill">reclassify</span>
-          <span class="pill">threshold</span><span class="pill">raster statistics</span><span class="pill">raster→vector</span>
-          <span class="pill">zonal statistics</span>
+          <span class="pill">slope / aspect</span><span class="pill">hillshade</span><span class="pill">contours</span><span class="pill">focal statistics</span>
+          <span class="pill">change detection</span><span class="pill">mosaic</span><span class="pill">reproject</span><span class="pill">weighted overlay</span>
+          <span class="pill">clip</span><span class="pill">reclassify</span><span class="pill">threshold</span><span class="pill">sampling</span>
+          <span class="pill">raster→vector / points</span><span class="pill">zonal statistics</span>
         </div>
       </div>
       <div class="cat-card">
-        <div class="cat-head"><h3>Data sources</h3><span class="count">4 + 1</span></div>
+        <div class="cat-head"><h3>Networks</h3></div>
         <div class="pillrow">
-          <span class="pill">local vector loader</span><span class="pill">local raster loader</span>
-          <span class="pill">PostGIS connector</span><span class="pill">WMS/WFS fetcher</span>
-          <span class="pill dim">geocoding (opt-in)</span>
+          <span class="pill">shortest path</span><span class="pill">service areas</span><span class="pill">OD matrix</span><span class="pill">accessibility</span>
         </div>
       </div>
       <div class="cat-card">
-        <div class="cat-head"><h3>Output &amp; reporting</h3><span class="count">3</span></div>
+        <div class="cat-head"><h3>Data sources</h3></div>
         <div class="pillrow">
-          <span class="pill">report builder</span><span class="pill">PDF renderer</span><span class="pill">data export</span>
+          <span class="pill">local vector / raster</span><span class="pill">CSV (X/Y)</span><span class="pill">GeoJSON URL</span>
+          <span class="pill">PostGIS</span><span class="pill">WMS/WFS</span><span class="pill">OpenStreetMap (Overpass)</span>
+          <span class="pill">DEM tiles</span><span class="pill">STAC search</span><span class="pill dim">geocoding (opt-in)</span>
+        </div>
+      </div>
+      <div class="cat-card">
+        <div class="cat-head"><h3>Output &amp; reporting</h3></div>
+        <div class="pillrow">
+          <span class="pill">charts</span><span class="pill">static maps (SVG)</span><span class="pill">report builder</span><span class="pill">PDF renderer</span>
+          <span class="pill">CSV / JSON tables</span><span class="pill">GeoPackage / Shapefile</span><span class="pill">GeoTIFF / COG</span><span class="pill dim">PostGIS write (opt-in)</span>
         </div>
       </div>
     </div>
+  </div>
+</section>
+
+<section id="mcp">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="kicker">New in 0.6.0</div>
+      <h2>An MCP server, secure by default</h2>
+      <p>Every capability is an <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">MCP</a> tool, so Claude, Cursor and any other MCP client can run spatial analysis through the same validated plugins the API uses. Tools that touch files, URLs or databases are hidden until the operator opts in; large results come back as artifact handles instead of inline data.</p>
+    </div>
+    <pre class="code"><span class="c1"># pip install "smart-spatial-system[mcp]"</span>
+smart-spatial-api mcp                      <span class="c1"># stdio: local clients</span>
+SMART_SPATIAL_MCP_API_KEY=... smart-spatial-api mcp --transport http   <span class="c1"># remote, API-key protected</span></pre>
+    <p class="lead" style="margin-top:14px">Configuration, the risk classes and the deployment checklist are in <a href="https://github.com/arazshah/smart_spatial_system/blob/main/docs/MCP_SERVER.md" target="_blank" rel="noopener">docs/MCP_SERVER.md</a>.</p>
   </div>
 </section>
 

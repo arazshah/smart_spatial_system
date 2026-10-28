@@ -106,6 +106,7 @@ _RANK_PARAM_MAP = {
 
 _SPATIAL_JOIN_PARAM_MAP = {
     "predicate": "predicate",
+    "distance_m": "distance_m",
     "join_type": "join_type",
     "cardinality": "cardinality",
     "engine": "engine",
@@ -469,7 +470,10 @@ OP_CATALOG: dict[str, OpDescriptor] = {
             "Join target attributes into source features using spatial predicates "
             "such as intersects, within, contains, touches, etc. Use when the user "
             "asks to enrich one layer with properties from another based on "
-            "location, not key equality."
+            "location, not key equality. For a point/polygon source against a "
+            "LINE target (streets, roads, rivers) use predicate='dwithin' with "
+            "distance_m (small, e.g. 30-50) on metric-CRS data - intersects "
+            "almost never matches a line."
         ),
     ),
 

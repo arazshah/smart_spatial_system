@@ -1187,6 +1187,10 @@ Important mappings:
   op="filter_by_distance"
   inputs={{"vector": "<source>", "reference": "<poi>"}}
   params={{"max_distance_m": X, "k": 1, "drop_unmatched": true}}
+  (spatial_nearest/nearest_neighbor with max_distance also drop unmatched
+  features by default.) The output already contains ONLY features within X:
+  do NOT add a filter_attribute on _nearest_distance afterwards - it is
+  redundant, and an extra condition there is a common cause of empty results.
 
 - "draw/make a straight line between each feature and its nearest X" /
   "connect each site to the nearest branch" (output = lines + names +
@@ -1240,6 +1244,16 @@ Important mappings:
   zone), set params={{"cardinality": "one_to_many", "include_target_properties": true}}
   explicitly on that spatial_join. Do not leave cardinality unset and
   rely on the default when the target can have overlapping zones.
+
+- "next to / beside / on a street (road, river, any LINE layer)" for points
+  or polygons: NEVER use predicate "intersects" against a line layer - a
+  point (or building) practically never lies exactly on a line, so the
+  result is empty. Use op="filter_by_distance" with a small distance:
+  inputs={{"vector": "<points_or_polygons_metric>", "reference": "<lines_metric>"}}
+  params={{"max_distance_m": 30, "k": 1, "drop_unmatched": true}}
+  (30-50 m is typical for "next to"; both layers in the projected CRS).
+  When the line's attributes must be joined too, use op="spatial_join"
+  with params={{"predicate": "dwithin", "distance_m": 30}} instead.
 
 - "inside permitted/buildable polygon":
   op="filter_points_in_polygon"

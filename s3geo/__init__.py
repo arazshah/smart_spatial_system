@@ -207,6 +207,7 @@ def query(
     tolerant: bool = True,
     strict_params: bool = True,
     max_repair_attempts: int = 1,
+    sample_values: bool = False,
 ) -> S3GeoResult:
     """
     Run a single natural-language spatial query end-to-end.
@@ -261,6 +262,13 @@ def query(
     that isn't in ``layers`` is rejected at generation time and repaired,
     instead of failing later in execution.
 
+        sample_values:
+            If True, the planner is also shown the real values of every
+            low-cardinality text column (up to ~20 distinct values), so a
+            filter condition uses what the data holds (e.g. "اجاره") rather
+            than a guess (e.g. "rent") that matches nothing. Off by default:
+            it sends sample attribute values to the LLM provider.
+
         max_repair_attempts:
             How many times the LLM may be re-prompted after its plan fails
             generation-time validation, with the rejected plan and the
@@ -292,7 +300,7 @@ def query(
     # From the original layers, not initial_inputs: a GeoDataFrame's .crs
     # doesn't survive to_json().
     input_data_extent = derive_input_data_extent(layers)
-    input_layers = describe_input_layers(layers)
+    input_layers = describe_input_layers(layers, sample_values=sample_values)
 
     client = OpenAICompatibleLLMClient()
     generator = LLMQuerySpecGenerator(client, max_repair_attempts=max_repair_attempts)

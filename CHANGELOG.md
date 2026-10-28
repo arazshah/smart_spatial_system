@@ -6,6 +6,36 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-28
+
+Fixes and planner improvements for queries that came back empty with no visible reason.
+
+### Fixed
+
+- `filter_features`: `lt/lte/gt/gte/between` against a `None` property no longer raise
+  (`'<=' not supported between NoneType and int`); a feature with an empty value is simply not
+  matched. Incomparable types (e.g. text vs number) are treated as not matched too.
+
+### Changed
+
+- `find_nearest_neighbors` / `spatial_nearest`: when `max_distance` is given, `drop_unmatched`
+  now defaults to `true` (an explicit `drop_unmatched=false` keeps the old output). The planner
+  prompt says a later filter on `_nearest_distance` after such a step is redundant.
+
+### Added
+
+- `describe_input_layers(layers, sample_values=True)` (and `s3geo.query(..., sample_values=True)`):
+  lists the real values of low-cardinality text columns (up to 20 distinct) in the planner prompt,
+  so conditions use what the data holds (e.g. `اجاره`) instead of a guess (`rent`). Off by default,
+  since it sends sample attribute values to the LLM provider.
+- `spatial_join_features`: distance predicate `dwithin` with `distance_m` (planar, CRS units) for
+  point/polygon vs. line layers. The planner prompt now steers "next to / on a street" to
+  `filter_by_distance` with a small distance (or `spatial_join` + `dwithin`) instead of `intersects`.
+- `DagExecutionResult.trace`: every node reports `input_feature_count`, `input_feature_counts`
+  and `output_feature_count`; filter nodes (and nearest steps) also carry the conditions applied in
+  `metadata["applied_conditions"]`, so callers can explain an empty result. Persisted request
+  traces include the new fields.
+
 ## [0.6.0] - 2026-10-22
 
 ### Added

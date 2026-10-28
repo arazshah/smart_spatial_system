@@ -920,7 +920,9 @@ def find_nearest_neighbors(
         precision:
             Rounding precision for distance.
         drop_unmatched:
-            If True, unmatched source features are removed.
+            If True, unmatched source features are removed. Defaults to True
+            when max_distance is given (otherwise to the configured value,
+            normally False).
         include_target_geometry:
             If True, target geometry is copied into output properties.
         source_crs:
@@ -981,9 +983,16 @@ def find_nearest_neighbors(
         if final_precision < 0 or final_precision > 15:
             raise ValueError("precision must be between 0 and 15.")
 
-    final_drop_unmatched = bool(
-        pick_first(drop_unmatched, config.get("drop_unmatched"), default=False)
-    )
+    # With a max_distance cap, sources with no neighbour inside it are by
+    # definition "not within X": drop them by default, so no extra filter on
+    # the distance field is needed afterwards. An explicit drop_unmatched
+    # (True/False) always wins.
+    if drop_unmatched is None and final_max_distance is not None:
+        final_drop_unmatched = True
+    else:
+        final_drop_unmatched = bool(
+            pick_first(drop_unmatched, config.get("drop_unmatched"), default=False)
+        )
 
     final_include_target_geometry = bool(
         pick_first(include_target_geometry, config.get("include_target_geometry"), default=False)

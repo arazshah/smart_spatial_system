@@ -303,6 +303,19 @@ def _normalize_text(value: Any, case_sensitive: bool) -> Any:
     return value
 
 
+_ORDERING_OPERATORS = {"gt", "gte", "lt", "lte", "between"}
+
+
+def _safe_order(left: Any, right: Any, cmp: Any) -> bool:
+    """Ordering comparison where a None operand or incomparable types simply don't match."""
+    if left is None or right is None:
+        return False
+    try:
+        return bool(cmp(left, right))
+    except TypeError:
+        return False
+
+
 def _compare_values(left: Any, operator: str, right: Any, *, case_sensitive: bool) -> bool:
     """
     Compare two values using supported operator.
@@ -334,17 +347,22 @@ def _compare_values(left: Any, operator: str, right: Any, *, case_sensitive: boo
     if operator == "ne":
         return left_cmp != right_cmp
 
+    # An empty (None) property can't be ordered against a number/string:
+    # treat it as "not matched" instead of raising TypeError.
+    if operator in _ORDERING_OPERATORS and left_cmp is None:
+        return False
+
     if operator == "gt":
-        return left_cmp > right_cmp
+        return _safe_order(left_cmp, right_cmp, lambda a, b: a > b)
 
     if operator == "gte":
-        return left_cmp >= right_cmp
+        return _safe_order(left_cmp, right_cmp, lambda a, b: a >= b)
 
     if operator == "lt":
-        return left_cmp < right_cmp
+        return _safe_order(left_cmp, right_cmp, lambda a, b: a < b)
 
     if operator == "lte":
-        return left_cmp <= right_cmp
+        return _safe_order(left_cmp, right_cmp, lambda a, b: a <= b)
 
     if operator == "in":
         if not isinstance(right_cmp, (list, tuple, set)):
@@ -385,7 +403,11 @@ def _compare_values(left: Any, operator: str, right: Any, *, case_sensitive: boo
             raise ValueError("operator 'between' requires a two-item list/tuple.")
         lower = _normalize_text(right_cmp[0], case_sensitive)
         upper = _normalize_text(right_cmp[1], case_sensitive)
-        return lower <= left_cmp <= upper
+        if left_cmp is None or lower is None or upper is None:
+            return False
+        return _safe_order(left_cmp, lower, lambda a, b: a >= b) and _safe_order(
+            left_cmp, upper, lambda a, b: a <= b
+        )
 
     raise ValueError(f"Unsupported filter operator '{operator}'.")
 

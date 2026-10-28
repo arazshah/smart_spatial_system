@@ -217,13 +217,16 @@ def test_find_nearest_neighbors_multiple_sources() -> None:
     assert result.metadata["matched_source_count"] == 2
 
 
-def test_find_nearest_neighbors_max_distance_unmatched_by_default() -> None:
+def test_find_nearest_neighbors_max_distance_keeps_unmatched_when_drop_is_false() -> None:
+    # max_distance alone now drops unmatched sources (0.6.1); keeping them
+    # needs an explicit drop_unmatched=False.
     result = find_nearest_neighbors(
         source_features=[SOURCE_POINT],
         target_features=[TARGET_POINT_A],
         k=1,
         max_distance=2.0,
         engine="python",
+        drop_unmatched=False,
     )
 
     assert len(result.features) == 1
@@ -236,6 +239,19 @@ def test_find_nearest_neighbors_max_distance_unmatched_by_default() -> None:
 
     assert result.metadata["match_count"] == 0
     assert result.metadata["unmatched_source_count"] == 1
+
+
+def test_find_nearest_neighbors_max_distance_drops_unmatched_by_default() -> None:
+    result = find_nearest_neighbors(
+        source_features=[SOURCE_POINT],
+        target_features=[TARGET_POINT_A],
+        k=1,
+        max_distance=2.0,
+        engine="python",
+    )
+
+    assert len(result.features) == 0
+    assert result.metadata["drop_unmatched"] is True
 
 
 def test_find_nearest_neighbors_drop_unmatched() -> None:

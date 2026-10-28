@@ -62,6 +62,10 @@ def persist_query_spec_planning_record(
                             "error": getattr(t, "error", None),
                             "input_keys": getattr(t, "input_keys", None),
                             "output_summary": getattr(t, "output_summary", None),
+                            "input_feature_count": getattr(t, "input_feature_count", None),
+                            "input_feature_counts": getattr(t, "input_feature_counts", None),
+                            "output_feature_count": getattr(t, "output_feature_count", None),
+                            "metadata": getattr(t, "metadata", None),
                         }
                         for t in (getattr(planning_result, "trace", []) or [])
                     ]

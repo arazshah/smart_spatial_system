@@ -18,6 +18,11 @@ Supported predicates:
     - intersects
     - within
     - contains
+    - dwithin   (distance-based; needs distance_m - the source feature joins
+                 every target at distance <= distance_m. Use it for a point
+                 or polygon vs a LINE layer ("next to a street"): intersects
+                 almost never matches there. Planar: distance_m is in CRS
+                 units, so the data must be in a metric CRS.)
 
 Join types:
     - inner
@@ -75,7 +80,7 @@ from plugins._shared.plugin_config import (
 PLUGIN_ID = "spatial_join"
 
 VALID_ENGINES = {"auto", "shapely", "python"}
-VALID_PREDICATES = {"intersects", "within", "contains"}
+VALID_PREDICATES = {"intersects", "within", "contains", "dwithin"}
 VALID_JOIN_TYPES = {"inner", "left"}
 VALID_CARDINALITIES = {"first", "one_to_many"}
 
@@ -311,15 +316,34 @@ def _bbox_within(inner: list[float] | None, outer: list[float] | None) -> bool:
     )
 
 
+def _validate_distance(distance_m: Any) -> float | None:
+    if distance_m is None:
+        return None
+    if isinstance(distance_m, bool) or not isinstance(distance_m, (int, float)):
+        raise ValueError("distance_m must be a non-negative number.")
+    if distance_m != distance_m or distance_m < 0 or distance_m == float("inf"):
+        raise ValueError("distance_m must be a finite non-negative number.")
+    return float(distance_m)
+
+
 def _python_predicate(
     source_geometry: dict[str, Any] | None,
     target_geometry: dict[str, Any] | None,
     predicate: str,
+    distance_m: float | None = None,
 ) -> bool:
     predicate = _validate_predicate(predicate)
 
     source_bbox = _geometry_bbox(source_geometry)
     target_bbox = _geometry_bbox(target_geometry)
+
+    if predicate == "dwithin":
+        # Bbox approximation: the gap between the two boxes, per axis.
+        if source_bbox is None or target_bbox is None or distance_m is None:
+            return False
+        dx = max(target_bbox[0] - source_bbox[2], source_bbox[0] - target_bbox[2], 0.0)
+        dy = max(target_bbox[1] - source_bbox[3], source_bbox[1] - target_bbox[3], 0.0)
+        return (dx * dx + dy * dy) ** 0.5 <= distance_m + EPSILON
 
     if predicate == "intersects":
         return _bboxes_intersect(source_bbox, target_bbox)
@@ -387,6 +411,7 @@ def _shapely_predicate(
     source_geometry: dict[str, Any] | None,
     target_geometry: dict[str, Any] | None,
     predicate: str,
+    distance_m: float | None = None,
 ) -> bool:
     predicate = _validate_predicate(predicate)
 
@@ -407,6 +432,11 @@ def _shapely_predicate(
     if source_geom.is_empty or target_geom.is_empty:
         return False
 
+    if predicate == "dwithin":
+        if distance_m is None:
+            return False
+        return bool(source_geom.distance(target_geom) <= distance_m)
+
     if predicate == "intersects":
         return bool(source_geom.intersects(target_geom))
 
@@ -424,19 +454,20 @@ def _evaluate_predicate(
     target_geometry: dict[str, Any] | None,
     predicate: str,
     engine: str,
+    distance_m: float | None = None,
 ) -> tuple[bool, str]:
     engine = _validate_engine(engine)
 
     if engine == "python":
-        return _python_predicate(source_geometry, target_geometry, predicate), "python"
+        return _python_predicate(source_geometry, target_geometry, predicate, distance_m), "python"
 
     if engine == "shapely":
-        return _shapely_predicate(source_geometry, target_geometry, predicate), "shapely"
+        return _shapely_predicate(source_geometry, target_geometry, predicate, distance_m), "shapely"
 
     try:
-        return _shapely_predicate(source_geometry, target_geometry, predicate), "shapely"
+        return _shapely_predicate(source_geometry, target_geometry, predicate, distance_m), "shapely"
     except SDKDependencyError:
-        return _python_predicate(source_geometry, target_geometry, predicate), "python"
+        return _python_predicate(source_geometry, target_geometry, predicate, distance_m), "python"
 
 
 def _is_geographic_crs(value: Any) -> bool:
@@ -580,6 +611,7 @@ def _build_vector_metadata(features: list[dict[str, Any]]) -> dict[str, Any]:
     required_inputs=["source_features", "target_features"],
     optional_inputs=[
         "predicate",
+        "distance_m",
         "join_type",
         "cardinality",
         "engine",
@@ -609,6 +641,7 @@ def spatial_join_features(
     source_features: Any,
     target_features: Any,
     predicate: str | None = None,
+    distance_m: float | None = None,
     join_type: str | None = None,
     cardinality: str | None = None,
     engine: str | None = None,
@@ -628,7 +661,12 @@ def spatial_join_features(
         target_features:
             Target VectorOut, FeatureCollection, Feature, or list[Feature].
         predicate:
-            intersects | within | contains.
+            intersects | within | contains | dwithin.
+        distance_m:
+            Required for predicate="dwithin": a source feature joins every
+            target whose distance to it is <= distance_m (point/polygon vs
+            line layers, "next to a street"). Planar, in CRS units - reproject
+            to a metric CRS first. Ignored (not an error) for other predicates.
         join_type:
             inner | left.
         cardinality:
@@ -660,6 +698,12 @@ def spatial_join_features(
     final_predicate = _validate_predicate(
         str(pick_first(predicate, config.get("default_predicate"), default="intersects"))
     )
+
+    final_distance_m = _validate_distance(pick_first(distance_m, config.get("distance_m"), default=None))
+    if final_predicate == "dwithin" and final_distance_m is None:
+        raise ValueError("predicate 'dwithin' requires distance_m (a non-negative number).")
+    if final_predicate != "dwithin":
+        final_distance_m = None
 
     final_join_type = _validate_join_type(
         str(pick_first(join_type, config.get("default_join_type"), default="inner"))
@@ -764,8 +808,13 @@ def spatial_join_features(
                     source_geom = None
 
             if source_geom is not None:
+                query_geom = source_geom
+                if final_distance_m:
+                    # Candidates must be found within the distance, not only
+                    # where bboxes overlap.
+                    query_geom = source_geom.buffer(final_distance_m)
                 candidate_target_indices = _strtree_query_indices(
-                    target_tree, source_geom, target_geometries
+                    target_tree, query_geom, target_geometries
                 )
 
         if candidate_target_indices is not None:
@@ -782,6 +831,7 @@ def spatial_join_features(
                     target_geometry=target_feature.get("geometry"),
                     predicate=final_predicate,
                     engine=final_engine,
+                    distance_m=final_distance_m,
                 )
 
                 engines_used.add(engine_used)
@@ -872,6 +922,7 @@ def spatial_join_features(
         "engines_used": sorted(engines_used),
         "spatial_index_used": target_tree is not None,
         "predicate": final_predicate,
+        "distance_m": final_distance_m,
         "join_type": final_join_type,
         "cardinality": final_cardinality,
         "drop_failed": final_drop_failed,

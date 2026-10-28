@@ -31,6 +31,10 @@ from typing import Any
 # Keep the prompt small for layers with many fields/bands.
 MAX_FIELDS = 40
 MAX_BANDS = 32
+# sample_values=True: a text column with at most this many distinct values
+# has them listed in the prompt (longer values are cut at MAX_VALUE_CHARS).
+MAX_SAMPLE_VALUES = 20
+MAX_VALUE_CHARS = 60
 
 
 @dataclass(frozen=True)
@@ -50,6 +54,9 @@ class InputLayer:
     feature_count: int | None = None
     geometry_types: tuple[str, ...] = ()
     fields: tuple[tuple[str, str], ...] = ()  # (name, python type of first non-null value)
+    # (field name, distinct values) for low-cardinality text columns; only
+    # filled when describe_input_layers(sample_values=True).
+    field_values: tuple[tuple[str, tuple[str, ...]], ...] = ()
     notes: tuple[str, ...] = field(default_factory=tuple)
 
 
@@ -145,8 +152,42 @@ def _vector_features(layer: Any) -> tuple[list[Any], str | None] | None:
     return None
 
 
-def describe_input_layers(layers: Mapping[str, Any] | None) -> tuple[InputLayer, ...]:
-    """Facts about every named input layer, measured from the values themselves."""
+def _sample_text_values(
+    features: list[Any], fields: Mapping[str, str], max_values: int
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Distinct values of each text column that has at most max_values of them."""
+    result: list[tuple[str, tuple[str, ...]]] = []
+    for name, type_name in fields.items():
+        if type_name != "str":
+            continue
+        seen: dict[str, None] = {}
+        for feature in features:
+            if not isinstance(feature, Mapping):
+                continue
+            value = (feature.get("properties") or {}).get(name)
+            if isinstance(value, str) and value.strip():
+                seen.setdefault(value.strip()[:MAX_VALUE_CHARS], None)
+                if len(seen) > max_values:
+                    break
+        if 0 < len(seen) <= max_values:
+            result.append((name, tuple(seen)))
+    return tuple(result)
+
+
+def describe_input_layers(
+    layers: Mapping[str, Any] | None,
+    *,
+    sample_values: bool = False,
+    max_sample_values: int = MAX_SAMPLE_VALUES,
+) -> tuple[InputLayer, ...]:
+    """
+    Facts about every named input layer, measured from the values themselves.
+
+    sample_values=True also records, for each text column with at most
+    max_sample_values distinct values, those real values - so the planner
+    writes a filter condition against what the data holds ("اجاره", not a
+    guessed "rent") instead of an empty-result filter.
+    """
     if not layers:
         return ()
     out: list[InputLayer] = []
@@ -195,6 +236,11 @@ def describe_input_layers(layers: Mapping[str, Any] | None) -> tuple[InputLayer,
                     feature_count=len(features),
                     geometry_types=tuple(gtypes),
                     fields=tuple(list(fields.items())[:MAX_FIELDS]),
+                    field_values=(
+                        _sample_text_values(features, dict(list(fields.items())[:MAX_FIELDS]), max_sample_values)
+                        if sample_values
+                        else ()
+                    ),
                     notes=(f"{len(fields) - MAX_FIELDS} more fields not listed",) if len(fields) > MAX_FIELDS else (),
                 )
             )
@@ -233,6 +279,8 @@ def render_input_layer_facts(layers: tuple[InputLayer, ...]) -> str:
                 desc += ". Fields: " + ", ".join(f"{k} ({t})" for k, t in layer.fields)
             for note in layer.notes:
                 desc += f"; {note}"
+            for name, values in layer.field_values:
+                desc += f". Values of {name}: " + ", ".join(repr(v) for v in values)
             lines.append(desc + ".")
         else:
             lines.append(f'- "{layer.name}": (not a raster or vector layer).')
@@ -241,6 +289,12 @@ def render_input_layer_facts(layers: tuple[InputLayer, ...]) -> str:
         "b1, b2, ... are the raster's bands in the order listed. Do not invent layer "
         "names or fields that are not listed here."
     )
+    if any(layer.field_values for layer in layers):
+        lines.append(
+            "Where 'Values of <field>' are listed, a filter on that field MUST use one "
+            "of those exact values (same language and spelling) - never translate or "
+            "guess a value."
+        )
     return "\n".join(lines)
 
 

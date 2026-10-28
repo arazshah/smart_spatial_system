@@ -56,6 +56,15 @@ class DagNodeTrace:
     error: str | None = None
     input_keys: list[str] = field(default_factory=list)
     output_summary: dict[str, Any] = field(default_factory=dict)
+    # Feature counts going into / out of the node, so a caller can show why a
+    # result is empty. input_feature_count is that of the node's first vector
+    # input (its primary layer); input_feature_counts has every vector input
+    # by parameter name. None / {} when the node has no vector input/output.
+    input_feature_count: int | None = None
+    input_feature_counts: dict[str, int] = field(default_factory=dict)
+    output_feature_count: int | None = None
+    # Filter nodes: the conditions actually applied (where / bbox / limit ...).
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -107,6 +116,49 @@ def _run_awaitable_sync(awaitable: Any) -> Any:
         raise error_box["error"]
 
     return result_box.get("value")
+
+
+def _count_features(value: Any) -> int | None:
+    """Number of features in a vector-like value, else None."""
+    try:
+        if isinstance(value, dict):
+            features = value.get("features")
+        else:
+            features = getattr(value, "features", None)
+        if isinstance(features, (list, tuple)):
+            return len(features)
+    except Exception:
+        pass
+    return None
+
+
+# Parameters of filter nodes that decide what is kept; reported in the trace
+# (when set) as the conditions applied.
+_FILTER_CAPABILITIES = {"filter_features"}
+_FILTER_PARAM_KEYS = (
+    "where",
+    "bbox",
+    "bbox_mode",
+    "geometry_types",
+    "case_sensitive",
+    "sort_by",
+    "sort_order",
+    "limit",
+    "offset",
+)
+_NEAREST_PARAM_KEYS = ("max_distance", "k", "drop_unmatched", "distance_field")
+
+
+def _applied_conditions(node: DagNode, kwargs: dict[str, Any]) -> dict[str, Any]:
+    keys: tuple[str, ...] = ()
+    if node.capability_name in _FILTER_CAPABILITIES:
+        keys = _FILTER_PARAM_KEYS
+    elif node.capability_name == "find_nearest_neighbors":
+        keys = _NEAREST_PARAM_KEYS
+    conditions = {
+        key: kwargs[key] for key in keys if key in kwargs and kwargs[key] is not None
+    }
+    return {"applied_conditions": conditions} if conditions else {}
 
 
 def _summarize_output(value: Any) -> dict[str, Any]:
@@ -525,6 +577,20 @@ class DagExecutor:
                     capability_fn=capability_fn,
                 )
                 node_trace.input_keys = sorted(kwargs.keys())
+                counts = {
+                    name: count
+                    for name in kwargs
+                    if (count := _count_features(kwargs[name])) is not None
+                }
+                node_trace.input_feature_counts = counts
+                for name in node.inputs:
+                    if name in counts:
+                        node_trace.input_feature_count = counts[name]
+                        break
+                else:
+                    if counts:
+                        node_trace.input_feature_count = next(iter(counts.values()))
+                node_trace.metadata = _applied_conditions(node, kwargs)
 
                 stage = "capability_execution"
                 output = capability_fn(**kwargs)
@@ -535,6 +601,7 @@ class DagExecutor:
                 node_trace.status = "success"
                 node_trace.finished_at = _utc_now_iso()
                 node_trace.output_summary = _summarize_output(output)
+                node_trace.output_feature_count = _count_features(output)
                 trace.append(node_trace)
 
             except Exception as exc:

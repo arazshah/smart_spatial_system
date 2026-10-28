@@ -321,7 +321,7 @@
   <div class="wrap">
     <span class="eyebrow">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg>
-      Open source · MIT licensed · v0.6.0 on PyPI
+      Open source · MIT licensed · v0.6.1 on PyPI
     </span>
     <h1>Ask a geospatial question in plain language.<br>Get a <span class="accent">reproducible answer</span> back.</h1>
     <p class="lead">
@@ -493,6 +493,18 @@
 smart-spatial-api mcp                      <span class="c1"># stdio: local clients</span>
 SMART_SPATIAL_MCP_API_KEY=... smart-spatial-api mcp --transport http   <span class="c1"># remote, API-key protected</span></pre>
     <p class="lead" style="margin-top:14px">Configuration, the risk classes and the deployment checklist are in <a href="https://github.com/arazshah/smart_spatial_system/blob/main/docs/MCP_SERVER.md" target="_blank" rel="noopener">docs/MCP_SERVER.md</a>.</p>
+  </div>
+</section>
+
+<section id="explain-empty">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="kicker">New in 0.6.1</div>
+      <h2>Fewer empty results — and a reason when there is one</h2>
+      <p>Filters no longer fail on empty attribute values, a distance cap now drops the features beyond it by default, and <code>sample_values=True</code> shows the planner the real values of text columns so conditions match your data. Point and polygon layers can be joined to streets with a <code>dwithin</code> distance predicate, and every node in the execution trace reports its input and output feature counts plus the filter conditions applied.</p>
+    </div>
+    <pre class="code">result = s3geo.query(question, layers=layers, <span class="c1">sample_values=True</span>)
+<span class="c1"># each trace node: input_feature_count, output_feature_count, metadata["applied_conditions"]</span></pre>
   </div>
 </section>
 

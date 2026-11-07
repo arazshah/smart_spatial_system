@@ -193,15 +193,15 @@ def export_layer(cur, name, sources):
         before = len(feats)
         feats = dedupe_points(feats, radius)
         print(f"  {name}: removed {before - len(feats)} near-duplicates (< {radius} m apart), {len(feats)} kept")
-        feats_removed = before - len(feats)
+        removed = before - len(feats)
     else:
-        feats_removed = 0
+        removed = 0
     if any(src.get("review") for src in sources):
         names = sorted({f["properties"]["name"] for f in feats})
         print(f"  REVIEW {name}: filter is name-based, check these {len(names)} distinct names:")
         for nm in names[:40]:
             print("    ", nm)
-    return {"type": "FeatureCollection", "features": feats}
+    return {"type": "FeatureCollection", "features": feats}, removed
 
 
 def main():
@@ -237,8 +237,8 @@ def main():
             if target.exists() and not args.force:
                 print(f"{name}: already exists, skipping (use --force to refresh)")
                 continue
-            fc = export_layer(cur, name, sources)
-            record_provenance(DATA, name, f"postgis:{os.environ.get('POSTGIS_HOST')}/{os.environ.get('POSTGIS_DB')}", len(fc["features"]))
+            fc, removed = export_layer(cur, name, sources)
+            record_provenance(DATA, name, f"postgis:{os.environ.get('POSTGIS_HOST')}/{os.environ.get('POSTGIS_DB')}", len(fc["features"]), removed)
             target.write_text(json.dumps(fc, ensure_ascii=False), encoding="utf-8")
             print(f"{name}: {len(fc['features'])} features")
             if not fc["features"]:

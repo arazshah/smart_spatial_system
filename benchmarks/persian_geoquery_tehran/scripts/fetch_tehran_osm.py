@@ -13,6 +13,7 @@ property ("node/123", "way/456") - the benchmark compares answers by it.
 Data (c) OpenStreetMap contributors, ODbL 1.0.
 """
 import argparse
+import http.client
 import json
 import pathlib
 import sys
@@ -37,10 +38,10 @@ QUERIES = {
 
 
 RETRY_CODES = (429, 502, 503, 504)  # Overpass busy / gateway errors
+MIRRORS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"]
 
 
-def fetch(endpoint, body, retries=5, backoff=30):
-    data = urllib.parse.urlencode({"data": f"[out:json][timeout:180];{body}"}).encode()
+def _fetch_once_with_retries(endpoint, data, retries, backoff):
     for attempt in range(1, retries + 1):
         req = urllib.request.Request(
             endpoint, data=data, headers={"User-Agent": "s3geo-persian-geoquery-bench/0.1 (+https://s3geo.com)"}
@@ -48,14 +49,36 @@ def fetch(endpoint, body, retries=5, backoff=30):
         try:
             with urllib.request.urlopen(req, timeout=300) as r:
                 return json.loads(r.read().decode("utf-8"))
-        except (urllib.error.HTTPError, urllib.error.URLError) as e:
+        except (
+            urllib.error.HTTPError,
+            urllib.error.URLError,
+            http.client.IncompleteRead,  # response cut off mid-transfer (busy server)
+            http.client.RemoteDisconnected,
+            ConnectionError,
+            TimeoutError,
+            json.JSONDecodeError,  # truncated/garbled body
+        ) as e:
             code = getattr(e, "code", None)
-            if attempt < retries and (code in RETRY_CODES or code is None):
+            retryable = not isinstance(e, urllib.error.HTTPError) or code in RETRY_CODES
+            if attempt < retries and retryable:
                 wait = backoff * attempt
-                print(f"  {e}; retry {attempt}/{retries - 1} in {wait}s", file=sys.stderr)
+                print(f"  {type(e).__name__}: {e}; retry {attempt}/{retries - 1} in {wait}s", file=sys.stderr)
                 time.sleep(wait)
                 continue
             raise
+
+
+def fetch(endpoints, body, retries=3, backoff=30):
+    """Try each endpoint in turn (with retries). Returns (parsed_json, endpoint_used)."""
+    data = urllib.parse.urlencode({"data": f"[out:json][timeout:180];{body}"}).encode()
+    last = None
+    for endpoint in endpoints:
+        try:
+            return _fetch_once_with_retries(endpoint, data, retries, backoff), endpoint
+        except Exception as e:  # noqa: BLE001 - fall through to the next mirror
+            last = e
+            print(f"  {endpoint} failed ({type(e).__name__}); trying next endpoint" if endpoint != endpoints[-1] else f"  {endpoint} failed", file=sys.stderr)
+    raise last
 
 
 def to_geojson(elements):
@@ -84,7 +107,7 @@ def to_geojson(elements):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--endpoint", default="https://overpass-api.de/api/interpreter")
+    ap.add_argument("--endpoint", help="use only this Overpass endpoint (default: overpass-api.de, then a mirror)")
     ap.add_argument("--force", action="store_true", help="re-download layers that already exist")
     args = ap.parse_args()
     DATA.mkdir(exist_ok=True)
@@ -94,14 +117,15 @@ def main():
             print(f"{name}: already downloaded, skipping (use --force to refresh)")
             continue
         print(f"fetching {name} ...")
-        fc = to_geojson(fetch(args.endpoint, body)["elements"])
+        raw, used = fetch([args.endpoint] if args.endpoint else MIRRORS, body)
+        fc = to_geojson(raw["elements"])
         removed = 0
         if name in DEDUPE_M:
             before = len(fc["features"])
             fc["features"] = dedupe_points(fc["features"], DEDUPE_M[name])
             removed = before - len(fc["features"])
         target.write_text(json.dumps(fc, ensure_ascii=False), encoding="utf-8")
-        record_provenance(DATA, name, f"overpass:{args.endpoint}", len(fc["features"]), removed)
+        record_provenance(DATA, name, f"overpass:{used}", len(fc["features"]), removed)
         print(f"  {len(fc['features'])} features (removed {removed} near-duplicates)")
         time.sleep(5)  # be polite to the public Overpass server
 

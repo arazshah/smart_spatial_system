@@ -60,6 +60,29 @@ def evaluate(q, layers):
     return list(sel["osm_id"])
 
 
+def marginals(q, layers):
+    """Per-condition pass counts: [(label, n_pass, n_target)]. Shows which conditions actually filter."""
+    t = layers[q["target"]]
+    out = []
+    for cond in q["ref"]["conds"]:
+        d = _dist(t, layers[cond["layer"]])
+        ok = d <= cond["max_m"] if "max_m" in cond else d > cond["min_m"]
+        label = f'{cond["layer"]} ' + (f'<= {cond["max_m"]}' if "max_m" in cond else f'> {cond["min_m"]}')
+        out.append((label, int(ok.sum()), len(t)))
+    return out
+
+
+def near_duplicates(layers, radius_m=30):
+    """Features whose nearest *other* feature is within radius_m: likely the same object mapped twice."""
+    out = {}
+    for name, g in layers.items():
+        if len(g) < 2 or g.geom_type.iloc[0] not in ("Point", "MultiPoint"):
+            continue
+        _, dist = g.sindex.nearest(g.geometry, return_all=False, exclusive=True, return_distance=True)
+        out[name] = int((dist <= radius_m).sum())
+    return out
+
+
 def load_questions(path=ROOT / "questions.jsonl"):
     return [json.loads(line) for line in pathlib.Path(path).read_text(encoding="utf-8").splitlines() if line.strip()]
 
@@ -67,6 +90,13 @@ def load_questions(path=ROOT / "questions.jsonl"):
 def main():
     layers = load_layers()
     out, warnings = {}, []
+    dups = near_duplicates(layers)
+    print("layer sizes:", {k: len(v) for k, v in layers.items()})
+    print("features with another feature within 30 m (possible duplicates):", dups)
+    for name, n in dups.items():
+        if n > 0.05 * len(layers[name]):
+            warnings.append(f"layer {name}: {n} of {len(layers[name])} features have a neighbour within 30 m - possible double counting (e.g. same hospital as point and building)")
+    print()
     for q in load_questions():
         ids = evaluate(q, layers)
         n_target = len(layers[q["target"]])
@@ -76,6 +106,16 @@ def main():
         elif len(ids) == n_target and not q["ref"].get("topk"):
             warnings.append(f'{q["id"]}: reference = ALL {n_target} features (question does not discriminate)')
         print(f'{q["id"]} L{q["level"]}: {len(ids):>4} of {n_target}')
+        conds = marginals(q, layers)
+        if len(conds) > 1:
+            print("      " + " | ".join(f"{lab}: {n}/{tot}" for lab, n, tot in conds))
+            for lab, n, tot in conds:
+                if n == tot:
+                    warnings.append(f'{q["id"]}: condition "{lab}" passes ALL {tot} targets - it filters nothing, tighten it')
+                elif n == 0:
+                    warnings.append(f'{q["id"]}: condition "{lab}" passes NO target')
+        if not q["ref"].get("topk") and len(ids) > 0.6 * n_target:
+            warnings.append(f'{q["id"]}: reference is {len(ids)}/{n_target} ({len(ids) / n_target:.0%}) - too loose, a lazy "return everything" answer scores high')
     (ROOT / "results").mkdir(exist_ok=True)
     (ROOT / "results" / "reference.json").write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
     if warnings:

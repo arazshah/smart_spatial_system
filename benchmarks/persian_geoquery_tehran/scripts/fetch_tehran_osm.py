@@ -5,6 +5,7 @@ Pure standard library. Uses a fixed bounding box (not an area-name lookup),
 so it does not depend on how Overpass spells "تهران".
 
     python scripts/fetch_tehran_osm.py
+    python scripts/fetch_tehran_osm.py --force            # re-download everything
     python scripts/fetch_tehran_osm.py --endpoint https://overpass.kumi.systems/api/interpreter
 
 Output: data/<layer>.geojson (EPSG:4326). Every feature has an `osm_id`
@@ -32,7 +33,10 @@ QUERIES = {
 }
 
 
-def fetch(endpoint, body, retries=3, backoff=30):
+RETRY_CODES = (429, 502, 503, 504)  # Overpass busy / gateway errors
+
+
+def fetch(endpoint, body, retries=5, backoff=30):
     data = urllib.parse.urlencode({"data": f"[out:json][timeout:180];{body}"}).encode()
     for attempt in range(1, retries + 1):
         req = urllib.request.Request(
@@ -43,7 +47,7 @@ def fetch(endpoint, body, retries=3, backoff=30):
                 return json.loads(r.read().decode("utf-8"))
         except (urllib.error.HTTPError, urllib.error.URLError) as e:
             code = getattr(e, "code", None)
-            if attempt < retries and (code in (429, 504) or code is None):
+            if attempt < retries and (code in RETRY_CODES or code is None):
                 wait = backoff * attempt
                 print(f"  {e}; retry {attempt}/{retries - 1} in {wait}s", file=sys.stderr)
                 time.sleep(wait)
@@ -75,12 +79,17 @@ def to_geojson(elements):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--endpoint", default="https://overpass-api.de/api/interpreter")
+    ap.add_argument("--force", action="store_true", help="re-download layers that already exist")
     args = ap.parse_args()
     DATA.mkdir(exist_ok=True)
     for name, body in QUERIES.items():
+        target = DATA / f"{name}.geojson"
+        if target.exists() and not args.force:
+            print(f"{name}: already downloaded, skipping (use --force to refresh)")
+            continue
         print(f"fetching {name} ...")
         fc = to_geojson(fetch(args.endpoint, body)["elements"])
-        (DATA / f"{name}.geojson").write_text(json.dumps(fc, ensure_ascii=False), encoding="utf-8")
+        target.write_text(json.dumps(fc, ensure_ascii=False), encoding="utf-8")
         print(f"  {len(fc['features'])} features")
         time.sleep(5)  # be polite to the public Overpass server
 

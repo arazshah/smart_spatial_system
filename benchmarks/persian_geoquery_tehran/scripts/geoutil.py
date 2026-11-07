@@ -9,13 +9,18 @@ import pathlib
 DEDUPE_M = {"hospitals": 30, "malls": 30, "parks": 30}
 
 
+REF_LAT = 35.7  # Tehran; one fixed latitude so the lon->metre scale is the same for every point
+M_PER_DEG_LON = 111320 * math.cos(math.radians(REF_LAT))
+M_PER_DEG_LAT = 110540
+
+
 def dedupe_points(feats, radius_m):
-    """Greedy near-duplicate removal for Point features (planar approximation at Tehran's latitude).
+    """Greedy near-duplicate removal for Point features (planar approximation around Tehran).
     Input order decides which duplicate survives, so callers must order deterministically."""
     kept, kx, ky = [], [], []
     for f in feats:
         lon, lat = f["geometry"]["coordinates"][:2]
-        x, y = lon * 111320 * math.cos(math.radians(lat)), lat * 110540
+        x, y = lon * M_PER_DEG_LON, lat * M_PER_DEG_LAT
         if any((x - a) ** 2 + (y - b) ** 2 < radius_m**2 for a, b in zip(kx, ky)):
             continue
         kept.append(f)

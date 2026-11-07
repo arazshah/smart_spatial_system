@@ -83,6 +83,21 @@ def near_duplicates(layers, radius_m=30):
     return out
 
 
+def check_provenance(layers, data_dir=ROOT / "data"):
+    """Warnings if layers lack a provenance record or come from different sources."""
+    path = pathlib.Path(data_dir) / "provenance.json"
+    prov = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    out = []
+    for name in layers:
+        if name not in prov:
+            out.append(f"layer {name}: NO provenance record - this file came from an unknown source/date "
+                       f"(delete data/{name}.geojson and fetch it again)")
+    sources = {v["source"].split(":")[0] for v in prov.values()}
+    if len(sources) > 1:
+        out.append(f"layers come from different sources {sorted(sources)} - answers are not comparable; fetch everything from one source")
+    return out
+
+
 def load_questions(path=ROOT / "questions.jsonl"):
     return [json.loads(line) for line in pathlib.Path(path).read_text(encoding="utf-8").splitlines() if line.strip()]
 
@@ -96,6 +111,7 @@ def main():
     for name, n in dups.items():
         if n > 0.05 * len(layers[name]):
             warnings.append(f"layer {name}: {n} of {len(layers[name])} features have a neighbour within 30 m - possible double counting (e.g. same hospital as point and building)")
+    warnings.extend(check_provenance(layers))
     print()
     for q in load_questions():
         ids = evaluate(q, layers)

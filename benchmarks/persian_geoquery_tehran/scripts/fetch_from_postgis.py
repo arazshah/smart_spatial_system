@@ -27,6 +27,7 @@ pass it with --layers-json:
 
     python scripts/fetch_from_postgis.py
     python scripts/fetch_from_postgis.py --layers-json my_layers.json
+    python scripts/fetch_from_postgis.py --force --only hospitals malls parks   # refresh just these
 
 Only SELECT statements are issued, inside a read-only transaction.
 Data (c) OpenStreetMap contributors, ODbL 1.0 (if the database is OSM-derived).
@@ -94,6 +95,27 @@ POSTGIS_IR_LAYERS = {
         {"table": "osm_roads", "geom": "geom", "mode": "line", "where": "highway IN ('motorway', 'trunk', 'primary')"},
     ],
 }
+
+
+# Point features closer than this to an already kept feature are dropped (same object mapped
+# twice, e.g. a hospital as a POI and as a building). Sources are kept in listed order.
+DEDUPE_M = {"hospitals": 30, "malls": 30, "parks": 30}
+
+
+def dedupe_points(feats, radius_m):
+    """Greedy near-duplicate removal for Point features (planar approximation at Tehran's latitude)."""
+    import math
+
+    kept, kx, ky = [], [], []
+    for f in feats:
+        lon, lat = f["geometry"]["coordinates"][:2]
+        x, y = lon * 111320 * math.cos(math.radians(lat)), lat * 110540
+        if any((x - a) ** 2 + (y - b) ** 2 < radius_m**2 for a, b in zip(kx, ky)):
+            continue
+        kept.append(f)
+        kx.append(x)
+        ky.append(y)
+    return kept
 
 
 def connect():
@@ -186,6 +208,11 @@ def export_layer(cur, name, sources):
                 continue
             feats.append({"type": "Feature", "geometry": geom,
                           "properties": {"osm_id": f'{src["table"]}/{osm_id}', "name": nm or ""}})
+    radius = DEDUPE_M.get(name)
+    if radius:
+        before = len(feats)
+        feats = dedupe_points(feats, radius)
+        print(f"  {name}: removed {before - len(feats)} near-duplicates (< {radius} m apart), {len(feats)} kept")
     if any(src.get("review") for src in sources):
         names = sorted({f["properties"]["name"] for f in feats})
         print(f"  REVIEW {name}: filter is name-based, check these {len(names)} distinct names:")
@@ -199,6 +226,7 @@ def main():
     ap.add_argument("--inspect", action="store_true", help="list geometry tables and columns, then exit")
     ap.add_argument("--find", metavar="TEXT", help="search names across osm_* tables (read-only), then exit")
     ap.add_argument("--layers-json", help="JSON file overriding the built-in layer presets (see postgis_layers.example.json)")
+    ap.add_argument("--only", nargs="*", help="export only these layers, e.g. --only hospitals malls parks")
     ap.add_argument("--force", action="store_true", help="re-export layers that already exist")
     args = ap.parse_args()
 
@@ -220,6 +248,8 @@ def main():
             print(f"schema preset: {'postgis.ir-style (osm_pois...)' if is_ir else 'osm2pgsql (planet_osm_*)'}")
         DATA.mkdir(exist_ok=True)
         for name, sources in layers.items():
+            if args.only and name not in args.only:
+                continue
             target = DATA / f"{name}.geojson"
             if target.exists() and not args.force:
                 print(f"{name}: already exists, skipping (use --force to refresh)")

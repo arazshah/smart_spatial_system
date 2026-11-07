@@ -39,6 +39,7 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from geoutil import DEDUPE_M, dedupe_points, record_provenance  # noqa: E402
 from run_benchmark import load_env  # noqa: E402
 
 DATA = pathlib.Path(__file__).resolve().parent.parent / "data"
@@ -95,27 +96,6 @@ POSTGIS_IR_LAYERS = {
         {"table": "osm_roads", "geom": "geom", "mode": "line", "where": "highway IN ('motorway', 'trunk', 'primary')"},
     ],
 }
-
-
-# Point features closer than this to an already kept feature are dropped (same object mapped
-# twice, e.g. a hospital as a POI and as a building). Sources are kept in listed order.
-DEDUPE_M = {"hospitals": 30, "malls": 30, "parks": 30}
-
-
-def dedupe_points(feats, radius_m):
-    """Greedy near-duplicate removal for Point features (planar approximation at Tehran's latitude)."""
-    import math
-
-    kept, kx, ky = [], [], []
-    for f in feats:
-        lon, lat = f["geometry"]["coordinates"][:2]
-        x, y = lon * 111320 * math.cos(math.radians(lat)), lat * 110540
-        if any((x - a) ** 2 + (y - b) ** 2 < radius_m**2 for a, b in zip(kx, ky)):
-            continue
-        kept.append(f)
-        kx.append(x)
-        ky.append(y)
-    return kept
 
 
 def connect():
@@ -213,6 +193,9 @@ def export_layer(cur, name, sources):
         before = len(feats)
         feats = dedupe_points(feats, radius)
         print(f"  {name}: removed {before - len(feats)} near-duplicates (< {radius} m apart), {len(feats)} kept")
+        feats_removed = before - len(feats)
+    else:
+        feats_removed = 0
     if any(src.get("review") for src in sources):
         names = sorted({f["properties"]["name"] for f in feats})
         print(f"  REVIEW {name}: filter is name-based, check these {len(names)} distinct names:")
@@ -255,6 +238,7 @@ def main():
                 print(f"{name}: already exists, skipping (use --force to refresh)")
                 continue
             fc = export_layer(cur, name, sources)
+            record_provenance(DATA, name, f"postgis:{os.environ.get('POSTGIS_HOST')}/{os.environ.get('POSTGIS_DB')}", len(fc["features"]))
             target.write_text(json.dumps(fc, ensure_ascii=False), encoding="utf-8")
             print(f"{name}: {len(fc['features'])} features")
             if not fc["features"]:

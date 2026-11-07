@@ -21,6 +21,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from geoutil import DEDUPE_M, dedupe_points, record_provenance  # noqa: E402
+
 BBOX = "35.58,51.20,35.82,51.62"  # south,west,north,east - Tehran urban area
 DATA = pathlib.Path(__file__).resolve().parent.parent / "data"
 
@@ -73,6 +76,9 @@ def to_geojson(elements):
             **{k: tags[k] for k in ("amenity", "shop", "leisure", "railway", "highway") if k in tags},
         }
         feats.append({"type": "Feature", "geometry": geom, "properties": props})
+    # deterministic order (nodes, ways, relations; then id) so de-duplication keeps the same survivor every run
+    rank = {"node": 0, "way": 1, "relation": 2}
+    feats.sort(key=lambda f: (rank[f["properties"]["osm_id"].split("/")[0]], int(f["properties"]["osm_id"].split("/")[1])))
     return {"type": "FeatureCollection", "features": feats}
 
 
@@ -89,8 +95,14 @@ def main():
             continue
         print(f"fetching {name} ...")
         fc = to_geojson(fetch(args.endpoint, body)["elements"])
+        removed = 0
+        if name in DEDUPE_M:
+            before = len(fc["features"])
+            fc["features"] = dedupe_points(fc["features"], DEDUPE_M[name])
+            removed = before - len(fc["features"])
         target.write_text(json.dumps(fc, ensure_ascii=False), encoding="utf-8")
-        print(f"  {len(fc['features'])} features")
+        record_provenance(DATA, name, f"overpass:{args.endpoint}", len(fc["features"]), removed)
+        print(f"  {len(fc['features'])} features (removed {removed} near-duplicates)")
         time.sleep(5)  # be polite to the public Overpass server
 
 

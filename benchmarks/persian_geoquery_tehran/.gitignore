@@ -1,0 +1,5 @@
+.env
+__pycache__/
+data/*.geojson
+results/runs_*.jsonl
+results/reference.json

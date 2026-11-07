@@ -1,0 +1,18 @@
+{
+  "metro_stations": [
+    {"table": "planet_osm_point", "geom": "way", "mode": "point",
+     "where": "railway = 'station' AND name ILIKE '%مترو%'"}
+  ],
+  "hospitals": [
+    {"table": "planet_osm_point", "geom": "way", "mode": "point", "where": "amenity = 'hospital'"}
+  ],
+  "malls": [
+    {"table": "planet_osm_point", "geom": "way", "mode": "point", "where": "shop = 'mall'"}
+  ],
+  "parks": [
+    {"table": "planet_osm_polygon", "geom": "way", "mode": "point", "where": "leisure = 'park' AND name IS NOT NULL"}
+  ],
+  "main_roads": [
+    {"table": "planet_osm_line", "geom": "way", "mode": "line", "where": "highway IN ('motorway','trunk','primary')"}
+  ]
+}

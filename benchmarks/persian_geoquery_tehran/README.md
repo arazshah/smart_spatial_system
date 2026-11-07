@@ -44,6 +44,7 @@ returns?* Answers are sets of OSM ids, so scoring needs no judgement.
 |---|---|
 | `questions.jsonl` | 30 questions: `id`, `level` (1-3), `question_fa`, `question_en`, `target`, `layers`, `ref` (machine-readable definition of the correct answer) |
 | `scripts/fetch_tehran_osm.py` | Downloads the five layers from OpenStreetMap (Overpass, fixed bounding box) |
+| `scripts/fetch_from_postgis.py` | Alternative: exports the same five layers from a PostGIS database holding OSM data (e.g. postgis.ir). `--inspect` lists its tables first |
 | `scripts/reference.py` | Computes the reference answers (geopandas, EPSG:32639) |
 | `scripts/run_benchmark.py` | Runs the questions through `s3geo.query()` and scores them |
 | `scripts/summarize.py` | Aggregates runs into the metrics below |
@@ -83,6 +84,8 @@ pip install -r requirements.lock
 cd benchmarks/persian_geoquery_tehran
 
 python scripts/fetch_tehran_osm.py          # needs internet access to overpass-api.de
+# ...or, if Overpass is unreachable, from a PostGIS database (settings in .env, see script docstring):
+# python scripts/fetch_from_postgis.py --inspect && python scripts/fetch_from_postgis.py
 python scripts/reference.py                 # read its warnings!
 python scripts/run_benchmark.py --dry-run   # must print J=1.0 everywhere (checks the scoring)
 

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="s3geo logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101826"/>
+      <stop offset="1" stop-color="#0b0e14"/>
+    </linearGradient>
+    <linearGradient id="pin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset="1" stop-color="#0f766e"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- subtle map grid -->
+  <g stroke="#2dd4bf" stroke-opacity=".10" stroke-width="2">
+    <path d="M0 150H512M0 256H512M0 362H512M150 0V512M256 0V512M362 0V512"/>
+  </g>
+  <!-- ground shadow -->
+  <ellipse cx="256" cy="440" rx="74" ry="14" fill="#2dd4bf" fill-opacity=".22"/>
+  <!-- pin -->
+  <path d="M256 78C186 78 130 134 130 204c0 92 108 190 118 199a12 12 0 0 0 16 0c10-9 118-107 118-199 0-70-56-126-126-126Z" fill="url(#pin)"/>
+  <circle cx="256" cy="204" r="82" fill="#0b0e14"/>
+  <!-- DAG: three connected nodes -->
+  <g stroke="#5eead4" stroke-width="10" stroke-linecap="round" fill="none">
+    <path d="M222 232L256 176"/>
+    <path d="M256 176L292 232"/>
+    <path d="M222 232H292" stroke-opacity=".55"/>
+  </g>
+  <circle cx="256" cy="176" r="19" fill="#34d399"/>
+  <circle cx="222" cy="232" r="15" fill="#5eead4"/>
+  <circle cx="292" cy="232" r="15" fill="#5eead4"/>
+</svg>

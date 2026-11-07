@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 200" width="760" height="200" role="img" aria-label="s3geo">
+  <defs>
+    <linearGradient id="pin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4"/><stop offset="1" stop-color="#0f766e"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(10 0) scale(.36)">
+    <path d="M256 78C186 78 130 134 130 204c0 92 108 190 118 199a12 12 0 0 0 16 0c10-9 118-107 118-199 0-70-56-126-126-126Z" fill="url(#pin)"/>
+    <circle cx="256" cy="204" r="82" fill="#0b0e14"/>
+    <g stroke="#5eead4" stroke-width="10" stroke-linecap="round" fill="none">
+      <path d="M222 232L256 176"/><path d="M256 176L292 232"/><path d="M222 232H292" stroke-opacity=".55"/>
+    </g>
+    <circle cx="256" cy="176" r="19" fill="#34d399"/>
+    <circle cx="222" cy="232" r="15" fill="#5eead4"/>
+    <circle cx="292" cy="232" r="15" fill="#5eead4"/>
+  </g>
+  <text x="170" y="120" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="96" font-weight="800" fill="#2dd4bf" letter-spacing="-2">s3geo</text>
+  <text x="174" y="160" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="26" font-weight="500" fill="#6b7486" letter-spacing="1">Persian GeoAI · Smart Spatial System</text>
+</svg>

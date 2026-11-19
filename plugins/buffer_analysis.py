@@ -212,6 +212,33 @@ def _normalize_feature(feature: dict[str, Any], index: int) -> dict[str, Any]:
     }
 
 
+_METRIC_UNIT_LABELS = {
+    "m", "meter", "meters", "metre", "metres", "km", "kilometer", "kilometers",
+    "kilometre", "kilometres", "ft", "foot", "feet", "mi", "mile", "miles",
+}
+
+
+def _iter_coordinates(coords: Any):
+    if isinstance(coords, (list, tuple)):
+        if len(coords) >= 2 and all(isinstance(c, (int, float)) for c in coords[:2]):
+            yield coords
+        else:
+            for item in coords:
+                yield from _iter_coordinates(item)
+
+
+def _looks_like_degrees(features: list[dict[str, Any]]) -> bool:
+    """True when every coordinate fits inside lon/lat bounds (|x|<=180, |y|<=90)."""
+    seen = False
+    for feature in features:
+        geometry = feature.get("geometry") or {}
+        for coord in _iter_coordinates(geometry.get("coordinates")):
+            seen = True
+            if abs(coord[0]) > 180 or abs(coord[1]) > 90:
+                return False
+    return seen
+
+
 def _extract_features(input_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """
     Extract features from:
@@ -596,7 +623,9 @@ def buffer_vector_features(
         distance:
             Buffer distance. If None, config default_distance is used.
         units:
-            Distance units label for metadata.
+            Distance units label for metadata only (no conversion). The distance is
+            applied in the coordinate units of the input, so reproject lon/lat data to
+            a metric CRS first; a warning is added to metadata otherwise.
         quad_segs:
             Number of segments per quarter circle.
         engine:
@@ -696,6 +725,14 @@ def buffer_vector_features(
 
     stats = _build_vector_metadata(buffered_features)
 
+    warnings: list[str] = []
+    if final_units.strip().lower() in _METRIC_UNIT_LABELS and _looks_like_degrees(input_features):
+        warnings.append(
+            f"units={final_units!r} is only a label: the input coordinates look like "
+            f"longitude/latitude degrees, so the distance {final_distance} was applied "
+            "in degrees. Reproject to a metric CRS (e.g. with transform_vector_crs) first."
+        )
+
     user_metadata = metadata or {}
     if not isinstance(user_metadata, dict):
         raise ValueError("metadata must be a dict or None.")
@@ -720,6 +757,7 @@ def buffer_vector_features(
             "Coordinates are treated as planar coordinates. "
             "No CRS transformation is performed by this plugin."
         ),
+        **({"warnings": warnings} if warnings else {}),
         **source_info,
         **stats,
         **user_metadata,

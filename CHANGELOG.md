@@ -6,6 +6,24 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-11-19
+
+Hardening found while testing the MCP server end to end with a real client.
+
+### Added
+
+- `buffer_vector_features`: when `units` is a metric/imperial label (`meters`, `km`, `feet`...) —
+  including the config default `meters` — but the coordinates are longitude/latitude degrees,
+  `metadata["warnings"]` now says the distance was applied in degrees and to reproject first
+  (a 500 m buffer on EPSG:4326 data used to silently become 500 degrees). Behaviour is unchanged.
+- `tests/test_mcp_e2e_stdio.py`: spawns the real MCP server over stdio and drives it with a real
+  MCP client (discovery, chained metric workflow, hidden-tool/undeclared-argument fail-closed checks).
+
+### Changed
+
+- `docs/MCP_SERVER.md`: tool counts updated (80 exposed by default, 22 hidden by policy), plus a
+  CRS note for LLM clients: reproject with `transform_vector_crs` before buffering or measuring.
+
 ## [0.6.1] - 2026-10-28
 
 Fixes and planner improvements for queries that came back empty with no visible reason.

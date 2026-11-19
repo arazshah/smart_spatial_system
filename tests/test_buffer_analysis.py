@@ -430,3 +430,24 @@ def test_capability_descriptor_content() -> None:
     assert descriptor.metadata["artifact_kind"] == "features"
     assert descriptor.metadata["config_aware"] is True
     assert descriptor.metadata["operation"] == "buffer"
+
+
+def _pt(x, y):
+    return {"type": "Feature", "geometry": {"type": "Point", "coordinates": [x, y]}, "properties": {}}
+
+
+def test_buffer_warns_when_metric_units_on_degree_coordinates():
+    from plugins.buffer_analysis import buffer_vector_features
+
+    out = buffer_vector_features([_pt(51.41, 35.75)], distance=500, units="meters")
+    warnings = out.metadata.get("warnings")
+    assert warnings and "degrees" in warnings[0]
+
+
+def test_buffer_no_warning_for_projected_coordinates_or_map_units():
+    from plugins.buffer_analysis import buffer_vector_features
+
+    projected = buffer_vector_features([_pt(537110.0, 3957074.0)], distance=500, units="meters")
+    assert "warnings" not in projected.metadata
+    degrees_unlabelled = buffer_vector_features([_pt(51.41, 35.75)], distance=0.01, units="degrees")
+    assert "warnings" not in degrees_unlabelled.metadata

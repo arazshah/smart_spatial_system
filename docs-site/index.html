@@ -321,7 +321,7 @@
   <div class="wrap">
     <span class="eyebrow">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg>
-      Open source · MIT licensed · v0.6.1 on PyPI
+      Open source · MIT licensed · v0.6.2 on PyPI
     </span>
     <h1>Ask a geospatial question in plain language.<br>Get a <span class="accent">reproducible answer</span> back.</h1>
     <p class="lead">
@@ -487,7 +487,7 @@
     <div class="section-head">
       <div class="kicker">New in 0.6.0</div>
       <h2>An MCP server, secure by default</h2>
-      <p>Every capability is an <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">MCP</a> tool, so Claude, Cursor and any other MCP client can run spatial analysis through the same validated plugins the API uses. Tools that touch files, URLs or databases are hidden until the operator opts in; large results come back as artifact handles instead of inline data.</p>
+      <p>Every capability is an <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">MCP</a> tool, so Claude, Cursor and any other MCP client can run spatial analysis through the same validated plugins the API uses. Tools that touch files, URLs or databases are hidden until the operator opts in; large results come back as artifact handles instead of inline data. Distances follow the coordinate units, so reproject lon/lat data with <code>transform_vector_crs</code> before buffering; a buffer applied in degrees now carries a warning.</p>
     </div>
     <pre class="code"><span class="c1"># pip install "smart-spatial-system[mcp]"</span>
 smart-spatial-api mcp                      <span class="c1"># stdio: local clients</span>

@@ -82,7 +82,9 @@ jobs:
 
   publish:
     name: Tag and publish a GitHub release
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main' }}
+    # always(): the QGIS test job upstream of `package` is skipped on publish runs, and a skipped
+    # ancestor would otherwise skip this job too (implicit success()).
+    if: ${{ always() && needs.package.result == 'success' && github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main' }}
     needs: package
     runs-on: ubuntu-latest
     permissions:

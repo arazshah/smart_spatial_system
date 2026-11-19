@@ -16,6 +16,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - QGIS plugin 0.2.0: chat panel in QGIS driven by an LLM of the user's choice (any OpenAI-compatible
   endpoint, configurable model/key/URL) that calls the s3geo MCP server; layers by reference,
   geometries never sent to the model, results added as new layers.
+- `qgis-plugin.yml`: manual `publish` option that tags `qgis-plugin-v<version>` and creates a GitHub
+  release with the plugin zip from inside Actions.
 - `examples/qgis`: use the library directly from the QGIS Python Console.
 
 ## [0.6.2] - 2026-11-19

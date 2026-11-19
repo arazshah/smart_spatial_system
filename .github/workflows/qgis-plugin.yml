@@ -1,7 +1,12 @@
 name: QGIS plugin
 
-# Builds (and validates) the QGIS plugin zip; for tags qgis-plugin-vX.Y.Z also attaches it to a
-# GitHub release. The headless-QGIS test job runs for plugin changes, manual runs and tags.
+# Builds (and validates) the QGIS plugin zip.
+#   - pull requests / manual runs: tests in headless QGIS + zip as a workflow artifact.
+#   - tag qgis-plugin-vX.Y.Z pushed by hand: also attaches the zip to a GitHub release.
+#   - manual run with publish=true (on main): creates the tag qgis-plugin-v<metadata version> from
+#     inside Actions and a GitHub release with the zip. Needed because tags cannot be pushed from
+#     Claude Code sessions (same reason as tag-release.yml). The QGIS tests are skipped for this
+#     run (installing QGIS with apt takes ~40 min on a runner; they ran on the PR).
 # Upload to plugins.qgis.org is manual, see docs/QGIS_PLUGIN.md.
 
 on:
@@ -9,6 +14,10 @@ on:
     inputs:
       release:
         description: "Build with --release (refuses placeholder metadata)"
+        type: boolean
+        default: false
+      publish:
+        description: "Create tag qgis-plugin-v<version> and a GitHub release (main only; implies release)"
         type: boolean
         default: false
   push:
@@ -25,6 +34,7 @@ permissions:
 jobs:
   headless-qgis-tests:
     name: Plugin tests in headless QGIS
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.publish) }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -44,6 +54,7 @@ jobs:
     name: Build plugin zip
     runs-on: ubuntu-latest
     needs: headless-qgis-tests
+    if: ${{ always() && (needs.headless-qgis-tests.result == 'success' || needs.headless-qgis-tests.result == 'skipped') }}
     permissions:
       contents: write   # attach the zip to a release on tags
     steps:
@@ -54,7 +65,7 @@ jobs:
       - name: Build
         run: |
           RELEASE=""
-          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.release }}" = "true" ]; then RELEASE="--release"; fi
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.release }}" = "true" ] || [ "${{ inputs.publish }}" = "true" ]; then RELEASE="--release"; fi
           python scripts/package_qgis_plugin.py $RELEASE --out dist
       - uses: actions/upload-artifact@v4
         with:
@@ -68,3 +79,42 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --notes "S3Geo QGIS plugin ${TAG#qgis-plugin-v}. See docs/QGIS_PLUGIN.md."
           gh release upload "$TAG" dist/*.zip --clobber
+
+  publish:
+    name: Tag and publish a GitHub release
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main' }}
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # push the tag, create the release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: s3geo-qgis-plugin
+          path: dist
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          META=qgis_plugin/s3geo_processing/metadata.txt
+          VERSION=$(grep -Po '(?<=^version=)\S+' "$META")
+          TAG="qgis-plugin-v${VERSION}"
+          ZIP="dist/s3geo_processing-${VERSION}.zip"
+          test -f "$ZIP" || { echo "::error::$ZIP not found (metadata version vs built zip)"; exit 1; }
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "::error::Tag $TAG already exists. Bump version in $META (versions are never reused)."
+            exit 1
+          fi
+          NOTES=$(grep -Po '(?<=^changelog=).*' "$META")
+          PRE=""
+          if grep -qi '^experimental=True' "$META"; then PRE="--prerelease"; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "S3Geo QGIS plugin ${VERSION}"
+          git push origin "$TAG"
+          gh release create "$TAG" "$ZIP" $PRE --title "S3Geo QGIS plugin ${VERSION}" \
+            --notes "${NOTES}. Install: QGIS > Plugins > Install from ZIP (see docs/QGIS_PLUGIN.md)."

@@ -33,12 +33,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends python3-qgis qgis-providers python3-venv
           /usr/bin/python3.12 -m venv --system-site-packages .qvenv
-          .qvenv/bin/pip install -e . pytest
+          .qvenv/bin/pip install -e ".[mcp]" pytest
           .qvenv/bin/pip install "numpy<2" "pandas<3" "geopandas<1.1"
       - name: Run the plugin tests
         env:
           QT_QPA_PLATFORM: offscreen
-        run: .qvenv/bin/python -m pytest -q tests/test_qgis_plugin_processing.py tests/test_qgis_plugin_package.py
+        run: .qvenv/bin/python -m pytest -q tests/test_qgis_plugin_processing.py tests/test_qgis_plugin_package.py tests/test_qgis_chat_agent.py tests/test_qgis_chat_in_qgis.py
 
   package:
     name: Build plugin zip

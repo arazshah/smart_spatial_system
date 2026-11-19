@@ -7,6 +7,7 @@ QGIS). Everything that touches ``qgis.core`` is imported lazily inside the funct
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -16,8 +17,8 @@ MIN_PACKAGE_VERSION = (0, 6, 2)
 INSTALL_HELP = (
     "The Python package 'smart_spatial_system' (>= 0.6.2) is not available to QGIS. Install it "
     "into the Python QGIS uses. Windows (OSGeo4W Shell): python -m pip install -U "
-    "smart_spatial_system. Linux: python3 -m venv --system-site-packages ~/s3env && "
-    "~/s3env/bin/pip install smart_spatial_system && ~/s3env/bin/pip install 'numpy<2' "
+    "\"smart_spatial_system[mcp]\". Linux: python3 -m venv --system-site-packages ~/s3env && "
+    "~/s3env/bin/pip install \"smart_spatial_system[mcp]\" && ~/s3env/bin/pip install 'numpy<2' "
     "'pandas<3' 'geopandas<1.1', then make QGIS see ~/s3env/lib/python3.X/site-packages "
     "(PYTHONPATH or python/startup.py). Full steps: https://github.com/arazshah/"
     "smart_spatial_system/blob/main/docs/QGIS_PLUGIN.md"
@@ -164,7 +165,7 @@ def geojson_to_layer(fc: dict[str, Any], name: str = "s3geo_result"):
     from qgis.core import QgsVectorLayer
 
     tmp = Path(tempfile.mkdtemp(prefix="s3geo_"))
-    path = tmp / f"{name}.geojson"
+    path = tmp / ((re.sub(r"[^\w.-]+", "_", name) or "result") + ".geojson")
     path.write_text(json.dumps(flatten_properties(fc), ensure_ascii=False), encoding="utf-8")
     layer = QgsVectorLayer(str(path), name, "ogr")
     if not layer.isValid():

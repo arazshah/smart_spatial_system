@@ -13,6 +13,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   capability, natural-language question). Metric analysis reprojects to UTM and returns EPSG:4326.
   Tested in a headless QGIS 3.34 (`tests/test_qgis_plugin_processing.py`); packaged by
   `scripts/package_qgis_plugin.py`; install and publishing steps in `docs/QGIS_PLUGIN.md`.
+- QGIS plugin 0.2.0: chat panel in QGIS driven by an LLM of the user's choice (any OpenAI-compatible
+  endpoint, configurable model/key/URL) that calls the s3geo MCP server; layers by reference,
+  geometries never sent to the model, results added as new layers.
 - `examples/qgis`: use the library directly from the QGIS Python Console.
 
 ## [0.6.2] - 2026-11-19

@@ -1,5 +1,42 @@
 # S3Geo QGIS plugin
 
+Two ways to use it, from the same plugin:
+
+1. **Chat panel** (*Plugins > S3Geo > S3Geo: open chat*): write what you want in plain language
+   (any language); a model you configure picks and runs the s3geo MCP tools on your project
+   layers and adds the results to the map.
+2. **Processing Toolbox algorithms** (group *S3Geo*): classic forms, no LLM needed.
+
+## Chat panel
+
+```
+you -> chat dock -> LLM (your model) -> tool calls -> MCP client -> smart-spatial-api mcp (stdio)
+                         ^                                   |
+                         +-- summaries only <-- QGIS layer tools (list / info / read / add result)
+```
+
+* **Choose your model** (*Model settings*): provider preset or *Custom*, API base URL, model name
+  (type it or press *Fetch models*), API key (typed, or read from an environment variable),
+  temperature, max steps. Any OpenAI-compatible `/chat/completions` endpoint with tool calling
+  works: OpenAI, AvalAI, OpenRouter, Anthropic's compatible endpoint, Ollama, LM Studio, vLLM.
+  The model must support tool/function calling.
+* **What the model sees:** your messages, layer names, field names/types, CRS, extent, feature
+  counts, up to 3 example rows per layer (switchable off) and numeric summaries of results.
+  **Geometries are never sent.** The first message asks you to acknowledge this.
+* **What it does:** layers are referenced by name; results become *new* layers (your layers are
+  never modified). With `metric=true` the tool inputs are reprojected to the UTM zone first, so
+  "within 500 m" is metres, and the result comes back in EPSG:4326.
+* **Limits:** at most *Max steps* tool rounds per question, a per-layer size limit
+  (*Max layer size*, default 50 MB of GeoJSON), 120 s per LLM/tool call. *Stop* cancels after the
+  current step.
+* The analysis engine (MCP server) is started on the first question and reused. Risky tools
+  (files, network, databases) stay hidden by the server's own policy.
+
+Tested: the tool loop, layer references, metric reprojection through MCP, the dock end to end in a
+headless QGIS 3.34 with a *scripted* model and the real MCP server. **Not tested:** behaviour with
+a real model (tool selection quality varies by model; use one with solid tool calling) and the
+look of the panel in a desktop QGIS.
+
 `qgis_plugin/s3geo_processing/` adds the Smart Spatial System tools to the QGIS **Processing
 Toolbox** (group *S3Geo*). It is a thin form layer: every algorithm calls a plugin capability
 through `s3geo.registry()`, the same code the API and the MCP server use (ADR-001).
@@ -28,7 +65,7 @@ the forms. Check which Python that is: QGIS > Plugins > Python Console:
 
 ```bash
 python3 -m venv --system-site-packages ~/s3env
-~/s3env/bin/pip install smart_spatial_system
+~/s3env/bin/pip install "smart_spatial_system[mcp]"
 ~/s3env/bin/pip install "numpy<2" "pandas<3" "geopandas<1.1"
 ```
 
@@ -52,8 +89,8 @@ into the Flatpak's Python.
 
 ### Windows / macOS
 
-Windows: OSGeo4W Shell, `python -m pip install -U smart_spatial_system`.
-macOS: `/Applications/QGIS.app/Contents/MacOS/bin/python3 -m pip install smart_spatial_system`.
+Windows: OSGeo4W Shell, `python -m pip install -U "smart_spatial_system[mcp]"`.
+macOS: `/Applications/QGIS.app/Contents/MacOS/bin/python3 -m pip install "smart_spatial_system[mcp]"`.
 
 ### The plugin
 
@@ -68,7 +105,7 @@ reports the package version and capability count.
 ```bash
 # Linux, QGIS from apt
 sudo apt install python3-qgis qgis-providers
-python3 -m venv --system-site-packages ~/s3env && ~/s3env/bin/pip install -e . pytest
+python3 -m venv --system-site-packages ~/s3env && ~/s3env/bin/pip install -e ".[mcp]" pytest
 ~/s3env/bin/pip install "numpy<2" "pandas<3" "geopandas<1.1"
 QT_QPA_PLATFORM=offscreen ~/s3env/bin/python -m pytest tests/test_qgis_plugin_processing.py
 python scripts/package_qgis_plugin.py          # dist/s3geo_processing-<version>.zip

@@ -1,19 +1,19 @@
 [general]
 name=S3Geo
 qgisMinimumVersion=3.28
-description=100 GeoAI analysis tools (nearest, buffers in metres, hotspots, clustering, ...) and natural-language queries in the Processing Toolbox
-about=S3Geo adds the Smart Spatial System analysis tools to the QGIS Processing Toolbox. Distances, areas and buffers are computed in metres (the data is reprojected to the matching UTM zone automatically and the result returns in EPSG:4326). A generic algorithm runs any of the 100 capabilities by name, and an optional algorithm answers natural-language questions through an LLM you configure. The plugin needs the Python package smart_spatial_system (pip install smart_spatial_system) in the Python that QGIS uses; see the plugin homepage for the install steps per operating system.
-version=0.1.0
+description=Chat with your layers: an AI model of your choice runs 100 GeoAI analysis tools (via MCP) and adds the results to the map; also Processing Toolbox algorithms
+about=S3Geo adds a chat panel to QGIS: you write what you want in plain language (any language), a model you configure (any OpenAI-compatible endpoint: OpenAI, AvalAI, OpenRouter, Ollama, LM Studio, ...) picks and runs the analysis tools of the s3geo MCP server on your layers, and the results appear as new layers. Layer geometries are never sent to the model. It also adds the Smart Spatial System analysis tools to the QGIS Processing Toolbox. Distances, areas and buffers are computed in metres (the data is reprojected to the matching UTM zone automatically and the result returns in EPSG:4326). A generic algorithm runs any of the 100 capabilities by name, and an optional algorithm answers natural-language questions through an LLM you configure. The plugin needs the Python package smart_spatial_system with the mcp extra (pip install "smart_spatial_system[mcp]") in the Python that QGIS uses; see the plugin homepage for the install steps per operating system.
+version=0.2.0
 author=Araz Shah
 email=CHANGE_ME@example.com
 homepage=https://s3geo.com
 tracker=https://github.com/arazshah/smart_spatial_system/issues
 repository=https://github.com/arazshah/smart_spatial_system
-tags=processing, geoai, analysis, nearest, buffer, hotspot, clustering, natural language
+tags=chat, mcp, ai, processing, geoai, analysis, nearest, buffer, hotspot, clustering, natural language
 category=Analysis
 icon=icon.svg
 experimental=True
 deprecated=False
 hasProcessingProvider=yes
 supportsQt6=False
-changelog=0.1.0 - first release: 6 analysis algorithms, run-any-capability, natural-language query (experimental)
+changelog=0.2.0 - chat panel (any OpenAI-compatible model, user-configurable) driving the s3geo MCP server; 0.1.0 - Processing algorithms

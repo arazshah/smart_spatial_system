@@ -32,26 +32,6 @@ from qgis.core import (  # noqa: E402
 )
 
 
-@pytest.fixture(scope="module")
-def qgis_app():
-    app = QgsApplication([], False)
-    app.initQgis()
-    import processing  # noqa: F401
-    from processing.core.Processing import Processing
-
-    Processing.initialize()
-    from s3geo_processing.provider import S3GeoProvider
-
-    provider = S3GeoProvider()
-    QgsApplication.processingRegistry().addProvider(provider)
-    yield app
-    try:
-        QgsApplication.processingRegistry().removeProvider(provider)
-    except RuntimeError:  # already removed (and deleted) by test_plugin_object_loads_and_unloads
-        pass
-    app.exitQgis()
-
-
 def _points(name, rows, crs="EPSG:4326"):
     layer = QgsVectorLayer(f"Point?crs={crs}&field=name:string&field=value:double", name, "memory")
     feats = []
@@ -188,7 +168,12 @@ def test_plugin_object_loads_and_unloads(qgis_app):
     plugin = s3geo_processing.classFactory(iface)
     plugin.initGui()
     assert registry.providerById("s3geo") is not None
-    iface.addPluginToMenu.assert_called_once()
+    assert iface.addPluginToMenu.call_count == 2  # check-installation + open-chat
     iface.messageBar().pushMessage.assert_not_called()  # s3geo is installed here
+    plugin.open_chat()  # what the 'S3Geo: open chat' menu entry does
+    assert plugin.dock is not None and plugin.dock.windowTitle() == "S3Geo chat"
+    iface.addDockWidget.assert_called_once()
     plugin.unload()
+    iface.removeDockWidget.assert_called_once()
+    assert plugin.dock is None
     assert registry.providerById("s3geo") is None

@@ -1,5 +1,8 @@
 # Using s3geo inside QGIS
 
+> A packaged QGIS plugin with Processing Toolbox forms now exists: see
+> [docs/QGIS_PLUGIN.md](../../docs/QGIS_PLUGIN.md). This folder is the script-only route.
+
 Route 1: the Python library is called directly from QGIS' Python Console, on layers you already
 have open. No server, no MCP, no API key for the deterministic path (`run`).
 

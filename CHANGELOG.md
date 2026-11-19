@@ -6,6 +6,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- QGIS plugin `qgis_plugin/s3geo_processing` (S3Geo): a Processing provider with 8 algorithms
+  (nearest feature, buffer, area/perimeter, points in polygons, hotspots, DBSCAN clusters, run any
+  capability, natural-language question). Metric analysis reprojects to UTM and returns EPSG:4326.
+  Tested in a headless QGIS 3.34 (`tests/test_qgis_plugin_processing.py`); packaged by
+  `scripts/package_qgis_plugin.py`; install and publishing steps in `docs/QGIS_PLUGIN.md`.
+- `examples/qgis`: use the library directly from the QGIS Python Console.
+
 ## [0.6.2] - 2026-11-19
 
 Hardening found while testing the MCP server end to end with a real client.

@@ -118,8 +118,12 @@ CI; `tests/test_qgis_plugin_processing.py` needs PyQGIS and is skipped without i
 
 **1. In this repository (GitHub).** Merge the PR. For a plugin release, bump `version` and
 `changelog` in `qgis_plugin/s3geo_processing/metadata.txt`, replace the placeholder `email`, then
-run the workflow *QGIS plugin* (Actions tab > Run workflow, `release: true`) or push a tag
-`qgis-plugin-vX.Y.Z`: it validates, builds the zip, and for tags attaches it to a GitHub release.
+run the workflow *QGIS plugin* on `main` (Actions tab > Run workflow) with:
+`release: true` (validate + build the zip as a workflow artifact) or `publish: true` (also creates
+the tag `qgis-plugin-v<version>` and a GitHub release with the zip, from inside Actions; tags cannot
+be pushed from Claude Code sessions, and a release is created as a pre-release while the plugin is
+`experimental=True`). Pushing a tag `qgis-plugin-vX.Y.Z` by hand also attaches the zip to a release.
+Versions are never reused: bump `version` in `metadata.txt` first.
 The plugin version is independent of the Python package version; the plugin requires the package
 `>= 0.6.2` (`MIN_PACKAGE_VERSION` in `core.py`).
 

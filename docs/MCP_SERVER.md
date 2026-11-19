@@ -1,6 +1,6 @@
 # MCP server
 
-Exposes the capability registry (`CapabilityRegistry`, ~50 capabilities) as
+Exposes the capability registry (`CapabilityRegistry`, 100 capabilities: 80 tools + 2 artifact tools exposed by default, the rest hidden by policy) as
 [MCP](https://modelcontextprotocol.io) tools. It adds no analysis logic
 (ADR-001): a new plugin becomes a tool by being registered; the tool schema is
 derived from the capability's declared inputs and Python signature.
@@ -77,6 +77,13 @@ OAuth-aware gateway in front or supply a `TokenVerifier`.
   working directory); use `calculate_ndvi`.
 - Input names differ per capability (`features`, `vector`, `source_features`...); schemas show
   the real names.
+
+## CRS note for clients
+
+Tools take GeoJSON as given and do not reproject. `units="meters"` on `buffer_vector_features`
+is a label only. For metric results on lon/lat data, call `transform_vector_crs` first
+(e.g. `EPSG:4326` -> `EPSG:32639` for Tehran), then buffer / measure / find nearest.
+A buffer that is applied in degrees now returns `metadata.warnings`.
 
 ## Known gaps
 
